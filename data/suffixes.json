@@ -1,0 +1,74 @@
+{
+  "suffixes": [
+    {
+      "id": "of_power",
+      "name": "of Power",
+      "applies_to": ["weapon"],
+      "modifier": "physical_damage",
+      "damage_type": "physical"
+    },
+    {
+      "id": "of_precision",
+      "name": "of Precision",
+      "applies_to": ["weapon"],
+      "modifier": "critical_chance",
+      "damage_type": null
+    },
+    {
+      "id": "of_flames",
+      "name": "of Flames",
+      "applies_to": ["weapon"],
+      "modifier": "fire_damage",
+      "damage_type": "fire"
+    },
+    {
+      "id": "of_the_void",
+      "name": "of the Void",
+      "applies_to": ["weapon"],
+      "modifier": "chaos_damage",
+      "damage_type": "chaos"
+    },
+    {
+      "id": "of_haste",
+      "name": "of Haste",
+      "applies_to": ["weapon", "armor"],
+      "modifier": "attack_speed",
+      "damage_type": null
+    },
+    {
+      "id": "of_the_bear",
+      "name": "of the Bear",
+      "applies_to": ["armor"],
+      "modifier": "life",
+      "damage_type": null
+    },
+    {
+      "id": "of_warding",
+      "name": "of Warding",
+      "applies_to": ["armor"],
+      "modifier": "resist_fire",
+      "damage_type": null
+    },
+    {
+      "id": "of_the_glacier",
+      "name": "of the Glacier",
+      "applies_to": ["armor"],
+      "modifier": "resist_cold",
+      "damage_type": null
+    },
+    {
+      "id": "of_storms",
+      "name": "of Storms",
+      "applies_to": ["armor"],
+      "modifier": "resist_lightning",
+      "damage_type": null
+    },
+    {
+      "id": "of_the_swift",
+      "name": "of the Swift",
+      "applies_to": ["weapon", "armor"],
+      "modifier": "movement_speed",
+      "damage_type": null
+    }
+  ]
+}

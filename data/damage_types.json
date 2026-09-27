@@ -1,0 +1,11 @@
+{
+  "damage_types": [
+    "physical",
+    "fire",
+    "cold",
+    "lightning",
+    "chaos",
+    "poison",
+    "bleed"
+  ]
+}

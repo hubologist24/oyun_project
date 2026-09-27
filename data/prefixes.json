@@ -1,0 +1,67 @@
+{
+  "prefixes": [
+    {
+      "id": "cruel",
+      "name": "Cruel",
+      "applies_to": ["weapon"],
+      "modifier": "physical_damage",
+      "damage_type": "physical"
+    },
+    {
+      "id": "savage",
+      "name": "Savage",
+      "applies_to": ["weapon"],
+      "modifier": "physical_damage",
+      "damage_type": "physical"
+    },
+    {
+      "id": "burning",
+      "name": "Burning",
+      "applies_to": ["weapon"],
+      "modifier": "fire_damage",
+      "damage_type": "fire"
+    },
+    {
+      "id": "arcane",
+      "name": "Arcane",
+      "applies_to": ["weapon"],
+      "modifier": "chaos_damage",
+      "damage_type": "chaos"
+    },
+    {
+      "id": "storm",
+      "name": "Storm",
+      "applies_to": ["weapon"],
+      "modifier": "lightning_damage",
+      "damage_type": "lightning"
+    },
+    {
+      "id": "glacial",
+      "name": "Glacial",
+      "applies_to": ["weapon"],
+      "modifier": "cold_damage",
+      "damage_type": "cold"
+    },
+    {
+      "id": "sturdy",
+      "name": "Sturdy",
+      "applies_to": ["armor"],
+      "modifier": "armor",
+      "damage_type": null
+    },
+    {
+      "id": "reinforced",
+      "name": "Reinforced",
+      "applies_to": ["armor"],
+      "modifier": "armor",
+      "damage_type": null
+    },
+    {
+      "id": "vital",
+      "name": "Vital",
+      "applies_to": ["weapon", "armor"],
+      "modifier": "life",
+      "damage_type": null
+    }
+  ]
+}

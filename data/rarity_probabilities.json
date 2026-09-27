@@ -1,0 +1,6 @@
+{
+  "comment": "Base rarity roll weights. Rarity determines min affix guarantees; actual affix COUNT within rare is governed by affix_count_probabilities.json",
+  "normal": 55,
+  "magic": 33,
+  "rare": 12
+}

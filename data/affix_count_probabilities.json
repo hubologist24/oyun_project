@@ -1,0 +1,57 @@
+{
+  "comment": "Probability tables for prefix/suffix counts, keyed by item level brackets. Data-driven per spec: 'do not hardcode these percentages throughout the item generator'.",
+  "brackets": [
+    {
+      "min_item_level": 1,
+      "max_item_level": 9,
+      "distribution": [
+        {"prefixes": 1, "suffixes": 1, "weight": 700},
+        {"prefixes": 2, "suffixes": 1, "weight": 180},
+        {"prefixes": 1, "suffixes": 2, "weight": 90},
+        {"prefixes": 2, "suffixes": 2, "weight": 25},
+        {"prefixes": 3, "suffixes": 2, "weight": 4},
+        {"prefixes": 2, "suffixes": 3, "weight": 0.8},
+        {"prefixes": 3, "suffixes": 3, "weight": 0.2}
+      ]
+    },
+    {
+      "min_item_level": 10,
+      "max_item_level": 24,
+      "distribution": [
+        {"prefixes": 1, "suffixes": 1, "weight": 500},
+        {"prefixes": 2, "suffixes": 1, "weight": 250},
+        {"prefixes": 1, "suffixes": 2, "weight": 150},
+        {"prefixes": 2, "suffixes": 2, "weight": 80},
+        {"prefixes": 3, "suffixes": 2, "weight": 14},
+        {"prefixes": 2, "suffixes": 3, "weight": 5},
+        {"prefixes": 3, "suffixes": 3, "weight": 1}
+      ]
+    },
+    {
+      "min_item_level": 25,
+      "max_item_level": 49,
+      "distribution": [
+        {"prefixes": 1, "suffixes": 1, "weight": 350},
+        {"prefixes": 2, "suffixes": 1, "weight": 260},
+        {"prefixes": 1, "suffixes": 2, "weight": 200},
+        {"prefixes": 2, "suffixes": 2, "weight": 150},
+        {"prefixes": 3, "suffixes": 2, "weight": 30},
+        {"prefixes": 2, "suffixes": 3, "weight": 25},
+        {"prefixes": 3, "suffixes": 3, "weight": 5}
+      ]
+    },
+    {
+      "min_item_level": 50,
+      "max_item_level": 999,
+      "distribution": [
+        {"prefixes": 1, "suffixes": 1, "weight": 250},
+        {"prefixes": 2, "suffixes": 1, "weight": 240},
+        {"prefixes": 1, "suffixes": 2, "weight": 220},
+        {"prefixes": 2, "suffixes": 2, "weight": 200},
+        {"prefixes": 3, "suffixes": 2, "weight": 55},
+        {"prefixes": 2, "suffixes": 3, "weight": 50},
+        {"prefixes": 3, "suffixes": 3, "weight": 15}
+      ]
+    }
+  ]
+}

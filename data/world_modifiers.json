@@ -1,0 +1,45 @@
+{
+  "templates": [
+    {
+      "id": "chaos_ascendancy",
+      "name": "Chaos Ascendancy",
+      "description": "The air hums with unstable energy. Minions are far more vulnerable to Chaos damage.",
+      "rules": [
+        {"type": "damage_taken_multiplier", "target": "minion", "damage_type": "chaos", "multiplier": 2.0}
+      ]
+    },
+    {
+      "id": "storm_conductive",
+      "name": "Conductive Water",
+      "description": "Standing water conducts lightning violently through anything nearby.",
+      "rules": [
+        {"type": "damage_dealt_multiplier", "target": "all", "damage_type": "lightning", "multiplier": 1.35}
+      ]
+    },
+    {
+      "id": "ashen_frailty",
+      "name": "Ashen Frailty",
+      "description": "The scorched ground weakens physical resilience.",
+      "rules": [
+        {"type": "resistance_modifier", "target": "minion", "damage_type": "physical", "delta": -0.15},
+        {"type": "tier_override", "modifier": "fire_damage", "tiers": {"T1": [90, 115]}}
+      ]
+    },
+    {
+      "id": "corrupted_flesh",
+      "name": "Corrupted Flesh",
+      "description": "Corrupted enemies bleed Chaos energy when struck by physical force.",
+      "rules": [
+        {"type": "conversion", "from_type": "physical", "to_type": "chaos", "percent": 0.35, "scope": "player"}
+      ]
+    },
+    {
+      "id": "brittle_bones",
+      "name": "Brittle Age",
+      "description": "This region's itemization favors precision over raw force.",
+      "rules": [
+        {"type": "tier_override", "modifier": "physical_damage", "tiers": {"T1": [25, 35], "T2": [15, 24]}}
+      ]
+    }
+  ]
+}
