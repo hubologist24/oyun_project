@@ -18,12 +18,13 @@ class WorldEvolutionBanner:
         self.font_body = pygame.font.SysFont("consolas", 20)
         self.font_small = pygame.font.SysFont("consolas", 16)
 
-    def show(self, extension_name, area_level, is_anomaly, rule_names):
+    def show(self, extension_name, area_level, is_anomaly, rule_names, gate_area_name=None):
         self.visible = True
         self.extension_name = extension_name
         self.area_level = area_level
         self.is_anomaly = is_anomaly
         self.rule_names = rule_names
+        self.gate_area_name = gate_area_name
 
     def dismiss(self):
         self.visible = False
@@ -61,6 +62,12 @@ class WorldEvolutionBanner:
         lvl_text = self.font_body.render(f"Area Level: {self.area_level}", True, (220, 220, 220))
         surface.blit(lvl_text, (cx - lvl_text.get_width() // 2, y))
         y += 40
+
+        if self.gate_area_name:
+            gate_text = self.font_small.render(
+                f"A gate has opened in {self.gate_area_name}", True, (140, 220, 255))
+            surface.blit(gate_text, (cx - gate_text.get_width() // 2, y))
+            y += 26
 
         if self.rule_names:
             rule_header = self.font_body.render("New World Rules:", True, (180, 255, 180))

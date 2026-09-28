@@ -46,11 +46,11 @@ LEVEL_SPEC = {
         "arena_b": (32, 2, 44, 12),
         "arena_c": (2, 16, 14, 28),
         "boss_room": (30, 16, 44, 30),
+        "gate_room": (16, 16, 26, 24),   # NEW: dedicated small room for the starting gate
     },
     "enemy_counts": {"arena_a": 4, "arena_b": 5, "arena_c": 5},
     "loot_spots": 6,
 }
-
 
 class Level:
     """The curated starting area (Extension 0)."""
@@ -71,6 +71,7 @@ class Level:
         bx0, by0, bx1, by1 = rooms["arena_b"]
         cx0, cy0, cx1, cy1 = rooms["arena_c"]
         bossx0, bossy0, bossx1, bossy1 = rooms["boss_room"]
+        gx0, gy0, gx1, gy1 = rooms["gate_room"]
 
         mid_y = (sy0 + sy1) // 2
         _carve_corridor_h(grid, sx1 - 1, ax0 + 1, mid_y)
@@ -82,6 +83,10 @@ class Level:
         bx_mid = (bx0 + bx1) // 2
         _carve_corridor_v(grid, by1 - 1, bossy0 + 1, bx_mid)
 
+        # Connect gate_room off the corridor between arena_c and boss_room
+        gy_mid = (gy0 + gy1) // 2
+        _carve_corridor_h(grid, cx1 - 1, gx0 + 1, gy_mid)
+
         self.tilemap = TileMap(grid)
         self.enemies = []
         self.loot_drops = []
@@ -89,6 +94,7 @@ class Level:
         self._spawn_enemies()
         self.boss = Boss(*self._room_center(rooms["boss_room"]), BossTemplate.hollow_warden())
         self.start_pos = self._room_center(rooms["start"])
+        self.gate_room = rooms["gate_room"]
 
     def _room_center(self, room):
         x0, y0, x1, y1 = room
@@ -113,13 +119,27 @@ class Level:
                                      world_context={"world_rules": world_rules} if world_rules else None)
         self.loot_drops.append({"x": x, "y": y, "item": item})
 
-    def draw(self, surface, camera):
+    def draw(self, surface, camera, gates=None):
         self.tilemap.draw(surface, camera)
         for drop in self.loot_drops:
             pos = camera.world_to_screen((drop["x"], drop["y"]))
             pygame.draw.circle(surface, drop["item"].rarity_color(), pos, 8)
             pygame.draw.circle(surface, (0, 0, 0), pos, 8, 1)
+        self._draw_gates(surface, camera, gates)
 
+    def _draw_gates(self, surface, camera, gates):
+        if not gates:
+            return
+        ts = config.TILE_SIZE
+        for gate in gates:
+            wx, wy = gate.tile_col * ts + ts / 2, gate.tile_row * ts + ts / 2
+            pos = camera.world_to_screen((wx, wy))
+            color = (90, 230, 255) if gate.is_open() else (90, 90, 100)
+            pygame.draw.circle(surface, color, pos, 16)
+            pygame.draw.circle(surface, (255, 255, 255), pos, 16, 2)
+            if not gate.is_open():
+                # simple "locked" glyph
+                pygame.draw.line(surface, (200, 200, 210), (pos[0]-6, pos[1]), (pos[0]+6, pos[1]), 3)
 
 class AreaInstance:
     """
@@ -194,13 +214,26 @@ class AreaInstance:
         )
         self.loot_drops.append({"x": x, "y": y, "item": item})
 
-    def draw(self, surface, camera):
+    def draw(self, surface, camera, gates=None):
         self.tilemap.draw(surface, camera)
         for drop in self.loot_drops:
             pos = camera.world_to_screen((drop["x"], drop["y"]))
             pygame.draw.circle(surface, drop["item"].rarity_color(), pos, 8)
             pygame.draw.circle(surface, (0, 0, 0), pos, 8, 1)
+        self._draw_gates(surface, camera, gates)
 
+    def _draw_gates(self, surface, camera, gates):
+        if not gates:
+            return
+        ts = config.TILE_SIZE
+        for gate in gates:
+            wx, wy = gate.tile_col * ts + ts / 2, gate.tile_row * ts + ts / 2
+            pos = camera.world_to_screen((wx, wy))
+            color = (90, 230, 255) if gate.is_open() else (90, 90, 100)
+            pygame.draw.circle(surface, color, pos, 16)
+            pygame.draw.circle(surface, (255, 255, 255), pos, 16, 2)
+            if not gate.is_open():
+                pygame.draw.line(surface, (200, 200, 210), (pos[0]-6, pos[1]), (pos[0]+6, pos[1]), 3)
 
 def build_level(rng_service) -> Level:
     stream = rng_service.get_stream("starting_area")

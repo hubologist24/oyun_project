@@ -1,5 +1,5 @@
 """
-Main game loop and state orchestration - Phase 5.
+Main game loop and state orchestration - Phase 8.
 
 Adds:
 - WorldExtensionGenerator (Procedural backend + WorldValidator + fallback)
@@ -8,6 +8,10 @@ Adds:
   (bypasses playtime gate but still goes through the same
   generator+validator pipeline -- 'debug' just means 'ignore the timer',
   never 'skip validation')
+- Gate system: every area has >=1 closed gate; world evolution opens
+  one existing closed gate and links it to the new extension.
+- Gateway Portal fast-travel menu (TAB) listing all open-gate destinations.
+- Mouse controls: left-click walk, right-click attack toward cursor.
 """
 import sys
 import random
@@ -27,6 +31,7 @@ from save.save_manager import SaveManager
 from ui.hud import HUD, InventoryUI
 from ui.world_evolution import WorldEvolutionBanner
 from ui.profile_screen import ProfileScreen
+from ui.gateway_menu import GatewayMenu
 from history.event_log import EventLog
 from history.exploration import ExplorationTracker
 from history.aggregator import build_player_profile
@@ -34,17 +39,15 @@ from history.aggregator import build_player_profile
 
 class Game:
     def __init__(self):
-
-        
         pygame.init()
-        pygame.display.set_caption("AI-Evolving ARPG - Phase 5 Prototype (Procedural World Generator)")
+        pygame.display.set_caption("AI-Evolving ARPG - Phase 8 Prototype (Gates & Gateway Portal)")
         self.screen = pygame.display.set_mode((config.SCREEN_WIDTH, config.SCREEN_HEIGHT))
         self.clock = pygame.time.Clock()
         self.running = True
 
         self.event_bus = EventBus()
         self.save_manager = SaveManager()
-      
+
         self.event_log = EventLog(self.event_bus)
         self.exploration = ExplorationTracker()
         self.extension_generator = self._build_extension_generator()
@@ -58,13 +61,17 @@ class Game:
         self.current_area_id = "starting_area"
         self.exploration.register_area(self.current_area_id, self.current_area.tilemap)
 
+        self._ensure_starting_gate_registered()
+
         self.player = Player(*self.starting_area.start_pos, self.event_bus)
+        self.player.stash = self.save_manager.load_stash()
         self.camera = Camera(*self.starting_area.tilemap.pixel_size())
 
         self.hud = HUD()
         self.inventory_ui = InventoryUI()
         self.evolution_banner = WorldEvolutionBanner()
         self.profile_screen = ProfileScreen()
+        self.gateway_menu = GatewayMenu()
 
         self.message = ""
         self._message_timer = 0.0
@@ -72,43 +79,53 @@ class Game:
         self._boss_attempt_active = False
         self._boss_attempt_boss_id = None
 
-       
-
         self._register_events()
 
     def _build_extension_generator(self):
-            """
-            Builds the WorldExtensionGenerator with whichever backend is
-            selected in core/config.py. Defaults to pure procedural (zero
-            external dependency), per the project's core requirement that
-            the game must work without an external AI API.
-            """
-            from world.extension_generator import WorldExtensionGenerator
-            from ai.procedural_generator import ProceduralWorldGenerator
+        """
+        Builds the WorldExtensionGenerator with whichever backend is
+        selected in core/config.py. Defaults to pure procedural (zero
+        external dependency), per the project's core requirement that
+        the game must work without an external AI API.
+        """
+        from world.extension_generator import WorldExtensionGenerator
+        from ai.procedural_generator import ProceduralWorldGenerator
 
-            mode = config.AI_BACKEND_MODE
-            procedural = ProceduralWorldGenerator()
+        mode = config.AI_BACKEND_MODE
+        procedural = ProceduralWorldGenerator()
 
-            if mode == "mock_ai":
-                from ai.mock_generator import MockAIWorldGenerator
-                backend = MockAIWorldGenerator(failure_rate=config.MOCK_AI_FAILURE_RATE)
-                print("[Game] Using MockAIWorldGenerator (offline LLM simulation) as primary backend.")
-                return WorldExtensionGenerator(backend=backend, fallback_backend=procedural)
+        if mode == "mock_ai":
+            from ai.mock_generator import MockAIWorldGenerator
+            backend = MockAIWorldGenerator(failure_rate=config.MOCK_AI_FAILURE_RATE)
+            print("[Game] Using MockAIWorldGenerator (offline LLM simulation) as primary backend.")
+            return WorldExtensionGenerator(backend=backend, fallback_backend=procedural)
 
-            if mode == "llm":
-                from ai.llm_generator import LLMWorldGenerator
-                backend = LLMWorldGenerator(provider=config.LLM_PROVIDER)
-                if backend.is_available():
-                    print(f"[Game] Using LLMWorldGenerator (provider='{config.LLM_PROVIDER}', "
-                        f"model='{backend.model}') as primary backend.")
-                else:
-                    print(f"[Game] LLMWorldGenerator requested (provider='{config.LLM_PROVIDER}') "
-                        f"but not available (missing key or package). Will fall back to procedural.")
-                return WorldExtensionGenerator(backend=backend, fallback_backend=procedural)
+        if mode == "llm":
+            from ai.llm_generator import LLMWorldGenerator
+            backend = LLMWorldGenerator(provider=config.LLM_PROVIDER)
+            if backend.is_available():
+                print(f"[Game] Using LLMWorldGenerator (provider='{config.LLM_PROVIDER}', "
+                      f"model='{backend.model}') as primary backend.")
+            else:
+                print(f"[Game] LLMWorldGenerator requested (provider='{config.LLM_PROVIDER}') "
+                      f"but not available (missing key or package). Will fall back to procedural.")
+            return WorldExtensionGenerator(backend=backend, fallback_backend=procedural)
 
-            print("[Game] Using ProceduralWorldGenerator only.")
-            return WorldExtensionGenerator(backend=procedural, fallback_backend=procedural)
+        print("[Game] Using ProceduralWorldGenerator only.")
+        return WorldExtensionGenerator(backend=procedural, fallback_backend=procedural)
 
+    def _ensure_starting_gate_registered(self):
+        """
+        Idempotent: registers the starting area's single reserved
+        closed gate exactly once. Safe to call both on fresh-world
+        __init__ AND after a load, in case the loaded save predates
+        the gate system or otherwise ended up with zero gates.
+        """
+        if self.world.gates_in_area("starting_area"):
+            return
+        gx0, gy0, gx1, gy1 = self.starting_area.gate_room
+        tile_col, tile_row = (gx0 + gx1) // 2, (gy0 + gy1) // 2
+        self.world.register_starting_gate(room_index=0, tile_col=tile_col, tile_row=tile_row)
 
     def _register_events(self):
         self.event_bus.subscribe("player_death", self._on_player_death)
@@ -140,10 +157,50 @@ class Game:
                 self.running = False
             elif event.type == pygame.KEYDOWN:
                 self._handle_keydown(event.key)
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                self._handle_mouse_down(event.button, event.pos)
+            elif event.type == pygame.MOUSEMOTION:
+                self._handle_mouse_motion(event.pos)
+
+    def _handle_mouse_down(self, button, pos):
+        if self.inventory_ui.visible:
+            self.inventory_ui.handle_mouse_down(button, pos, self.player)
+            return
+
+        if self.evolution_banner.visible or self.profile_screen.visible or self.gateway_menu.visible:
+            return
+
+        if not self.player.alive:
+            return
+
+        world_pos = self.camera.screen_to_world(pos)
+
+        if button == 1:  # left click = walk
+            self.player.set_move_target(*world_pos)
+        elif button == 3:  # right click = attack toward cursor
+            self.player.face_toward(*world_pos)
+            self._try_attack()
+
+    def _handle_mouse_motion(self, pos):
+        if self.inventory_ui.visible:
+            self.inventory_ui.handle_mouse_motion(pos, self.player)
 
     def _handle_keydown(self, key):
         mods = pygame.key.get_mods()
         shift_held = mods & pygame.KMOD_SHIFT
+
+        if self.gateway_menu.visible:
+            if key == pygame.K_UP:
+                self.gateway_menu.move_selection(-1)
+            elif key == pygame.K_DOWN:
+                self.gateway_menu.move_selection(1)
+            elif key in (pygame.K_RETURN, pygame.K_SPACE):
+                target = self.gateway_menu.confirm_selection()
+                if target:
+                    self._handle_gateway_menu_select(target)
+            elif key == pygame.K_ESCAPE:
+                self.gateway_menu.hide()
+            return
 
         if self.profile_screen.visible:
             if key in (pygame.K_F6, pygame.K_ESCAPE):
@@ -155,21 +212,54 @@ class Game:
                 self.evolution_banner.dismiss()
             return
 
+        # --- Inventory/stash panel intercepts navigation keys while open ---
+        if self.inventory_ui.visible:
+            if key == pygame.K_i:
+                self.inventory_ui.toggle()
+                return
+            if key == pygame.K_b:
+                self.inventory_ui.toggle_stash()
+                return
+            if key == pygame.K_ESCAPE:
+                self.inventory_ui.toggle()
+                return
+            if key == pygame.K_TAB:
+                self.inventory_ui.cycle_focus()
+                return
+            if key == pygame.K_UP:
+                self.inventory_ui.move_cursor(0, -1, self.player)
+                return
+            if key == pygame.K_DOWN:
+                self.inventory_ui.move_cursor(0, 1, self.player)
+                return
+            if key == pygame.K_LEFT:
+                self.inventory_ui.move_cursor(-1, 0, self.player)
+                return
+            if key == pygame.K_RIGHT:
+                self.inventory_ui.move_cursor(1, 0, self.player)
+                return
+            if key == pygame.K_e:
+                msg = self.inventory_ui.do_primary_action(self.player)
+                if msg:
+                    self._show_message(msg)
+                return
+            if key == pygame.K_r:
+                msg = self.inventory_ui.do_stash_action(self.player)
+                if msg:
+                    self._show_message(msg)
+                return
+            return
+
         if key == pygame.K_ESCAPE:
             self.running = False
         elif key == pygame.K_SPACE:
             self._try_attack()
         elif key == pygame.K_i:
             self.inventory_ui.toggle()
-        elif key == pygame.K_e:
-            self._equip_action()
-        elif key == pygame.K_UP and self.inventory_ui.visible:
-            self.inventory_ui.selected_index = max(0, self.inventory_ui.selected_index - 1)
-        elif key == pygame.K_DOWN and self.inventory_ui.visible:
-            max_idx = max(0, len(self.player.inventory.items) - 1)
-            self.inventory_ui.selected_index = min(max_idx, self.inventory_ui.selected_index + 1)
+        elif key == pygame.K_b:
+            self.inventory_ui.toggle_stash()
         elif key == pygame.K_TAB:
-            self._travel_toggle()
+            self._open_gateway_menu()
         elif key == pygame.K_F9:
             self._save_game()
         elif key == pygame.K_F10:
@@ -205,10 +295,13 @@ class Game:
     # ---------------- world / extensions -----------------
     def _generate_next_extension(self, mode=config.EXTENSION_MODE_MANUAL):
         """
-        mode: 'manual' (player-triggered, still respects nothing extra),
-              'automatic' (triggered by playtime threshold),
-              'debug' (forced, bypasses the playtime gate, but NOT
-              validation -- debug never means unsafe).
+        mode: 'manual' (player-triggered), 'automatic' (playtime
+        threshold), 'debug' (forced, bypasses the playtime gate, but
+        NOT validation -- debug never means unsafe).
+
+        World Evolution: generates+validates a new extension, then
+        opens an existing closed gate somewhere in the already-explored
+        world and links it to the new extension.
         """
         existing_ids = {ext.extension_id for ext in self.world.extensions}
         rng = self.world.rng_service.get_stream("extension_selection")
@@ -217,47 +310,105 @@ class Game:
         spec = self.extension_generator.generate(profile, existing_ids, rng)
 
         extension = self.world.add_extension(spec)
-        extension.ensure_built(self.world.rng_service)
+        extension.ensure_built(self.world.rng_service, world=self.world)
+
+        gate_rng = self.world.rng_service.get_stream("gate_selection")
+        opened_gate = self.world.open_next_gate_to(spec.extension_id, gate_rng)
 
         self.evolution_banner.show(
             extension_name=spec.extension_name,
             area_level=spec.area_level,
             is_anomaly=spec.is_anomaly,
             rule_names=[m["name"] for m in spec.world_modifiers],
+            gate_area_name=self._area_display_name(opened_gate.owner_area_id) if opened_gate else None,
         )
         self.event_bus.emit("extension_generated", extension_id=spec.extension_id,
                             mode=mode, area_level=spec.area_level)
-        self._show_message(f"New region discovered: {spec.extension_name}", duration=3.0)
+        self._show_message(f"A gate has opened: {spec.extension_name}", duration=3.0)
+
+    def _area_display_name(self, area_id: str) -> str:
+        if area_id == "starting_area":
+            return "the Starting Region"
+        ext = self.world.get_extension(area_id)
+        return ext.spec.extension_name if ext else area_id
 
     def _check_automatic_extension(self):
         if self.world.automatic_generation_due():
             self._generate_next_extension(mode=config.EXTENSION_MODE_AUTOMATIC)
 
-    def _travel_toggle(self):
-        if self.current_extension_id is None:
-            if not self.world.extensions:
-                self._show_message("No extensions generated yet. Press F11 to generate one.")
+    # ---------------- gates / travel -----------------
+    def _check_gate_interactions(self):
+        """
+        Walking onto an OPEN gate's tile teleports the player to that
+        gate's target extension's start position. Standing on a CLOSED
+        gate does nothing (visually distinct -- drawn dim/locked).
+        """
+        gates_here = self.world.gates_in_area(self.current_area_id)
+        if not gates_here:
+            return
+        ts = config.TILE_SIZE
+        player_col, player_row = int(self.player.x // ts), int(self.player.y // ts)
+
+        for gate in gates_here:
+            if gate.tile_col == player_col and gate.tile_row == player_row and gate.is_open():
+                self._travel_via_gate(gate)
                 return
-            target_ext = self.world.extensions[-1]
-            target_ext.ensure_built(self.world.rng_service)
-            area_data = target_ext.area
-            stream = self.world.rng_service.derive_child("world", f"extension:{target_ext.extension_id}:runtime")
-            self.current_area = AreaInstance(area_data, stream, target_ext)
-            self.current_extension_id = target_ext.extension_id
-            self.current_area_id = target_ext.extension_id
-            self.exploration.register_area(self.current_area_id, self.current_area.tilemap)
-            self.player.x, self.player.y = self.current_area.start_pos
-            self.camera = Camera(*self.current_area.tilemap.pixel_size())
-            self.event_bus.emit("area_entered", area_id=self.current_area_id)
-            self._show_message(f"Traveled to {target_ext.spec.extension_name}")
+
+    def _travel_via_gate(self, gate):
+        target_id = gate.target_extension_id
+        if target_id == "starting_area":
+            self._enter_starting_area()
         else:
-            self.current_area = self.starting_area
-            self.current_extension_id = None
-            self.current_area_id = "starting_area"
-            self.player.x, self.player.y = self.starting_area.start_pos
-            self.camera = Camera(*self.starting_area.tilemap.pixel_size())
-            self.event_bus.emit("area_entered", area_id=self.current_area_id)
-            self._show_message("Returned to the starting region.")
+            ext = self.world.get_extension(target_id)
+            if ext is None:
+                return
+            ext.ensure_built(self.world.rng_service, world=self.world)
+            self._enter_extension(ext)
+
+    def _enter_starting_area(self):
+        self.current_area = self.starting_area
+        self.current_extension_id = None
+        self.current_area_id = "starting_area"
+        self.player.x, self.player.y = self.starting_area.start_pos
+        self.camera = Camera(*self.starting_area.tilemap.pixel_size())
+        self.exploration.register_area(self.current_area_id, self.current_area.tilemap)
+        self.event_bus.emit("area_entered", area_id=self.current_area_id)
+        self._show_message("Returned to the Starting Region.")
+
+    def _enter_extension(self, extension):
+        stream = self.world.rng_service.derive_child("world", f"extension:{extension.extension_id}:runtime")
+        self.current_area = AreaInstance(extension.area, stream, extension)
+        self.current_extension_id = extension.extension_id
+        self.current_area_id = extension.extension_id
+        self.exploration.register_area(self.current_area_id, self.current_area.tilemap)
+        self.player.x, self.player.y = self.current_area.start_pos
+        self.camera = Camera(*self.current_area.tilemap.pixel_size())
+        self.event_bus.emit("area_entered", area_id=self.current_area_id)
+        self._show_message(f"Traveled to {extension.spec.extension_name}")
+
+    def _open_gateway_menu(self):
+        open_gates = self.world.open_gates()
+        entries = []
+        if self.current_area_id != "starting_area":
+            entries.append({"label": "Starting Region", "target_area_id": "starting_area"})
+        for gate in open_gates:
+            ext = self.world.get_extension(gate.target_extension_id)
+            if ext and ext.extension_id != self.current_area_id:
+                entries.append({"label": ext.spec.extension_name, "target_area_id": ext.extension_id})
+        if not entries:
+            self._show_message("No open gates yet. Explore and trigger world evolution first.")
+            return
+        self.gateway_menu.show(entries)
+
+    def _handle_gateway_menu_select(self, target_area_id):
+        self.gateway_menu.hide()
+        if target_area_id == "starting_area":
+            self._enter_starting_area()
+        else:
+            ext = self.world.get_extension(target_area_id)
+            if ext:
+                ext.ensure_built(self.world.rng_service, world=self.world)
+                self._enter_extension(ext)
 
     def _active_world_rules(self):
         return self.world.aggregate_rule_set()
@@ -288,6 +439,11 @@ class Game:
         for ext in self.world.extensions:
             print(f"  {ext.extension_id}: {ext.spec.extension_name} (lvl {ext.spec.area_level}, "
                   f"anomaly={ext.spec.is_anomaly})")
+        print(f"=== GATES: {len(self.world.gates)} "
+              f"({len(self.world.open_gates())} open / {len(self.world.closed_gates())} closed) ===")
+        for gate in self.world.gates:
+            target = gate.target_extension_id or "-"
+            print(f"  gate#{gate.gate_id} in '{gate.owner_area_id}' -> '{target}' ({gate.state})")
         print(f"=== Seconds since last extension: {self.world.seconds_since_last_extension():.1f} "
               f"(threshold: {config.WORLD_EXTENSION_SECONDS}) ===")
         self._show_message("World rule info printed to console (F7).")
@@ -335,36 +491,6 @@ class Game:
             self._boss_attempt_active = False
             self._boss_attempt_boss_id = None
 
-    def _equip_action(self):
-        if self.inventory_ui.visible and self.player.inventory.items:
-            idx = min(self.inventory_ui.selected_index, len(self.player.inventory.items) - 1)
-            item = self.player.inventory.items[idx]
-            self.player.equip(item, item.slot)
-            self.inventory_ui.selected_index = max(0, self.inventory_ui.selected_index - 1)
-            self._show_message(f"Equipped {item.display_name}")
-        else:
-            self._auto_equip_best()
-
-    def _auto_equip_best(self):
-        def score(i):
-            return i.damage_bonus + i.armor_bonus + sum(i._other_bonuses.values())
-
-        best_weapon = max(
-            (i for i in self.player.inventory.items if i.slot == "weapon"),
-            key=score, default=None
-        )
-        best_armor = max(
-            (i for i in self.player.inventory.items if i.slot == "armor"),
-            key=score, default=None
-        )
-        cur_w = self.player.equipped.get("weapon")
-        cur_a = self.player.equipped.get("armor")
-        if best_weapon and (cur_w is None or score(best_weapon) > score(cur_w)):
-            self.player.equip(best_weapon, "weapon")
-        if best_armor and (cur_a is None or score(best_armor) > score(cur_a)):
-            self.player.equip(best_armor, "armor")
-        self._show_message("Auto-equipped best available gear.")
-
     def _pickup_loot(self):
         px, py = self.player.x, self.player.y
         for drop in list(self.current_area.loot_drops):
@@ -392,6 +518,7 @@ class Game:
         }
         state["player"]["current_hp"] = self.player.effective_stats.hp
         self.save_manager.save(state)
+        self.save_manager.save_stash(self.player.stash)
         self._show_message("Game saved.")
 
     def _load_game(self):
@@ -401,6 +528,7 @@ class Game:
             return
         self.world = World.from_dict(data["world"])
         self.player = Player.from_dict(data["player"], self.event_bus)
+        self.player.stash = self.save_manager.load_stash()
 
         if "event_log" in data:
             self.event_log = EventLog.from_dict(data["event_log"], self.event_bus)
@@ -416,7 +544,7 @@ class Game:
         if target_ext_id:
             ext = self.world.get_extension(target_ext_id)
             if ext:
-                ext.ensure_built(self.world.rng_service)
+                ext.ensure_built(self.world.rng_service, world=self.world)
                 stream = self.world.rng_service.derive_child("world", f"extension:{ext.extension_id}:runtime")
                 self.current_area = AreaInstance(ext.area, stream, ext)
                 self.current_extension_id = ext.extension_id
@@ -429,6 +557,10 @@ class Game:
             self.current_area_id = "starting_area"
             self.camera = Camera(*self.starting_area.tilemap.pixel_size())
 
+        # Defensive: guarantees a starting gate exists even if this save
+        # predates the gate system or World.from_dict() restored zero gates.
+        self._ensure_starting_gate_registered()
+
         self.exploration.register_area(self.current_area_id, self.current_area.tilemap)
         self._show_message("Game loaded.")
 
@@ -440,13 +572,14 @@ class Game:
 
         self.world.total_playtime_seconds += dt
 
-        if self.evolution_banner.visible or self.profile_screen.visible:
+        if self.evolution_banner.visible or self.profile_screen.visible or self.gateway_menu.visible:
             return
 
         if self.player.alive:
             keys = pygame.key.get_pressed()
             self.player.handle_input(dt, keys, self.current_area.tilemap)
             self._pickup_loot()
+            self._check_gate_interactions()
             self.exploration.update(dt, self.current_area_id, self.player.x, self.player.y)
         else:
             self._respawn_timer = getattr(self, "_respawn_timer", 1.5) - dt
@@ -473,7 +606,9 @@ class Game:
 
     def _draw(self):
         self.screen.fill(config.COLOR_BG)
-        self.current_area.draw(self.screen, self.camera)
+
+        gates_here = self.world.gates_in_area(self.current_area_id)
+        self.current_area.draw(self.screen, self.camera, gates=gates_here)
 
         for enemy in self.current_area.enemies:
             if enemy.alive:
@@ -491,15 +626,16 @@ class Game:
         self._draw_area_label()
         self.evolution_banner.draw(self.screen)
         self.profile_screen.draw(self.screen)
+        self.gateway_menu.draw(self.screen)
 
         pygame.display.flip()
 
     def _draw_area_label(self):
         font = pygame.font.SysFont("consolas", 18, bold=True)
         if self.current_extension_id is None:
-            label = "Starting Region  (TAB: travel | F6: Profile | F11: Generate Extension)"
+            label = "Starting Region  (TAB: Gateway Portal | F6: Profile | F11: Generate Extension)"
         else:
             ext = self.world.get_extension(self.current_extension_id)
-            label = f"{ext.spec.extension_name}  |  Area Lvl {ext.spec.area_level}  (TAB: return)"
+            label = f"{ext.spec.extension_name}  |  Area Lvl {ext.spec.area_level}  (TAB: Gateway Portal)"
         text = font.render(label, True, (220, 220, 230))
         self.screen.blit(text, (config.SCREEN_WIDTH // 2 - text.get_width() // 2, config.SCREEN_HEIGHT - 24))

@@ -1,11 +1,16 @@
+################################################################################
+# FILE: items\item_generator.py  (PATCH - add JEWELRY_BASES + slot routing)
+################################################################################
+
 """
 Full item generation: rarity -> affix counts -> concrete prefix/suffix
 rolls -> tier resolution -> value rolls -> Item object with legacy
 creation-context metadata baked in.
 
-world_context is optional and defaults to the starting world for
-Phase 2 (no extensions exist yet). Its shape is designed to match what
-Phase 3's World/Extension objects will provide.
+Phase 8: adds ring/amulet generation. Jewelry has NO implicit affix
+(unlike weapons/armor) -- its entire value comes from prefixes/suffixes,
+which keeps it a pure "stat stick" category per typical ARPG convention
+and avoids needing a jewelry-specific implicit tier table.
 """
 import random
 from items.item import Item
@@ -26,47 +31,36 @@ WEAPON_BASES = [
 ]
 
 ARMOR_BASES = [
-    "Leather Vest", "Padded Cloth", "Scrap Mail", "Worn Buckler", "Tattered Cloak",
-    "Iron Chestplate", "Bone Pauldrons",
+    ("Leather Vest", "chest"), ("Iron Chestplate", "chest"), ("Scrap Mail", "chest"),
+    ("Bone Pauldrons", "chest"), ("Tattered Cloak", "chest"),
+    ("Padded Cap", "head"), ("Iron Helm", "head"), ("Bone Circlet", "head"),
+    ("Cloth Leggings", "legs"), ("Iron Greaves", "legs"), ("Scaled Leggings", "legs"),
+    ("Worn Boots", "boots"), ("Reinforced Boots", "boots"), ("Swift Striders", "boots"),
+    ("Leather Gloves", "gloves"), ("Iron Gauntlets", "gloves"), ("Bone Claws", "gloves"),
 ]
+
+# Jewelry has no inherent damage-type/armor implicit -- names are purely
+# cosmetic. All mechanical value comes from rolled prefixes/suffixes.
+RING_BASES = ["Iron Band", "Bone Ring", "Tarnished Loop", "Ember Signet", "Void Circlet"]
+AMULET_BASES = ["Bone Talisman", "Cracked Pendant", "Storm Charm", "Withered Locket"]
+
+# Relative weight when picking a random slot category for un-forced drops.
+# Jewelry is intentionally rarer than weapon/armor drops.
+SLOT_CATEGORY_WEIGHTS = {"weapon": 4, "armor": 4, "ring": 1, "amulet": 1}
 
 DEFAULT_WORLD_CONTEXT = {
     "world_id": "world_0",
     "extension_id": "starting_world",
-    "world_rules": None,  # Phase 3+ WorldModifier set; None => default tables
+    "world_rules": None,
 }
 
 
-def _pick_base(slot, rng):
-    if slot == "weapon":
-        name, base_damage_modifier = rng.choice(WEAPON_BASES)
-        return name, base_damage_modifier
-    else:
-        name = rng.choice(ARMOR_BASES)
-        return name, "armor"
-
-
-def _roll_affix_from_pool(pool, rng, item_level, world_rules, used_modifiers, kind):
-    candidates = [a for a in pool if a["modifier"] not in used_modifiers]
-    if not candidates:
-        return None
-    chosen = rng.choice(candidates)
-    modifier_id = chosen["modifier"]
-    tier = resolve_tier_for_roll(modifier_id, item_level, rng, world_rules)
-    value = roll_value_for_tier(modifier_id, tier, rng, world_rules)
-    table = get_tier_table(world_rules)
-    creation_range = list(table[modifier_id][tier])
-    used_modifiers.add(modifier_id)
-    return RolledAffix(
-        kind=kind,
-        affix_id=chosen["id"],
-        display_name=chosen["name"],
-        modifier=modifier_id,
-        damage_type=chosen.get("damage_type"),
-        tier=tier,
-        value=round(value, 1),
-        creation_tier_range=creation_range,
-    )
+def _roll_slot_category(rng, force_slot=None):
+    if force_slot:
+        return force_slot
+    categories = list(SLOT_CATEGORY_WEIGHTS.keys())
+    weights = list(SLOT_CATEGORY_WEIGHTS.values())
+    return rng.choices(categories, weights=weights, k=1)[0]
 
 
 def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
@@ -76,22 +70,35 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
     if world_context:
         ctx.update(world_context)
     world_rules = ctx.get("world_rules")
-    loot_rules = ctx.get("loot_rules")  # Phase 7: LootRules or None
+    loot_rules = ctx.get("loot_rules")
 
-    slot = force_slot or rng.choice(["weapon", "armor"])
+    slot_category = _roll_slot_category(rng, force_slot)
     item_level = max(1, area_level + rng.randint(-1, 2))
 
-    base_name, implicit_modifier = _pick_base_biased(slot, rng, loot_rules)
+    has_implicit = slot_category in ("weapon", "armor")
+
+    if slot_category == "weapon":
+        base_name, implicit_modifier = _pick_base_biased("weapon", rng, loot_rules)
+        actual_slot = "weapon"
+    elif slot_category == "armor":
+        base_name, actual_slot = rng.choice(ARMOR_BASES)
+        implicit_modifier = "armor"
+    elif slot_category == "ring":
+        base_name = rng.choice(RING_BASES)
+        actual_slot = "ring"
+        implicit_modifier = None
+    elif slot_category == "amulet":
+        base_name = rng.choice(AMULET_BASES)
+        actual_slot = "amulet"
+        implicit_modifier = None
+    else:
+        raise ValueError(f"Unknown slot_category: {slot_category}")
 
     if force_affix_counts:
         num_prefixes, num_suffixes = force_affix_counts
     else:
         num_prefixes, num_suffixes = ModifierPools.roll_affix_counts(item_level, rng)
         if loot_rules and loot_rules.six_mod_chance_multiplier != 1.0:
-            # Small nudge toward re-rolling once more if the initial roll
-            # was low, biased by six_mod_chance_multiplier. Kept modest
-            # and probabilistic -- per spec, exceptional items must
-            # remain rare even with personalization.
             if num_prefixes < 3 and num_suffixes < 3 and rng.random() < (loot_rules.six_mod_chance_multiplier - 1.0):
                 num_prefixes, num_suffixes = ModifierPools.roll_affix_counts(item_level, rng)
 
@@ -110,23 +117,31 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
             rarity = Item.RARITY_MAGIC
 
     used_modifiers = set()
-    implicit_tier = resolve_tier_for_roll(implicit_modifier, item_level, rng, world_rules)
-    implicit_value = round(roll_value_for_tier(implicit_modifier, implicit_tier, rng, world_rules), 1)
-    table = get_tier_table(world_rules)
-    implicit_affix = RolledAffix(
-        kind="implicit",
-        affix_id="implicit_base",
-        display_name="",
-        modifier=implicit_modifier,
-        damage_type=implicit_modifier.replace("_damage", "") if "_damage" in implicit_modifier else None,
-        tier=implicit_tier,
-        value=implicit_value,
-        creation_tier_range=list(table[implicit_modifier][implicit_tier]),
-    )
-    used_modifiers.add(implicit_modifier)
+    implicit_affix = None
 
-    prefix_pool = ModifierPools.prefixes_for_slot(slot)
-    suffix_pool = ModifierPools.suffixes_for_slot(slot)
+    if has_implicit:
+        implicit_tier = resolve_tier_for_roll(implicit_modifier, item_level, rng, world_rules)
+        implicit_value = round(roll_value_for_tier(implicit_modifier, implicit_tier, rng, world_rules), 1)
+        table = get_tier_table(world_rules)
+        implicit_affix = RolledAffix(
+            kind="implicit",
+            affix_id="implicit_base",
+            display_name="",
+            modifier=implicit_modifier,
+            damage_type=implicit_modifier.replace("_damage", "") if "_damage" in implicit_modifier else None,
+            tier=implicit_tier,
+            value=implicit_value,
+            creation_tier_range=list(table[implicit_modifier][implicit_tier]),
+        )
+        used_modifiers.add(implicit_modifier)
+
+    # Jewelry pulls from the SAME prefix/suffix pools as armor (life,
+    # resistances, attack_speed, etc. all make sense on a ring/amulet).
+    # Weapon-only modifiers (physical_damage flat, etc.) still only
+    # apply_to "weapon", so the pool naturally excludes them.
+    pool_slot = "armor" if slot_category in ("ring", "amulet") else slot_category
+    prefix_pool = ModifierPools.prefixes_for_slot(pool_slot)
+    suffix_pool = ModifierPools.suffixes_for_slot(pool_slot)
 
     prefixes = []
     for _ in range(num_prefixes):
@@ -149,7 +164,7 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
 
     item = Item(
         base_name=base_name,
-        slot=slot,
+        slot=actual_slot,
         rarity=rarity,
         item_id=None,
     )
@@ -170,9 +185,9 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
 
 
 def _pick_base_biased(slot, rng, loot_rules):
-    """Same as Phase 2's _pick_base, but weights weapon damage-type choice by loot_rules."""
     if slot != "weapon":
-        return rng.choice(ARMOR_BASES), "armor"
+        name, real_slot = rng.choice(ARMOR_BASES)
+        return name, "armor"
 
     if not loot_rules or not loot_rules.favored_damage_types:
         name, dmg_mod = rng.choice(WEAPON_BASES)

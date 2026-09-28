@@ -80,7 +80,14 @@ class Extension:
     def extension_id(self):
         return self.spec.extension_id
 
-    def ensure_built(self, rng_service):
+    def ensure_built(self, rng_service, world=None):
+        """
+        world: optional back-reference so this extension can register
+        its own reserved closed gate the moment its area is actually
+        built (lazy -- matches the existing lazy-area-build philosophy).
+        Passed explicitly rather than stored permanently on Extension
+        to avoid a circular Extension<->World reference in to_dict().
+        """
         if self.area is not None:
             return self.area
         from world.map_generator import build_procedural_area
@@ -90,6 +97,13 @@ class Extension:
             cols=self.spec.map_cols, rows=self.spec.map_rows,
             room_count=self.spec.room_count, boss_room=(self.spec.boss_template_id is not None),
         )
+
+        if world is not None and not world.gates_in_area(self.extension_id):
+            gate_room_index = self.area["gate_room_index"]
+            x0, y0, x1, y1 = self.area["gate_room"]
+            tile_col, tile_row = (x0 + x1) // 2, (y0 + y1) // 2
+            world.register_extension_gate(self.extension_id, gate_room_index, tile_col, tile_row)
+
         return self.area
 
     def to_dict(self):

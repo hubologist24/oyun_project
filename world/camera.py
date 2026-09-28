@@ -26,3 +26,6 @@ class Camera:
 
     def view_rect(self) -> pygame.Rect:
         return pygame.Rect(int(self.x), int(self.y), config.SCREEN_WIDTH, config.SCREEN_HEIGHT)
+
+    def screen_to_world(self, screen_pos):
+        return (screen_pos[0] + self.x, screen_pos[1] + self.y)

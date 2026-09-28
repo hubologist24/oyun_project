@@ -316,22 +316,38 @@ def _carve_v(grid, y0, y1, x):
 def build_procedural_area(rng: random.Random, area_level: int, cols=50, rows=38,
                            room_count=6, boss_room=True):
     """
-    Returns a dict shaped like world/level.py's LEVEL_SPEC-derived data,
-    but generated procedurally. This dict shape is exactly what a
-    future ProceduralWorldGenerator / AIWorldGenerator will produce.
+    Returns the area data dict, now including a reserved 'gate_room'
+    (per spec: every newly generated area spawns with >= 1 inactive
+    gate slot). gate_room is chosen from the rooms NOT used as
+    start_room/boss_room, so it's always a genuinely separate room the
+    player must walk into.
     """
-    grid, rooms = generate_dungeon_grid(rng, cols=cols, rows=rows, room_count=room_count)
+    # Reserve 1 extra room specifically for the gate, on top of the
+    # caller's requested room_count, so gate placement never crowds out
+    # the intended enemy/loot room budget.
+    grid, rooms = generate_dungeon_grid(rng, cols=cols, rows=rows, room_count=room_count + 1)
     tilemap = TileMap(grid)
 
     start_room = rooms[0]
     boss_room_rect = rooms[-1] if boss_room else None
-    enemy_rooms = rooms[1:-1] if boss_room else rooms[1:]
+
+    # gate_room: prefer the room right after start_room (rooms[1]) so
+    # it's always reachable early and distinctly separate from
+    # start/boss rooms.
+    reserved = {0, len(rooms) - 1} if boss_room else {0}
+    gate_room_index = next((i for i in range(len(rooms)) if i not in reserved), len(rooms) - 1)
+    gate_room_rect = rooms[gate_room_index]
+
+    enemy_room_indices = [i for i in range(len(rooms)) if i not in reserved and i != gate_room_index]
+    enemy_rooms = [rooms[i] for i in enemy_room_indices]
 
     return {
         "tilemap": tilemap,
         "rooms": rooms,
         "start_room": start_room,
         "boss_room": boss_room_rect,
+        "gate_room": gate_room_rect,
+        "gate_room_index": gate_room_index,
         "enemy_rooms": enemy_rooms,
         "area_level": area_level,
     }
