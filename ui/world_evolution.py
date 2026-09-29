@@ -14,6 +14,8 @@ class WorldEvolutionBanner:
         self.area_level = 0
         self.is_anomaly = False
         self.rule_names = []
+        if not pygame.font.get_init():
+            pygame.font.init()
         self.font_title = pygame.font.SysFont("consolas", 30, bold=True)
         self.font_body = pygame.font.SysFont("consolas", 20)
         self.font_small = pygame.font.SysFont("consolas", 16)

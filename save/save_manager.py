@@ -1,7 +1,4 @@
-"""
-JSON-based save/load. Versioned so future schema changes (Phase 2+)
-can migrate old saves instead of breaking them.
-"""
+# save/save_manager.py
 import json
 import os
 import core.config as config
@@ -22,13 +19,21 @@ class SaveManager:
     def load(self):
         if not os.path.exists(self.path):
             return None
-        with open(self.path, "r") as f:
-            data = json.load(f)
+        try:
+            with open(self.path, "r") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"[SaveManager] Failed to load save file '{self.path}': {e}")
+            return None
+        if not isinstance(data, dict):
+            print(f"[SaveManager] Save file '{self.path}' has unexpected "
+                  f"top-level type {type(data).__name__}; ignoring.")
+            return None
         return data
 
     def exists(self):
         return os.path.exists(self.path)
-    
+
     def save_stash(self, stash):
         with open(self.stash_path, "w") as f:
             json.dump(stash.to_dict(), f, indent=2)
@@ -37,6 +42,14 @@ class SaveManager:
         from items.stash import Stash
         if not os.path.exists(self.stash_path):
             return Stash.empty(cols=12, rows=10)
-        with open(self.stash_path, "r") as f:
-            data = json.load(f)
+        try:
+            with open(self.stash_path, "r") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"[SaveManager] Failed to load stash file '{self.stash_path}': {e}")
+            return Stash.empty(cols=12, rows=10)
+        if not isinstance(data, dict):
+            print(f"[SaveManager] Stash file '{self.stash_path}' has unexpected "
+                  f"top-level type {type(data).__name__}; ignoring.")
+            return Stash.empty(cols=12, rows=10)
         return Stash.from_dict(data)

@@ -74,6 +74,12 @@ class ItemTooltip:
         lines = [(item.display_name, item.rarity_color())]
         lines.append((f"{item.slot.title()}  -  {item.rarity.title()}  -  ilvl {item.item_level}",
                       (180, 180, 190)))
+        from items.weapon_subtypes import WeaponSubtypes
+        subtype = getattr(item, "weapon_subtype", None)
+        if subtype:
+            lines.append((f"Type: {WeaponSubtypes.display_name(subtype)}  "
+                          f"({WeaponSubtypes.attack_profile(subtype).display_pattern})",
+                          (200, 210, 220)))
         if item.implicit:
             lines.append((f"(implicit) {item.implicit.format_line()}", (160, 160, 170)))
         for p in item.prefixes:

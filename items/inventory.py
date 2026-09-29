@@ -105,10 +105,15 @@ class Inventory:
 
     @staticmethod
     def from_dict(d):
-        from items.item import Item
+        from items.item import Item, _allocate_id
         inv = Inventory(cols=d.get("cols", 10), rows=d.get("rows", 6))
+        seen_ids = set()
         for entry in d.get("cells", []):
             item = Item.from_dict(entry["item"])
+            # B14: duplicate item_ids across cells would dangle. Reassign.
+            if item.item_id in seen_ids:
+                item.item_id = _allocate_id()
+            seen_ids.add(item.item_id)
             cell = (entry["col"], entry["row"])
             inv.grid[cell] = item.item_id
             inv.items_by_id[item.item_id] = item

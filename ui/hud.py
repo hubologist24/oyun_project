@@ -227,6 +227,9 @@ class InventoryUI:
             item = self.selected_inventory_item(player)
             if item is None:
                 return ""
+            ok, missing = player.meets_requirements(item)
+            if not ok:
+                return f"Requires {', '.join(missing)}"
             player.equip(item)
             return f"Equipped {item.display_name}"
 

@@ -28,6 +28,8 @@ class GatewayMenu:
 
     def hide(self):
         self.visible = False
+        self.entries = []
+        self.selected_index = 0
 
     def move_selection(self, delta):
         if not self.entries:
@@ -35,7 +37,7 @@ class GatewayMenu:
         self.selected_index = (self.selected_index + delta) % len(self.entries)
 
     def confirm_selection(self):
-        if not self.entries:
+        if not self.visible or not self.entries:
             return None
         return self.entries[self.selected_index]["target_area_id"]
 

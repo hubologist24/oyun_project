@@ -1,11 +1,6 @@
-"""
-Player stat block - Phase 2: adds per-damage-type resistances and
-"other" stat pool (life, attack_speed, movement_speed, crit chance)
-aggregated from equipped item affixes.
-"""
+
 from dataclasses import dataclass, field
 import core.config as config
-
 
 @dataclass
 class Stats:
@@ -15,9 +10,16 @@ class Stats:
     primary_damage_type: str = "physical"
     armor: int = config.PLAYER_BASE_ARMOR
     speed: float = config.PLAYER_SPEED
-    resistances: dict = field(default_factory=dict)  # damage_type -> fraction (0.2 = 20%)
+    resistances: dict = field(default_factory=dict)
     crit_chance: float = 0.05
     attack_speed_bonus: float = 0.0
+
+    # NEW: character attributes. Used only for base weapon requirements.
+    # They do NOT influence attack pattern (that is bound to weapon subtype)
+    # and do NOT gate tier / affix quality.
+    strength: int = 5
+    dexterity: int = 5
+    intelligence: int = 5
 
     def clamp_hp(self):
         self.hp = max(0, min(self.hp, self.max_hp))
@@ -36,6 +38,9 @@ class Stats:
             "resistances": self.resistances,
             "crit_chance": self.crit_chance,
             "attack_speed_bonus": self.attack_speed_bonus,
+            "strength": self.strength,
+            "dexterity": self.dexterity,
+            "intelligence": self.intelligence,
         }
 
     @staticmethod
@@ -50,15 +55,13 @@ class Stats:
             resistances=d.get("resistances", {}),
             crit_chance=d.get("crit_chance", 0.05),
             attack_speed_bonus=d.get("attack_speed_bonus", 0.0),
+            strength=d.get("strength", 5),
+            dexterity=d.get("dexterity", 5),
+            intelligence=d.get("intelligence", 5),
         )
 
 
 def compute_effective_stats(base: Stats, equipped_items: list) -> Stats:
-    """
-    Aggregates base stats + all equipped item affixes into final
-    effective stats. This is the seam Phase 3 world rules will extend
-    further (e.g. "+resist" world buffs) without changing call sites.
-    """
     eff = Stats(
         max_hp=base.max_hp,
         hp=base.hp,
@@ -69,6 +72,11 @@ def compute_effective_stats(base: Stats, equipped_items: list) -> Stats:
         resistances=dict(base.resistances),
         crit_chance=base.crit_chance,
         attack_speed_bonus=base.attack_speed_bonus,
+        # NEW: carry character attributes through so requirement checks
+        # see the leveled-up values, not the dataclass defaults.
+        strength=base.strength,
+        dexterity=base.dexterity,
+        intelligence=base.intelligence,
     )
 
     weapon = None
@@ -89,7 +97,7 @@ def compute_effective_stats(base: Stats, equipped_items: list) -> Stats:
 
         if hasattr(item, "_resist_bonus"):
             for dtype, val in item._resist_bonus.items():
-                eff.resistances[dtype] = eff.resistances.get(dtype, 0) + val / 100.0
+                eff.resistances[dtype] = eff.resistances.get(dtype, 0.0) + val / 100.0
 
         if item.slot == "weapon":
             weapon = item

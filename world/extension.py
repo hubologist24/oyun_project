@@ -100,10 +100,14 @@ class Extension:
 
         if world is not None and not world.gates_in_area(self.extension_id):
             gate_room_index = self.area["gate_room_index"]
-            x0, y0, x1, y1 = self.area["gate_room"]
-            tile_col, tile_row = (x0 + x1) // 2, (y0 + y1) // 2
-            world.register_extension_gate(self.extension_id, gate_room_index, tile_col, tile_row)
-
+            tile_col = self.area.get("gate_tile_col")
+            tile_row = self.area.get("gate_tile_row")
+            if tile_col is None or tile_row is None:
+                # Backwards-compat: older area data without explicit gate tile.
+                x0, y0, x1, y1 = self.area["gate_room"]
+                tile_col, tile_row = (x0 + x1) // 2, (y0 + y1) // 2
+            world.register_extension_gate(self.extension_id, gate_room_index,
+                                          tile_col, tile_row)
         return self.area
 
     def to_dict(self):

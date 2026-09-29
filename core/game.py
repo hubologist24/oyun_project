@@ -44,6 +44,7 @@ class Game:
         self.screen = pygame.display.set_mode((config.SCREEN_WIDTH, config.SCREEN_HEIGHT))
         self.clock = pygame.time.Clock()
         self.running = True
+        self.player_projectiles = []
 
         self.event_bus = EventBus()
         self.save_manager = SaveManager()
@@ -449,30 +450,97 @@ class Game:
         self._show_message("World rule info printed to console (F7).")
 
     # ---------------- combat -----------------
+    def _live_attack_targets(self):
+        targets = [e for e in self.current_area.enemies if e.alive]
+        boss = self.current_area.boss
+        if boss is not None and boss.alive:
+            targets.append(boss)
+        return targets
+
+    def _apply_player_hit(self, target, world_rules, damage_multiplier=1.0):
+        is_boss = getattr(target, "is_boss", False)
+        if is_boss:
+            if not self._boss_attempt_active:
+                self._boss_attempt_active = True
+                self._boss_attempt_boss_id = target.name
+                self.event_bus.emit("boss_attempt_started", boss_id=target.name)
+            player_attack_enemy(self.player, target, self.event_bus,
+                                world_rules=world_rules,
+                                damage_multiplier=damage_multiplier)
+            self.event_bus.emit("boss_attempt_damage")
+            if not target.alive:
+                self._on_boss_killed(target)
+        else:
+            player_attack_enemy(self.player, target, self.event_bus,
+                                world_rules=world_rules,
+                                damage_multiplier=damage_multiplier)
+            if not target.alive:
+                self._on_enemy_killed(target)
+
     def _try_attack(self):
         if not self.player.alive or not self.player.can_attack():
             return
-        self.player.start_attack_cooldown()
-        hitbox = self.player.attack_hitbox()
+
+        from combat.attack_patterns import find_arc_targets, spawn_projectile
+
+        profile = self.player.current_attack_profile()
+        self.player.start_attack_cooldown(profile)
         world_rules = self._active_world_rules()
 
-        for enemy in list(self.current_area.enemies):
-            if enemy.alive and hitbox.colliderect(enemy.rect):
-                player_attack_enemy(self.player, enemy, self.event_bus, world_rules=world_rules)
+        if profile.kind == "projectile":
+            proj = spawn_projectile(
+                self.player, profile,
+                damage_type=self.player.effective_stats.primary_damage_type,
+                world_rules=world_rules,
+            )
+            self.player_projectiles.append(proj)
+            weapon = self.player.equipped.get("weapon")
+            self.event_bus.emit("skill_used", skill="basic_attack", damage=0, target=None,
+                                damage_type=self.player.effective_stats.primary_damage_type,
+                                weapon_name=weapon.display_name if weapon else None)
+            return
+
+        # Arc / cone patterns
+        targets = self._live_attack_targets()
+        hits = find_arc_targets(self.player, targets, profile)
+        if not profile.hits_all:
+            hits = hits[:1]
+        for target in hits:
+            self._apply_player_hit(target, world_rules, profile.damage_multiplier)
+
+    def _update_player_projectiles(self, dt):
+        area = self.current_area
+        for proj in list(self.player_projectiles):
+            proj.update(dt)
+
+            if not proj.alive:
+                self.player_projectiles.remove(proj)
+                continue
+            if area.tilemap.collides_rect(proj.rect):
+                self.player_projectiles.remove(proj)
+                continue
+
+            consumed = False
+            for enemy in list(area.enemies):
                 if not enemy.alive:
-                    self._on_enemy_killed(enemy)
+                    continue
+                if proj.rect.colliderect(enemy.rect):
+                    self._apply_player_hit(enemy, proj.world_rules, proj.damage_multiplier)
+                    if not proj.piercing:
+                        consumed = True
+                        break
 
-        boss = self.current_area.boss
-        if boss is not None and boss.alive and hitbox.colliderect(boss.rect):
-            if not self._boss_attempt_active:
-                self._boss_attempt_active = True
-                self._boss_attempt_boss_id = boss.name
-                self.event_bus.emit("boss_attempt_started", boss_id=boss.name)
+            if not consumed and area.boss is not None and area.boss.alive \
+                    and proj.rect.colliderect(area.boss.rect):
+                self._apply_player_hit(area.boss, proj.world_rules, proj.damage_multiplier)
+                if not proj.piercing:
+                    consumed = True
 
-            player_attack_enemy(self.player, boss, self.event_bus, world_rules=world_rules)
-            self.event_bus.emit("boss_attempt_damage")
-            if not boss.alive:
-                self._on_boss_killed(boss)
+            if consumed:
+                self.player_projectiles.remove(proj)
+
+    def _clear_player_projectiles(self):
+        self.player_projectiles.clear()
 
     def _on_enemy_killed(self, enemy):
         self.current_area.enemies.remove(enemy)
@@ -594,6 +662,8 @@ class Game:
         if self.current_area.boss is not None and self.current_area.boss.alive and self.player.alive:
             self.current_area.boss.update(dt, self.player, self.event_bus, world_rules=world_rules)
 
+        self._update_player_projectiles(dt)
+
         self.camera.update(self.player.x, self.player.y)
         self._check_automatic_extension()
 
@@ -620,8 +690,11 @@ class Game:
         if self.player.alive:
             self.player.draw(self.screen, self.camera)
 
+        
+
         boss_for_hud = self.current_area.boss
         self.hud.draw(self.screen, self.player, boss=boss_for_hud, message=self.message)
+        self._draw_player_projectiles()
         self.inventory_ui.draw(self.screen, self.player)
         self._draw_area_label()
         self.evolution_banner.draw(self.screen)
@@ -630,6 +703,12 @@ class Game:
 
         pygame.display.flip()
 
+    def _draw_player_projectiles(self):
+            for proj in self.player_projectiles:
+                pos = self.camera.world_to_screen((proj.x, proj.y))
+                pygame.draw.circle(self.screen, (255, 220, 120), pos, proj.radius)
+                pygame.draw.circle(self.screen, (255, 255, 255), pos, proj.radius, 1)
+    
     def _draw_area_label(self):
         font = pygame.font.SysFont("consolas", 18, bold=True)
         if self.current_extension_id is None:

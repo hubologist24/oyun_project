@@ -55,7 +55,13 @@ class WorldValidator:
         if spec.map_cols < 20 or spec.map_rows < 20:
             errors.append("map_cols/map_rows too small to fit room_count safely")
 
-        for modifier_dict in spec.world_modifiers:
+        for modifier_dict in (spec.world_modifiers or []):
+            if not isinstance(modifier_dict, dict):
+                errors.append(
+                    f"world_modifier entry must be a dict, got "
+                    f"{type(modifier_dict).__name__}"
+                )
+                continue
             valid, mod_errors = WorldModifierValidator.validate(modifier_dict)
             errors.extend(mod_errors)
 
@@ -66,8 +72,12 @@ class WorldModifierValidator:
     """Validates a single raw WorldModifier dict (before WorldModifier.from_dict)."""
 
     @staticmethod
-    def validate(modifier_dict: dict) -> Tuple[bool, List[str]]:
+    def validate(modifier_dict) -> Tuple[bool, List[str]]:
         errors = []
+        if not isinstance(modifier_dict, dict):
+            return (False, [f"world modifier must be a dict, got "
+                            f"{type(modifier_dict).__name__}"])
+
         if "name" not in modifier_dict:
             errors.append("world modifier missing 'name'")
 
@@ -77,6 +87,11 @@ class WorldModifierValidator:
             return (False, errors)
 
         for i, rule in enumerate(rules):
+            if not isinstance(rule, dict):
+                errors.append(f"rule[{i}] must be a dict, got "
+                              f"{type(rule).__name__}")
+                continue
+
             rule_type = rule.get("type")
             if rule_type not in SUPPORTED_RULE_TYPES:
                 errors.append(f"rule[{i}] has unsupported type '{rule_type}'. "

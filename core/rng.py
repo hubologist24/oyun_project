@@ -1,12 +1,6 @@
-"""
-Deterministic RNG service.
-
-Phase 1 only uses a single world_seed, but the API is already shaped
-for the future world_seed -> extension_seed -> area_seed hierarchy
-described in the design doc, so later phases don't need to change
-call sites.
-"""
+# core/rng.py
 import random
+import hashlib
 
 
 class RNGService:
@@ -15,18 +9,18 @@ class RNGService:
         self._streams = {}
         self.get_stream("world")
 
+    @staticmethod
+    def _derive_seed(world_seed: int, name: str) -> int:
+        # Deterministic across processes/runs (unlike hash()).
+        digest = hashlib.sha256(f"{world_seed}:{name}".encode("utf-8")).digest()
+        return int.from_bytes(digest[:4], "big") & 0xFFFFFFFF
+
     def get_stream(self, name: str) -> random.Random:
-        """Return (creating if needed) a named deterministic RNG stream."""
         if name not in self._streams:
-            # Derive a sub-seed deterministically from the stream name.
-            derived = hash((self.world_seed, name)) & 0xFFFFFFFF
+            derived = self._derive_seed(self.world_seed, name)
             self._streams[name] = random.Random(derived)
         return self._streams[name]
 
     def derive_child(self, parent_stream: str, child_key) -> "random.Random":
-        """
-        Used later for extension_seed / area_seed derivation:
-        e.g. derive_child('world', 'extension_1') -> new deterministic stream.
-        """
         name = f"{parent_stream}:{child_key}"
         return self.get_stream(name)

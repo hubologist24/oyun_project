@@ -27,6 +27,7 @@ from world.loot_rules import LootRules
 from history.player_profile import PlayerProfile
 from ai.world_generator import WorldGenerator
 from ai.personalization import derive_hints, PersonalizationHints
+import copy
 
 
 BIOME_POOL = [
@@ -158,7 +159,8 @@ class ProceduralWorldGenerator(WorldGenerator):
             chosen_ids.append(pick)
             pool_copy.remove(pick)
 
-        modifiers = [dict(get_modifier_template(mid)) for mid in chosen_ids]
+        #modifiers = [dict(get_modifier_template(mid)) for mid in chosen_ids]
+        modifiers = [copy.deepcopy(get_modifier_template(mid)) for mid in chosen_ids]
 
         should_pair_solution = (hints.weak_defense or hints.boss_struggling) and rng.random() < 0.6
         if should_pair_solution and hints.suggested_enabling_damage_type:

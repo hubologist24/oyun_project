@@ -18,17 +18,50 @@ from items.affix import RolledAffix
 from items.modifiers import ModifierPools
 from items.tiers import resolve_tier_for_roll, roll_value_for_tier, get_tier_table
 
-WEAPON_BASES = [
-    ("Rusty Sword", "physical_damage"),
-    ("Iron Dagger", "physical_damage"),
-    ("Worn Axe", "physical_damage"),
-    ("Bone Club", "physical_damage"),
-    ("Cracked Spear", "physical_damage"),
-    ("Ember Wand", "fire_damage"),
-    ("Frost Blade", "cold_damage"),
-    ("Storm Rod", "lightning_damage"),
-    ("Void Shard", "chaos_damage"),
-]
+WEAPON_BASES_BY_SUBTYPE = {
+    "sword": [
+        ("Rusty Sword", "physical_damage"),
+        ("Iron Dagger", "physical_damage"),
+        ("Worn Axe", "physical_damage"),
+        ("Bone Club", "physical_damage"),
+        ("Cracked Spear", "physical_damage"),
+    ],
+    "greatsword": [
+        ("Worn Greatsword", "physical_damage"),
+        ("Iron Claymore", "physical_damage"),
+        ("Bone Reaver", "physical_damage"),
+        ("Notched Broadsword", "physical_damage"),
+    ],
+    "bow": [
+        ("Short Bow", "physical_damage"),
+        ("Hunting Bow", "physical_damage"),
+        ("Yew Longbow", "physical_damage"),
+    ],
+    "short_wand": [
+        ("Apprentice Wand", "physical_damage"),
+        ("Ember Wand", "fire_damage"),
+        ("Frost Wand", "cold_damage"),
+        ("Storm Wand", "lightning_damage"),
+        ("Void Wand", "chaos_damage"),
+    ],
+    "long_wand": [
+        ("Archmage Staff", "physical_damage"),
+        ("Ember Scepter", "fire_damage"),
+        ("Frost Scepter", "cold_damage"),
+        ("Storm Scepter", "lightning_damage"),
+        ("Void Scepter", "chaos_damage"),
+    ],
+}
+
+# Relative drop weight per subtype (independent of quality, which is
+# rolled later on the shared tier tables).
+WEAPON_SUBTYPE_WEIGHTS = {
+    "sword": 5,
+    "greatsword": 3,
+    "bow": 3,
+    "short_wand": 4,
+    "long_wand": 2,
+}
 
 ARMOR_BASES = [
     ("Leather Vest", "chest"), ("Iron Chestplate", "chest"), ("Scrap Mail", "chest"),
@@ -78,19 +111,22 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
     has_implicit = slot_category in ("weapon", "armor")
 
     if slot_category == "weapon":
-        base_name, implicit_modifier = _pick_base_biased("weapon", rng, loot_rules)
+        base_name, implicit_modifier, weapon_subtype = _pick_base_biased("weapon", rng, loot_rules)
         actual_slot = "weapon"
     elif slot_category == "armor":
         base_name, actual_slot = rng.choice(ARMOR_BASES)
         implicit_modifier = "armor"
+        weapon_subtype = None
     elif slot_category == "ring":
         base_name = rng.choice(RING_BASES)
         actual_slot = "ring"
         implicit_modifier = None
+        weapon_subtype = None
     elif slot_category == "amulet":
         base_name = rng.choice(AMULET_BASES)
         actual_slot = "amulet"
         implicit_modifier = None
+        weapon_subtype = None
     else:
         raise ValueError(f"Unknown slot_category: {slot_category}")
 
@@ -99,7 +135,8 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
     else:
         num_prefixes, num_suffixes = ModifierPools.roll_affix_counts(item_level, rng)
         if loot_rules and loot_rules.six_mod_chance_multiplier != 1.0:
-            if num_prefixes < 3 and num_suffixes < 3 and rng.random() < (loot_rules.six_mod_chance_multiplier - 1.0):
+            if (num_prefixes < 3 and num_suffixes < 3
+                    and rng.random() < (loot_rules.six_mod_chance_multiplier - 1.0)):
                 num_prefixes, num_suffixes = ModifierPools.roll_affix_counts(item_level, rng)
 
     total_affixes = num_prefixes + num_suffixes
@@ -118,45 +155,60 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
 
     used_modifiers = set()
     implicit_affix = None
-
     if has_implicit:
         implicit_tier = resolve_tier_for_roll(implicit_modifier, item_level, rng, world_rules)
-        implicit_value = round(roll_value_for_tier(implicit_modifier, implicit_tier, rng, world_rules), 1)
+        implicit_value = round(roll_value_for_tier(implicit_modifier, implicit_tier,
+                                                   rng, world_rules), 1)
         table = get_tier_table(world_rules)
         implicit_affix = RolledAffix(
             kind="implicit",
             affix_id="implicit_base",
             display_name="",
             modifier=implicit_modifier,
-            damage_type=implicit_modifier.replace("_damage", "") if "_damage" in implicit_modifier else None,
+            damage_type=implicit_modifier.replace("_damage", "")
+                if "_damage" in implicit_modifier else None,
             tier=implicit_tier,
             value=implicit_value,
             creation_tier_range=list(table[implicit_modifier][implicit_tier]),
         )
         used_modifiers.add(implicit_modifier)
 
-    # Jewelry pulls from the SAME prefix/suffix pools as armor (life,
-    # resistances, attack_speed, etc. all make sense on a ring/amulet).
-    # Weapon-only modifiers (physical_damage flat, etc.) still only
-    # apply_to "weapon", so the pool naturally excludes them.
+    # 3) Roll the actual prefixes/suffixes.
     pool_slot = "armor" if slot_category in ("ring", "amulet") else slot_category
     prefix_pool = ModifierPools.prefixes_for_slot(pool_slot)
     suffix_pool = ModifierPools.suffixes_for_slot(pool_slot)
 
     prefixes = []
     for _ in range(num_prefixes):
-        a = _roll_affix_from_pool_biased(prefix_pool, rng, item_level, world_rules, used_modifiers,
-                                          "prefix", loot_rules)
+        a = _roll_affix_from_pool_biased(prefix_pool, rng, item_level, world_rules,
+                                          used_modifiers, "prefix", loot_rules)
         if a:
             prefixes.append(a)
 
     suffixes = []
     for _ in range(num_suffixes):
-        a = _roll_affix_from_pool_biased(suffix_pool, rng, item_level, world_rules, used_modifiers,
-                                          "suffix", loot_rules)
+        a = _roll_affix_from_pool_biased(suffix_pool, rng, item_level, world_rules,
+                                          used_modifiers, "suffix", loot_rules)
         if a:
             suffixes.append(a)
 
+    # 4) B13: rarity is derived from ACTUAL rolled affixes, not the
+    # requested counts. Pool exhaustion can no longer mislabel the item.
+    actual_total = len(prefixes) + len(suffixes)
+    if force_rarity:
+        rarity = force_rarity
+    elif actual_total == 0:
+        rarity = Item.RARITY_NORMAL
+    elif actual_total <= 2:
+        rarity = Item.RARITY_MAGIC
+    else:
+        rarity = Item.RARITY_RARE
+
+    if rarity == Item.RARITY_NORMAL and loot_rules and loot_rules.rare_chance_multiplier > 1.0:
+        if rng.random() < (loot_rules.rare_chance_multiplier - 1.0) * 0.1:
+            rarity = Item.RARITY_MAGIC
+
+    # 5) Name + build Item (unchanged from here down).
     prefix_name = prefixes[0].display_name if prefixes else ""
     suffix_name = suffixes[0].display_name if suffixes else ""
     full_name_parts = [p for p in [prefix_name, base_name, suffix_name] if p]
@@ -167,6 +219,7 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
         slot=actual_slot,
         rarity=rarity,
         item_id=None,
+        weapon_subtype=weapon_subtype,
     )
     item.display_name_override = display_name
     item.item_level = item_level
@@ -184,22 +237,32 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
     return item
 
 
+def _roll_weapon_subtype(rng) -> str:
+    ids = list(WEAPON_SUBTYPE_WEIGHTS.keys())
+    weights = list(WEAPON_SUBTYPE_WEIGHTS.values())
+    return rng.choices(ids, weights=weights, k=1)[0]
+
+
 def _pick_base_biased(slot, rng, loot_rules):
-    if slot != "weapon":
-        name, real_slot = rng.choice(ARMOR_BASES)
-        return name, "armor"
+    """
+    Returns (base_name, implicit_modifier, weapon_subtype).
+    Subtype is rolled first (attack pattern); base name / implicit
+    damage type is then chosen within that subtype, biased by the
+    extension's LootRules if present.
+    """
+    subtype = _roll_weapon_subtype(rng)
+    bases = WEAPON_BASES_BY_SUBTYPE[subtype]
 
     if not loot_rules or not loot_rules.favored_damage_types:
-        name, dmg_mod = rng.choice(WEAPON_BASES)
-        return name, dmg_mod
+        name, dmg_mod = rng.choice(bases)
+        return name, dmg_mod, subtype
 
     weights = []
-    for name, dmg_mod in WEAPON_BASES:
+    for name, dmg_mod in bases:
         dtype = dmg_mod.replace("_damage", "")
         weights.append(loot_rules.favored_damage_types.get(dtype, 1.0))
-    chosen = rng.choices(WEAPON_BASES, weights=weights, k=1)[0]
-    return chosen
-
+    name, dmg_mod = rng.choices(bases, weights=weights, k=1)[0]
+    return name, dmg_mod, subtype
 
 def _roll_affix_from_pool_biased(pool, rng, item_level, world_rules, used_modifiers, kind, loot_rules):
     candidates = [a for a in pool if a["modifier"] not in used_modifiers]

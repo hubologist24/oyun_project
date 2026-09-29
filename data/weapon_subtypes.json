@@ -1,0 +1,77 @@
+{
+  "comment": "Base attack type is bound to weapon category/subtype. Independent of player attributes. Stats quality (tiers/affix counts) is NOT affected by archetype size -- see items/tiers.py and items/modifiers.py, which are shared across all subtypes.",
+  "categories": [
+    {
+      "id": "sword",
+      "display_name": "Sword",
+      "attack_pattern": "slash_arc",
+      "base_attack": {
+        "kind": "arc",
+        "range": 56,
+        "arc_degrees": 90,
+        "hits_all": true,
+        "attack_cooldown_multiplier": 1.0,
+        "damage_multiplier": 1.0
+      },
+      "stat_requirements": {}
+    },
+    {
+      "id": "greatsword",
+      "display_name": "Greatsword",
+      "attack_pattern": "sweep",
+      "base_attack": {
+        "kind": "arc",
+        "range": 78,
+        "arc_degrees": 150,
+        "hits_all": true,
+        "attack_cooldown_multiplier": 1.5,
+        "damage_multiplier": 1.25
+      },
+      "stat_requirements": { "strength": 8 }
+    },
+    {
+      "id": "bow",
+      "display_name": "Bow",
+      "attack_pattern": "projectile",
+      "base_attack": {
+        "kind": "projectile",
+        "range": 420,
+        "projectile_speed": 560,
+        "piercing": false,
+        "hits_all": false,
+        "attack_cooldown_multiplier": 1.1,
+        "damage_multiplier": 1.0
+      },
+      "stat_requirements": { "dexterity": 8 }
+    },
+    {
+      "id": "short_wand",
+      "display_name": "Short Wand",
+      "attack_pattern": "fast_cast",
+      "base_attack": {
+        "kind": "projectile",
+        "range": 300,
+        "projectile_speed": 660,
+        "piercing": false,
+        "hits_all": false,
+        "attack_cooldown_multiplier": 0.6,
+        "damage_multiplier": 0.85
+      },
+      "stat_requirements": { "intelligence": 6 }
+    },
+    {
+      "id": "long_wand",
+      "display_name": "Long Wand",
+      "attack_pattern": "cone_aoe",
+      "base_attack": {
+        "kind": "cone_aoe",
+        "range": 200,
+        "arc_degrees": 100,
+        "hits_all": true,
+        "attack_cooldown_multiplier": 1.4,
+        "damage_multiplier": 1.10
+      },
+      "stat_requirements": { "intelligence": 10 }
+    }
+  ]
+}

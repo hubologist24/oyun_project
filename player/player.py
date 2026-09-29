@@ -11,6 +11,8 @@ from items.inventory import Inventory
 from items.equipment_slots import EQUIPMENT_SLOTS, resolve_equip_slot
 from items.stash import Stash
 
+from items.weapon_subtypes import WeaponSubtypes
+
 
 class Player:
     def __init__(self, x: float, y: float, event_bus):
@@ -46,12 +48,11 @@ class Player:
 
     # ---------- stats ----------
     def recalc_stats(self):
-        equipped_items = [self.equipped.get("weapon"), self.equipped.get("armor")]
+        equipped_items = [item for item in self.equipped.values() if item is not None]
         old_hp_ratio = 1.0
         if self.effective_stats.max_hp > 0:
             old_hp_ratio = self.effective_stats.hp / self.effective_stats.max_hp
         self.effective_stats = compute_effective_stats(self.base_stats, equipped_items)
-        # preserve hp ratio across recalcs (e.g. equip changes max_hp)
         self.effective_stats.hp = int(self.effective_stats.max_hp * old_hp_ratio)
         self.effective_stats.clamp_hp()
 
@@ -117,9 +118,34 @@ class Player:
     # ---------- combat ----------
     def can_attack(self) -> bool:
         return self._attack_cooldown_timer <= 0
+    
 
-    def start_attack_cooldown(self):
-        self._attack_cooldown_timer = config.PLAYER_ATTACK_COOLDOWN
+    def start_attack_cooldown(self, profile=None):
+        mult = profile.attack_cooldown_multiplier if profile is not None else 1.0
+        self._attack_cooldown_timer = config.PLAYER_ATTACK_COOLDOWN * mult
+
+    def current_attack_profile(self):
+        """Attack pattern is bound to the equipped weapon's subtype.
+        Player attributes never alter this -- only the weapon does."""
+        from combat.attack_patterns import resolve_attack_profile
+        return resolve_attack_profile(self)
+
+    def meets_requirements(self, item):
+        """
+        Returns (ok: bool, missing: list[str]).
+        Only weapons impose requirements; all other slots are unrestricted.
+        Requirements are base restrictions (per design), NOT quality gates.
+        """
+        subtype = getattr(item, "weapon_subtype", None)
+        if not subtype:
+            return True, []
+        reqs = WeaponSubtypes.stat_requirements(subtype)
+        missing = []
+        for attr, need in reqs.items():
+            have = getattr(self.effective_stats, attr, 0)
+            if have < need:
+                missing.append(f"{attr.title()} {need} (have {have})")
+        return (len(missing) == 0), missing    
 
     def attack_hitbox(self) -> pygame.Rect:
         reach = config.PLAYER_ATTACK_RANGE
@@ -151,6 +177,9 @@ class Player:
             self.base_stats.max_hp += 12
             self.base_stats.base_damage += 2
             self.base_stats.armor += 1
+            self.base_stats.strength += 1
+            self.base_stats.dexterity += 1
+            self.base_stats.intelligence += 1
             self.event_bus.emit("level_up", level=lvl)
         if levels:
             self.recalc_stats()
@@ -158,6 +187,9 @@ class Player:
 
     # ---------- equipment ----------
     def equip(self, item, slot: str = None) -> bool:
+        ok, _ = self.meets_requirements(item)
+        if not ok:
+            return False
         target_slot = slot or resolve_equip_slot(item.slot, self.equipped)
         if target_slot is None:
             return False

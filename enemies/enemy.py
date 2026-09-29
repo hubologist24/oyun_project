@@ -90,8 +90,10 @@ def spawn_basic_enemy(x, y, rng, area_level=1):
     is_elite = rng.random() < 0.12
     hp = int(24 + area_level * 6 * (1.8 if is_elite else 1.0))
     dmg = int(6 + area_level * 1.6 * (1.6 if is_elite else 1.0))
-    name = "Elite Marauder" if is_elite else random.choice(
+    # B6: use the injected rng, not the module-global `random`.
+    name = "Elite Marauder" if is_elite else rng.choice(
         ["Feral Rat", "Bandit", "Wild Wolf", "Skeleton"]
     )
     return Enemy(x, y, name=name, hp=hp, damage=dmg, armor=area_level, speed=95.0,
-                 xp_reward=18 if is_elite else 10, is_elite=is_elite, area_level=area_level)
+                 xp_reward=18 if is_elite else 10, is_elite=is_elite,
+                 area_level=area_level)

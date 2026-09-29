@@ -12,7 +12,21 @@ load into "legacy flat items": they keep their original numbers exactly
 import itertools
 from items.affix import RolledAffix
 
-_id_counter = itertools.count(1)
+#_id_counter = itertools.count(1)
+_id_counter = 1
+
+def _allocate_id() -> int:
+    global _id_counter
+    val = _id_counter
+    _id_counter += 1
+    return val
+
+
+def _reserve_id(item_id) -> None:
+    """Ensure a restored id can never be re-issued to a future item."""
+    global _id_counter
+    if isinstance(item_id, int) and item_id >= _id_counter:
+        _id_counter = item_id + 1
 
 
 class Item:
@@ -23,12 +37,18 @@ class Item:
 
     def __init__(self, base_name: str, slot: str, rarity: str = RARITY_NORMAL,
                  damage_bonus: int = 0, armor_bonus: int = 0, item_id=None,
-                 item_level: int = 1):
-        self.item_id = item_id if item_id is not None else next(_id_counter)
+                 item_level: int = 1 ,weapon_subtype: str = None):
+        #self.item_id = item_id if item_id is not None else next(_id_counter)
+        if item_id is not None:
+            _reserve_id(item_id)
+            self.item_id = item_id
+        else:
+            self.item_id = _allocate_id()
         self.base_name = base_name
         self.slot = slot  # "weapon" | "armor"
         self.rarity = rarity
         self.item_level = item_level
+        self.weapon_subtype = weapon_subtype
 
         # Phase 2 affix data (may be empty for legacy/migrated items)
         self.implicit = None          # RolledAffix or None
@@ -149,12 +169,12 @@ class Item:
             "slot": self.slot,
             "rarity": self.rarity,
             "item_level": self.item_level,
+            "weapon_subtype": self.weapon_subtype,   # NEW
             "display_name_override": self.display_name_override,
             "implicit": self.implicit.to_dict() if self.implicit else None,
             "prefixes": [p.to_dict() for p in self.prefixes],
             "suffixes": [s.to_dict() for s in self.suffixes],
             "creation_context": self.creation_context,
-            # legacy flat fields kept for pure backward compat / fallback path
             "damage_bonus": self._damage_bonus,
             "armor_bonus": self._armor_bonus,
         }
@@ -169,6 +189,7 @@ class Item:
             armor_bonus=d.get("armor_bonus", 0),
             item_id=d.get("item_id"),
             item_level=d.get("item_level", 1),
+            weapon_subtype=d.get("weapon_subtype"),
         )
         item.display_name_override = d.get("display_name_override")
         item.creation_context = d.get("creation_context", item.creation_context)
