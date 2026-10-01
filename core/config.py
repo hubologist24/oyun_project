@@ -102,3 +102,9 @@ LLM_PROVIDER_PRESETS = {
 # Optional manual overrides -- leave None to use the preset above
 LLM_MODEL_OVERRIDE = None
 LLM_API_KEY_OVERRIDE = None
+
+
+# How many times the player may reroll a staged extension offer before
+# Accept / Push Back become the only options. A negotiation, not a
+# slot machine -- see Game._reroll_pending_extension.
+REROLL_CAP = 3

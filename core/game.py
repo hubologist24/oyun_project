@@ -37,6 +37,8 @@ from history.event_log import EventLog
 from history.exploration import ExplorationTracker
 from history.aggregator import build_player_profile
 
+from core import audio
+
 import time
 
 
@@ -59,6 +61,10 @@ class Game:
         world_seed = random.randint(0, 2**31 - 1)
         self.world = World(world_seed)
 
+        audio.init()
+
+        self._hitstop_timer = 0.0
+
         self.starting_area = build_level(self.world.rng_service)
         self.current_area = self.starting_area
         self.current_extension_id = None
@@ -79,6 +85,11 @@ class Game:
 
         self.message = ""
         self._message_timer = 0.0
+
+        self._pending_extension_spec = None
+        self._pending_gate = None
+        self._pending_evolution_mode = None
+        self._pending_rerolls_left = 0
 
         self._boss_attempt_active = False
         self._boss_attempt_boss_id = None
@@ -137,9 +148,21 @@ class Game:
         self.event_bus.subscribe("player_death", self._on_player_death)
         self.event_bus.subscribe("level_up", lambda level: self._show_message(f"Level Up! Now level {level}"))
         self.event_bus.subscribe("player_hit", self._on_player_hit_feedback)
+        self.event_bus.subscribe("level_up", self._on_level_up)
+    
+    def _on_level_up(self, level):
+            from core import audio
+            audio.play("level_up")
+            self._show_message(f"Level Up! Now level {level}")
+
+    
 
     def _on_player_hit_feedback(self, source=None, damage=0, damage_type=None):
         self.damage_numbers.spawn(self.player.x, self.player.y - 30, str(damage), (255, 90, 90))
+        self.camera.shake(magnitude=6, duration=0.20) #shake
+        self._trigger_hitstop(0.04)  #shake
+        from core import audio
+        audio.play("hit_player")
 
     def _on_player_death(self, cause=None):
         self._show_message("You died. Respawning...")
@@ -171,6 +194,10 @@ class Game:
                 self._handle_mouse_down(event.button, event.pos)
             elif event.type == pygame.MOUSEMOTION:
                 self._handle_mouse_motion(event.pos)
+
+    def _trigger_hitstop(self, duration: float):
+    # Cap so a burst of hits can't lock the game.
+        self._hitstop_timer = min(0.12, max(self._hitstop_timer, duration))           
 
     def _handle_mouse_down(self, button, pos):
         if self.inventory_ui.visible:
@@ -218,8 +245,12 @@ class Game:
             return
 
         if self.evolution_banner.visible:
-            if key in (pygame.K_SPACE, pygame.K_RETURN, pygame.K_ESCAPE):
-                self.evolution_banner.dismiss()
+            if key in (pygame.K_SPACE, pygame.K_RETURN):
+                self._accept_pending_extension()
+            elif key == pygame.K_r:
+                self._reroll_pending_extension()
+            elif key == pygame.K_ESCAPE:
+                self._discard_pending_extension()
             return
             
 
@@ -308,38 +339,118 @@ class Game:
     # ---------------- world / extensions -----------------
     def _generate_next_extension(self, mode=config.EXTENSION_MODE_MANUAL):
         """
-        mode: 'manual' (player-triggered), 'automatic' (playtime
-        threshold), 'debug' (forced, bypasses the playtime gate, but
-        NOT validation -- debug never means unsafe).
+        Two-phase: STAGE a spec and show the offer banner. The world is
+        not mutated until the player accepts (_accept_pending_extension).
 
-        World Evolution: generates+validates a new extension, then
-        opens an existing closed gate somewhere in the already-explored
-        world and links it to the new extension.
+        mode: 'manual' (player-triggered), 'automatic' (playtime threshold),
+        'debug' (forced, bypasses the playtime gate but NOT validation).
+
+        The gate that WILL open is previewed here so the banner can name
+        the area it appears in. It is only actually opened on accept. Safe
+        to preview because the world is paused while the banner is visible,
+        so the closed-gate set cannot change between offer and accept.
         """
+        if self._pending_extension_spec is not None:
+            return  # already mid-negotiation
+
         existing_ids = {ext.extension_id for ext in self.world.extensions}
         rng = self.world.rng_service.get_stream("extension_selection")
         profile = self._current_profile()
 
-        reason=self._evolution_reason(profile),
-
         spec = self.extension_generator.generate(profile, existing_ids, rng)
 
-        extension = self.world.add_extension(spec)
-        extension.ensure_built(self.world.rng_service, world=self.world)
-
         gate_rng = self.world.rng_service.get_stream("gate_selection")
-        opened_gate = self.world.open_next_gate_to(spec.extension_id, gate_rng)
+        preview_gate = self.world.pick_next_gate(gate_rng)
 
+        self._pending_extension_spec = spec
+        self._pending_gate = preview_gate
+        self._pending_evolution_mode = mode
+        self._pending_rerolls_left = config.REROLL_CAP
+        self._refresh_evolution_banner()
+
+    def _refresh_evolution_banner(self):
+        spec = self._pending_extension_spec
+        gate = self._pending_gate
         self.evolution_banner.show(
             extension_name=spec.extension_name,
             area_level=spec.area_level,
             is_anomaly=spec.is_anomaly,
             rule_names=[m["name"] for m in spec.world_modifiers],
-            gate_area_name=self._area_display_name(opened_gate.owner_area_id) if opened_gate else None,
-        )
+            gate_area_name=self._area_display_name(gate.owner_area_id) if gate else None,
+            reason=self._evolution_reason(self._current_profile()),
+            rerolls_left=self._pending_rerolls_left,
+        ) 
+
+
+    def _accept_pending_extension(self):
+        spec = self._pending_extension_spec
+        gate = self._pending_gate
+        if spec is None:
+            self.evolution_banner.dismiss()
+            return
+
+        extension = self.world.add_extension(spec)
+        extension.ensure_built(self.world.rng_service, world=self.world)
+
+        opened_gate = self.world.open_gate_to(gate, spec.extension_id)
+
         self.event_bus.emit("extension_generated", extension_id=spec.extension_id,
-                            mode=mode, area_level=spec.area_level)
-        self._show_message(f"A gate has opened: {spec.extension_name}", duration=3.0)
+                            mode=self._pending_evolution_mode,
+                            area_level=spec.area_level)
+
+        self._pending_extension_spec = None
+        self._pending_gate = None
+        self._pending_evolution_mode = None
+        self._pending_rerolls_left = 0
+        self.evolution_banner.dismiss()
+
+        if opened_gate:
+            self._show_message(
+                f"A gate has opened in "
+                f"{self._area_display_name(opened_gate.owner_area_id)}: "
+                f"{spec.extension_name}", duration=3.0)
+        else:
+            self._show_message(f"The world shifts: {spec.extension_name}", duration=3.0)
+
+    def _reroll_pending_extension(self):
+        if self._pending_rerolls_left <= 0:
+            self._show_message("No rerolls remaining. Accept or push back.", duration=2.0)
+            return
+
+        self._pending_rerolls_left -= 1
+
+        existing_ids = {ext.extension_id for ext in self.world.extensions}
+        rng = self.world.rng_service.get_stream("extension_selection")
+        profile = self._current_profile()
+        spec = self.extension_generator.generate(profile, existing_ids, rng)
+
+        gate_rng = self.world.rng_service.get_stream("gate_selection")
+        preview_gate = self.world.pick_next_gate(gate_rng)
+
+        self._pending_extension_spec = spec
+        self._pending_gate = preview_gate
+        # mode intentionally preserved across rerolls: an automatic offer
+        # that gets rerolled is still an automatic offer, and its push-back
+        # still has to stamp the playtime clock (see below).
+        self._refresh_evolution_banner()
+
+    def _discard_pending_extension(self):
+        was_automatic = (self._pending_evolution_mode == config.EXTENSION_MODE_AUTOMATIC)
+
+        self._pending_extension_spec = None
+        self._pending_gate = None
+        self._pending_evolution_mode = None
+        self._pending_rerolls_left = 0
+        self.evolution_banner.dismiss()
+
+        if was_automatic:
+            # Push-back on an automatic trigger must reset the clock, or
+            # automatic_generation_due() returns True next frame and the
+            # banner re-fires forever. Semantically: the world considered
+            # evolving, the player declined, and now it waits another cycle.
+            self.world.playtime_at_last_extension = self.world.total_playtime_seconds
+
+        self._show_message("You declined the world's offer. It waits.", duration=3.0)  
 
     def _area_display_name(self, area_id: str) -> str:
         if area_id == "starting_area":
@@ -487,6 +598,12 @@ class Game:
             dmg = player_attack_enemy(self.player, target, self.event_bus,
                                       world_rules=world_rules,
                                       damage_multiplier=damage_multiplier)
+            if dmg > 0:
+                self._trigger_hitstop(0.06 if is_boss else 0.03)
+            self.camera.shake(magnitude=4 if is_boss else 2, duration=0.12)#shake
+            from core import audio
+            audio.play("hit_boss" if is_boss else "hit_enemy")
+            
             self.damage_numbers.spawn(target.x, target.y - 40, str(dmg), (255, 215, 90))
             self.event_bus.emit("boss_attempt_damage")
             if not target.alive:
@@ -655,6 +772,18 @@ class Game:
         self._show_message("Game loaded.")
 
     def _update(self, dt):
+
+        if self._hitstop_timer > 0:
+            self._hitstop_timer -= dt
+            self.damage_numbers.update(dt)
+            if self._message_timer > 0:
+                self._message_timer -= dt
+                if self._message_timer <= 0:
+                    self.message = ""
+            self.camera.tick(dt)   # shake still decays; see Pass 2
+            self.camera.update(self.player.x, self.player.y)
+            return
+        
         self.damage_numbers.update(dt)
 
         if self._message_timer > 0:

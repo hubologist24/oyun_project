@@ -14,19 +14,25 @@ class WorldEvolutionBanner:
         self.area_level = 0
         self.is_anomaly = False
         self.rule_names = []
+        self.gate_area_name = None
+        self.reason = None
+        self.rerolls_left = 0
         if not pygame.font.get_init():
             pygame.font.init()
         self.font_title = pygame.font.SysFont("consolas", 30, bold=True)
         self.font_body = pygame.font.SysFont("consolas", 20)
         self.font_small = pygame.font.SysFont("consolas", 16)
 
-    def show(self, extension_name, area_level, is_anomaly, rule_names, gate_area_name=None, reason=None):
+    def show(self, extension_name, area_level, is_anomaly, rule_names,
+            gate_area_name=None, reason=None, rerolls_left=0):
         self.visible = True
         self.extension_name = extension_name
         self.area_level = area_level
         self.is_anomaly = is_anomaly
         self.rule_names = rule_names
         self.gate_area_name = gate_area_name
+        self.reason = reason
+        self.rerolls_left = rerolls_left
 
     def dismiss(self):
         self.visible = False
@@ -86,5 +92,13 @@ class WorldEvolutionBanner:
                 y += 24
 
         y += 30
-        hint = self.font_small.render("Press SPACE / ENTER to continue", True, (150, 150, 160))
+        #hint = self.font_small.render("Press SPACE / ENTER to continue", True, (150, 150, 160))
+        #surface.blit(hint, (cx - hint.get_width() // 2, y))
+
+        if self.rerolls_left > 0:
+            hint_text = (f"SPACE/ENTER: Accept    R: Reroll ({self.rerolls_left} left)    "
+                        f"ESC: Push Back")
+        else:
+            hint_text = "SPACE/ENTER: Accept    ESC: Push Back    (no rerolls left)"
+        hint = self.font_small.render(hint_text, True, (150, 150, 160))
         surface.blit(hint, (cx - hint.get_width() // 2, y))

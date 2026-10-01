@@ -171,18 +171,22 @@ class Boss:
                 self._cooldown_timer = phase.attack_cooldown
 
     def _choose_action(self, dist_to_player, phase: BossPhaseConfig):
+        from core import audio
         if phase.enables_dash and dist_to_player > 90 and random.random() < 0.45:
             self._state = "telegraph"
             self._pending_action = "dash"
             self._state_timer = phase.telegraph_time_dash
+            audio.play("telegraph_dash")
         elif dist_to_player > 150:
             self._state = "telegraph"
             self._pending_action = "ranged"
             self._state_timer = 0.45
+            audio.play("telegraph_ranged")
         else:
             self._state = "telegraph"
             self._pending_action = "melee"
             self._state_timer = phase.telegraph_time_melee
+            audio.play("telegraph_melee")
 
     def _execute_attack(self, player, event_bus, phase: BossPhaseConfig, world_rules):
         action = getattr(self, "_pending_action", "melee")

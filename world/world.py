@@ -59,25 +59,32 @@ class World:
     def gates_in_area(self, area_id: str) -> list:
         return [g for g in self.gates if g.owner_area_id == area_id]
 
-    def open_next_gate_to(self, extension_id: str, rng) -> Optional[Gate]:
+    def pick_next_gate(self, rng):
         """
-        Core of 'world evolution': picks one existing CLOSED gate
-        somewhere in the already-explored world (starting area or any
-        already-built extension) and opens it, linking it to the
-        newly-generated extension. Prefers gates in the STARTING AREA
-        first (keeps the hub-and-spoke feel of a central portal room
-        gradually filling with gates), then falls back to gates in
-        already-open extensions.
+        Choose (but do not open) the gate that the next evolution WOULD
+        link. Prefers the starting area's reserved gates first, so the
+        hub-and-spoke feel of the portal room filling up is preserved.
         """
         candidates = self.closed_gates()
         if not candidates:
-            return None  # world has run out of reserved gate slots
-
+            return None
         starting_candidates = [g for g in candidates if g.is_starting_gate]
         pool = starting_candidates if starting_candidates else candidates
-        chosen = rng.choice(pool)
-        chosen.open_to(extension_id)
-        return chosen
+        return rng.choice(pool)
+
+    def open_gate_to(self, gate, extension_id):
+        """Commit a previously-picked gate. Safe no-op on None/already-open."""
+        if gate is None or gate.is_open():
+            return None
+        gate.open_to(extension_id)
+        return gate
+
+    def open_next_gate_to(self, extension_id: str, rng) -> Optional[Gate]:
+        """Backward-compat: pick and open in one call. Retained so
+        test_helpers5's gate-history test and any existing callers keep
+        working unchanged."""
+        gate = self.pick_next_gate(rng)
+        return self.open_gate_to(gate, extension_id)
 
     # ---------------- extension management ----------------
     def add_extension(self, spec: ExtensionSpec) -> Extension:
