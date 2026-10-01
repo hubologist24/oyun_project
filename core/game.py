@@ -15,6 +15,7 @@ Adds:
 """
 import sys
 import random
+from combat import damage
 import pygame
 
 import core.config as config
@@ -28,13 +29,15 @@ from world.camera import Camera
 from combat.combat import player_attack_enemy
 from items.item_generator import generate_random_item
 from save.save_manager import SaveManager
-from ui.hud import HUD, InventoryUI
+from ui.hud import HUD, InventoryUI, DamageNumbers
 from ui.world_evolution import WorldEvolutionBanner
 from ui.profile_screen import ProfileScreen
 from ui.gateway_menu import GatewayMenu
 from history.event_log import EventLog
 from history.exploration import ExplorationTracker
 from history.aggregator import build_player_profile
+
+import time
 
 
 class Game:
@@ -79,6 +82,8 @@ class Game:
 
         self._boss_attempt_active = False
         self._boss_attempt_boss_id = None
+
+        self.damage_numbers = DamageNumbers()
 
         self._register_events()
 
@@ -131,6 +136,10 @@ class Game:
     def _register_events(self):
         self.event_bus.subscribe("player_death", self._on_player_death)
         self.event_bus.subscribe("level_up", lambda level: self._show_message(f"Level Up! Now level {level}"))
+        self.event_bus.subscribe("player_hit", self._on_player_hit_feedback)
+
+    def _on_player_hit_feedback(self, source=None, damage=0, damage_type=None):
+        self.damage_numbers.spawn(self.player.x, self.player.y - 30, str(damage), (255, 90, 90))
 
     def _on_player_death(self, cause=None):
         self._show_message("You died. Respawning...")
@@ -212,6 +221,7 @@ class Game:
             if key in (pygame.K_SPACE, pygame.K_RETURN, pygame.K_ESCAPE):
                 self.evolution_banner.dismiss()
             return
+            
 
         # --- Inventory/stash panel intercepts navigation keys while open ---
         if self.inventory_ui.visible:
@@ -293,6 +303,8 @@ class Game:
     def _show_profile_screen(self):
         self.profile_screen.show(self._current_profile())
 
+
+
     # ---------------- world / extensions -----------------
     def _generate_next_extension(self, mode=config.EXTENSION_MODE_MANUAL):
         """
@@ -307,6 +319,8 @@ class Game:
         existing_ids = {ext.extension_id for ext in self.world.extensions}
         rng = self.world.rng_service.get_stream("extension_selection")
         profile = self._current_profile()
+
+        reason=self._evolution_reason(profile),
 
         spec = self.extension_generator.generate(profile, existing_ids, rng)
 
@@ -392,10 +406,16 @@ class Game:
         entries = []
         if self.current_area_id != "starting_area":
             entries.append({"label": "Starting Region", "target_area_id": "starting_area"})
+        
         for gate in open_gates:
             ext = self.world.get_extension(gate.target_extension_id)
             if ext and ext.extension_id != self.current_area_id:
-                entries.append({"label": ext.spec.extension_name, "target_area_id": ext.extension_id})
+                label = ext.spec.extension_name
+                if gate.opened_at:
+                    mins = max(1, int((time.time() - gate.opened_at) / 60))
+                    label += f"   (gate opened {mins} min ago)"
+                entries.append({"label": label, "target_area_id": ext.extension_id})
+        
         if not entries:
             self._show_message("No open gates yet. Explore and trigger world evolution first.")
             return
@@ -464,16 +484,18 @@ class Game:
                 self._boss_attempt_active = True
                 self._boss_attempt_boss_id = target.name
                 self.event_bus.emit("boss_attempt_started", boss_id=target.name)
-            player_attack_enemy(self.player, target, self.event_bus,
-                                world_rules=world_rules,
-                                damage_multiplier=damage_multiplier)
+            dmg = player_attack_enemy(self.player, target, self.event_bus,
+                                      world_rules=world_rules,
+                                      damage_multiplier=damage_multiplier)
+            self.damage_numbers.spawn(target.x, target.y - 40, str(dmg), (255, 215, 90))
             self.event_bus.emit("boss_attempt_damage")
             if not target.alive:
                 self._on_boss_killed(target)
         else:
-            player_attack_enemy(self.player, target, self.event_bus,
-                                world_rules=world_rules,
-                                damage_multiplier=damage_multiplier)
+            dmg = player_attack_enemy(self.player, target, self.event_bus,
+                                      world_rules=world_rules,
+                                      damage_multiplier=damage_multiplier)
+            self.damage_numbers.spawn(target.x, target.y - 25, str(dmg), (255, 255, 255))
             if not target.alive:
                 self._on_enemy_killed(target)
 
@@ -633,12 +655,15 @@ class Game:
         self._show_message("Game loaded.")
 
     def _update(self, dt):
+        self.damage_numbers.update(dt)
+
         if self._message_timer > 0:
             self._message_timer -= dt
             if self._message_timer <= 0:
                 self.message = ""
 
         self.world.total_playtime_seconds += dt
+        
 
         if self.evolution_banner.visible or self.profile_screen.visible or self.gateway_menu.visible:
             return
@@ -693,6 +718,7 @@ class Game:
         
 
         boss_for_hud = self.current_area.boss
+        self.damage_numbers.draw(self.screen, self.camera)
         self.hud.draw(self.screen, self.player, boss=boss_for_hud, message=self.message)
         self._draw_player_projectiles()
         self.inventory_ui.draw(self.screen, self.player)
@@ -716,5 +742,63 @@ class Game:
         else:
             ext = self.world.get_extension(self.current_extension_id)
             label = f"{ext.spec.extension_name}  |  Area Lvl {ext.spec.area_level}  (TAB: Gateway Portal)"
+        explored = self.exploration.fraction_for(self.current_area_id) * 100
+        label += f"  |  Explored {explored:.0f}%"    
         text = font.render(label, True, (220, 220, 230))
         self.screen.blit(text, (config.SCREEN_WIDTH // 2 - text.get_width() // 2, config.SCREEN_HEIGHT - 24))
+
+    def _on_player_death(self, cause=None):
+        lost = self.player.progression.lose_xp_progress(0.10)  # tune: 0.10 = 10%
+        msg = "You died. Respawning..."
+        if lost > 0:
+            msg = f"You died (-{lost} XP progress). Respawning..."
+        self._show_message(msg)
+        if self._boss_attempt_active:
+            self.event_bus.emit("boss_attempt_ended", result="death", boss_id=self._boss_attempt_boss_id)
+            self._boss_attempt_active = False
+            self._boss_attempt_boss_id = None
+    
+    def _draw_region_atmosphere(self):
+        """Translucent color wash so each extension feels visually distinct."""
+        if self.current_extension_id is None:
+            return
+        ext = self.world.get_extension(self.current_extension_id)
+        if ext is None:
+            return
+        tint = self._region_tint(ext.spec)
+        if tint is None:
+            return
+        overlay = pygame.Surface((config.SCREEN_WIDTH, config.SCREEN_HEIGHT))
+        overlay.set_alpha(30)
+        overlay.fill(tint)
+        self.screen.blit(overlay, (0, 0))
+
+    def _region_tint(self, spec) -> tuple | None:
+        flavor = " ".join(m.get("name", "") for m in spec.world_modifiers).lower()
+        if "chaos" in flavor or "corrupt" in flavor:
+            return (120, 40, 160)
+        if "storm" in flavor or "conductive" in flavor:
+            return (40, 90, 170)
+        if "ash" in flavor or "fire" in flavor:
+            return (170, 70, 30)
+        if "frozen" in flavor or "cold" in flavor or "glacier" in flavor:
+            return (60, 120, 160)
+        if "bone" in flavor or "brittle" in flavor:
+            return (150, 140, 110)
+        if spec.is_anomaly:
+            return (180, 40, 60)
+        return None
+
+    def _evolution_reason(self, profile) -> str:
+        from ai.personalization import derive_hints
+        hints = derive_hints(profile)
+        if hints.boss_struggling:
+            return "The world noticed your struggles against bosses."
+        if hints.weak_defense:
+            return "The world noticed your defenses are thin."
+        if hints.frequent_death_causes:
+            dtype = hints.frequent_death_causes[0]
+            return f"{dtype.title()} has killed you often. The world remembers."
+        if hints.under_explored:
+            return "You rush through regions. The world reshapes itself."
+        return f"The world has been watching your {hints.dominant_damage_type} build."

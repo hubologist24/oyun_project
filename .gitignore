@@ -45,6 +45,8 @@ venv.bak/
 *.swp
 *.swo
 
+savegame*
+
 # Unit test / coverage reports
 .coverage
 .coverage.*

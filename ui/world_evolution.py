@@ -20,7 +20,7 @@ class WorldEvolutionBanner:
         self.font_body = pygame.font.SysFont("consolas", 20)
         self.font_small = pygame.font.SysFont("consolas", 16)
 
-    def show(self, extension_name, area_level, is_anomaly, rule_names, gate_area_name=None):
+    def show(self, extension_name, area_level, is_anomaly, rule_names, gate_area_name=None, reason=None):
         self.visible = True
         self.extension_name = extension_name
         self.area_level = area_level
@@ -50,6 +50,11 @@ class WorldEvolutionBanner:
         sub = self.font_body.render("Your journey has changed the world.", True, (200, 200, 210))
         surface.blit(sub, (cx - sub.get_width() // 2, y))
         y += 50
+
+        if getattr(self, "reason", None):
+            r = self.font_small.render(f"Why: {self.reason}", True, (200, 180, 255))
+            surface.blit(r, (cx - r.get_width() // 2, y))
+            y += 30
 
         tag = "ANOMALY REGION DETECTED" if self.is_anomaly else "NEW REGION DISCOVERED"
         tag_color = (255, 90, 90) if self.is_anomaly else (120, 220, 255)

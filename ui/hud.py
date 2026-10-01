@@ -365,3 +365,26 @@ class InventoryUI:
     def _best_guess_equip_slot(self, item, player):
         from items.equipment_slots import resolve_equip_slot
         return resolve_equip_slot(item.slot, player.equipped)
+
+class DamageNumbers:
+    """Floating, fading damage text spawned on hits."""
+
+    def __init__(self):
+        self.font = pygame.font.SysFont("consolas", 15, bold=True)
+        self.numbers = []  # dicts: x, y, timer, text, color
+
+    def spawn(self, x, y, text, color=(255, 255, 255)):
+        self.numbers.append({"x": x, "y": y, "t": 0.8, "text": text, "color": color})
+
+    def update(self, dt):
+        for n in self.numbers:
+            n["y"] -= 45 * dt
+            n["t"] -= dt
+        self.numbers = [n for n in self.numbers if n["t"] > 0]
+
+    def draw(self, surface, camera):
+        for n in self.numbers:
+            alpha = min(255, int(255 * (n["t"] / 0.8)))
+            s = self.font.render(n["text"], True, n["color"])
+            s.set_alpha(alpha)
+            surface.blit(s, camera.world_to_screen((n["x"], n["y"])))    

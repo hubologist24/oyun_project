@@ -36,10 +36,13 @@ class Gate:
     state: str = "closed"        # "closed" | "open"
     target_extension_id: Optional[str] = None   # set when opened
     is_starting_gate: bool = False  # True only for gates present in the starting area
+    opened_at: Optional[float] = None   # wall-clock timestamp when opened
 
     def open_to(self, extension_id: str):
+        import time
         self.state = "open"
         self.target_extension_id = extension_id
+        self.opened_at = time.time()
 
     def is_open(self) -> bool:
         return self.state == "open"
@@ -54,6 +57,7 @@ class Gate:
             "state": self.state,
             "target_extension_id": self.target_extension_id,
             "is_starting_gate": self.is_starting_gate,
+            "opened_at": self.opened_at,
         }
 
     @staticmethod
@@ -67,6 +71,7 @@ class Gate:
             state=d.get("state", "closed"),
             target_extension_id=d.get("target_extension_id"),
             is_starting_gate=d.get("is_starting_gate", False),
+            opened_at=d.get("opened_at"),
         )
 
 
@@ -78,3 +83,9 @@ def reset_gate_id_counter(start_at: int = 1):
     """Used by World.from_dict() to keep ids monotonic/unique after a load."""
     global _gate_id_counter
     _gate_id_counter = itertools.count(start_at)
+
+#def open_to(self, extension_id: str):
+#    import time
+#    self.state = "open"
+#    self.target_extension_id = extension_id
+#    self.opened_at = time.time()

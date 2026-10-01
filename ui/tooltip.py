@@ -86,4 +86,33 @@ class ItemTooltip:
             lines.append((f"{p.display_name}: {p.format_line()}", (150, 190, 255)))
         for s in item.suffixes:
             lines.append((f"{s.display_name}: {s.format_line()}", (170, 255, 190)))
+        ctx = getattr(item, "creation_context", None)
+        if ctx:
+            ext_id = ctx.get("extension_id", "unknown")
+            origin = ("the Starting Region" if ext_id == "starting_world"
+                      else ext_id.replace("_", " ").title())
+            lines.append((
+                f"Forged in {origin} (area lvl {ctx.get('area_level', '?')})",
+                (150, 140, 120)))
+
+        # --- vintage: affixes whose tier table has since changed ---
+        from items.tiers import get_tier_table
+        table = get_tier_table(None)
+        shown_vintage = False
+        for affix in item.all_affixes():
+            mod = affix.modifier
+            if mod not in table or affix.tier not in table.get(mod, {}):
+                continue
+            current = table[mod][affix.tier]
+            created = affix.creation_tier_range
+            if created and list(current) != list(created):
+                if not shown_vintage:
+                    lines.append(("VINTAGE -- this item predates the world's changes:", (230, 190, 90)))
+                    shown_vintage = True
+                lines.append((
+                    f"  {affix.tier} {mod.replace('_', ' ')}: rolled [{created[0]}-{created[1]}], "
+                    f"world now [{current[0]}-{current[1]}]",
+                    (230, 190, 90)))
+        if shown_vintage:
+            lines.append(("This item will never fall behind the history of the world.", (240, 210, 120)))
         return lines
