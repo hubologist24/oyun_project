@@ -19,132 +19,151 @@ MIN_ROOM_COUNT = 2
 MAX_AREA_LEVEL = 500
 MAX_ANOMALY_LEVEL_JUMP = 60
 
+import re
+from items.tiers import get_tier_table
+
+MAX_MAP_DIM = 128
+MIN_MAP_DIM = 20
+MAX_MODIFIERS = 3
+MAX_RULES_PER_MODIFIER = 3
+MULT_MIN, MULT_MAX = 0.25, 4.0
+RES_DELTA_LIMIT = 0.5
+TIER_VALUE_MAX = 500
+TIER_NAME_RE = re.compile(r"^T[1-9]$")
+BIOME_RE = re.compile(r"^[a-z][a-z0-9_]{1,40}$")
+ON_KILL_EFFECTS = {"explode", "heal_player"}
+
+def _num(v): return isinstance(v, (int, float)) and not isinstance(v, bool)
+def _int(v): return isinstance(v, int) and not isinstance(v, bool)
+
 
 class WorldValidator:
-    """Validates an ExtensionSpec before it becomes a real Extension."""
-
     @staticmethod
-    def validate(spec: ExtensionSpec, existing_extension_ids: set,
-                 player_level: int = 1) -> Tuple[bool, List[str]]:
+    def validate(spec, existing_extension_ids, player_level=1):
         errors = []
-
         if not spec.extension_id or not isinstance(spec.extension_id, str):
             errors.append("extension_id must be a non-empty string")
         elif spec.extension_id in existing_extension_ids:
-            errors.append(f"extension_id '{spec.extension_id}' already exists (extensions are permanent)")
+            errors.append(f"extension_id '{spec.extension_id}' already exists")
 
-        if not spec.extension_name or not isinstance(spec.extension_name, str):
-            errors.append("extension_name must be a non-empty string")
+        if (not isinstance(spec.extension_name, str) or not spec.extension_name.strip()
+                or len(spec.extension_name) > 60):
+            errors.append("extension_name must be a non-empty string (<=60 chars)")
+        if not isinstance(spec.biome, str) or not BIOME_RE.match(spec.biome):
+            errors.append("biome must be snake_case (2-41 chars)")
+        if not isinstance(spec.is_anomaly, bool):
+            errors.append("is_anomaly must be a bool")
 
-        if not isinstance(spec.area_level, int) or spec.area_level < 1:
+        if not _int(spec.area_level) or spec.area_level < 1:
             errors.append("area_level must be a positive integer")
         elif spec.area_level > MAX_AREA_LEVEL:
-            errors.append(f"area_level {spec.area_level} exceeds MAX_AREA_LEVEL ({MAX_AREA_LEVEL})")
+            errors.append(f"area_level exceeds {MAX_AREA_LEVEL}")
+        elif spec.is_anomaly is True and spec.area_level - player_level > MAX_ANOMALY_LEVEL_JUMP:
+            errors.append("anomaly level jump too large")
 
-        if spec.is_anomaly:
-            jump = spec.area_level - player_level
-            if jump > MAX_ANOMALY_LEVEL_JUMP:
-                errors.append(f"anomaly level jump {jump} exceeds MAX_ANOMALY_LEVEL_JUMP "
-                              f"({MAX_ANOMALY_LEVEL_JUMP}) -- per spec, anomalies must remain "
-                              f"'optional or escapable', not absurdly unfair")
+        if not _int(spec.room_count) or not (MIN_ROOM_COUNT <= spec.room_count <= MAX_ROOM_COUNT):
+            errors.append(f"room_count must be an int in [{MIN_ROOM_COUNT}, {MAX_ROOM_COUNT}]")
+        for attr in ("map_cols", "map_rows"):
+            v = getattr(spec, attr)
+            if not _int(v) or not (MIN_MAP_DIM <= v <= MAX_MAP_DIM):
+                errors.append(f"{attr} must be an int in [{MIN_MAP_DIM}, {MAX_MAP_DIM}]")
 
-        if not (MIN_ROOM_COUNT <= spec.room_count <= MAX_ROOM_COUNT):
-            errors.append(f"room_count {spec.room_count} outside allowed range "
-                          f"[{MIN_ROOM_COUNT}, {MAX_ROOM_COUNT}]")
-
-        if spec.map_cols < 20 or spec.map_rows < 20:
-            errors.append("map_cols/map_rows too small to fit room_count safely")
-
-        for modifier_dict in (spec.world_modifiers or []):
-            if not isinstance(modifier_dict, dict):
-                errors.append(
-                    f"world_modifier entry must be a dict, got "
-                    f"{type(modifier_dict).__name__}"
-                )
-                continue
-            valid, mod_errors = WorldModifierValidator.validate(modifier_dict)
-            errors.extend(mod_errors)
-
-        return (len(errors) == 0, errors)
+        mods = spec.world_modifiers
+        if not isinstance(mods, list):
+            errors.append("world_modifiers must be a list")
+        else:
+            if len(mods) > MAX_MODIFIERS:
+                errors.append(f"too many world_modifiers (max {MAX_MODIFIERS})")
+            for m in mods:
+                errors.extend(WorldModifierValidator.validate(m)[1])
+        return (not errors, errors)
 
 
 class WorldModifierValidator:
-    """Validates a single raw WorldModifier dict (before WorldModifier.from_dict)."""
-
     @staticmethod
-    def validate(modifier_dict) -> Tuple[bool, List[str]]:
+    def validate(md):
+        if not isinstance(md, dict):
+            return False, [f"world modifier must be a dict, got {type(md).__name__}"]
         errors = []
-        if not isinstance(modifier_dict, dict):
-            return (False, [f"world modifier must be a dict, got "
-                            f"{type(modifier_dict).__name__}"])
-
-        if "name" not in modifier_dict:
-            errors.append("world modifier missing 'name'")
-
-        rules = modifier_dict.get("rules", [])
+        if not isinstance(md.get("name"), str) or not md["name"].strip():
+            errors.append("world modifier missing/invalid 'name'")
+        rules = md.get("rules", [])
         if not isinstance(rules, list):
-            errors.append("world modifier 'rules' must be a list")
-            return (False, errors)
+            return False, errors + ["'rules' must be a list"]
+        if len(rules) > MAX_RULES_PER_MODIFIER:
+            errors.append(f"too many rules (max {MAX_RULES_PER_MODIFIER})")
 
-        for i, rule in enumerate(rules):
-            if not isinstance(rule, dict):
-                errors.append(f"rule[{i}] must be a dict, got "
-                              f"{type(rule).__name__}")
-                continue
+        known_mods = {k for k in get_tier_table() if not k.startswith("_")}
+        for i, r in enumerate(rules):
+            if not isinstance(r, dict):
+                errors.append(f"rule[{i}] must be a dict"); continue
+            t = r.get("type")
+            if t not in SUPPORTED_RULE_TYPES:
+                errors.append(f"rule[{i}] unsupported type '{t}'"); continue
 
-            rule_type = rule.get("type")
-            if rule_type not in SUPPORTED_RULE_TYPES:
-                errors.append(f"rule[{i}] has unsupported type '{rule_type}'. "
-                              f"Supported: {sorted(SUPPORTED_RULE_TYPES)}")
-                continue
+            if t in ("damage_taken_multiplier", "damage_dealt_multiplier"):
+                if r.get("target", "all") not in VALID_TARGETS:
+                    errors.append(f"rule[{i}] invalid target")
+                dt = r.get("damage_type")
+                if dt is not None and not DamageTypes.is_valid(dt):
+                    errors.append(f"rule[{i}] invalid damage_type")
+                m = r.get("multiplier")
+                if not _num(m) or not (MULT_MIN <= m <= MULT_MAX):
+                    errors.append(f"rule[{i}] multiplier must be in [{MULT_MIN}, {MULT_MAX}]")
 
-            if rule_type in ("damage_taken_multiplier", "damage_dealt_multiplier"):
-                target = rule.get("target", "all")
-                if target not in VALID_TARGETS:
-                    errors.append(f"rule[{i}] invalid target '{target}'")
-                dtype = rule.get("damage_type")
-                if dtype is not None and not DamageTypes.is_valid(dtype):
-                    errors.append(f"rule[{i}] invalid damage_type '{dtype}'")
-                mult = rule.get("multiplier")
-                if not isinstance(mult, (int, float)) or mult < 0 or mult > 10:
-                    errors.append(f"rule[{i}] multiplier must be a number in [0, 10], got {mult}")
+            elif t == "conversion":
+                for f in ("from_type", "to_type"):
+                    if not DamageTypes.is_valid(r.get(f)):
+                        errors.append(f"rule[{i}] invalid {f}")
+                if r.get("from_type") == r.get("to_type"):
+                    errors.append(f"rule[{i}] conversion from_type == to_type")
+                p = r.get("percent")
+                if not _num(p) or not (0.0 <= p <= 1.0):
+                    errors.append(f"rule[{i}] percent must be in [0, 1]")
+                if r.get("scope", "all") not in ("player", "enemy", "all"):
+                    errors.append(f"rule[{i}] invalid scope")
 
-            elif rule_type == "conversion":
-                for field in ("from_type", "to_type", "percent"):
-                    if field not in rule:
-                        errors.append(f"rule[{i}] conversion missing '{field}'")
-                if "from_type" in rule and not DamageTypes.is_valid(rule["from_type"]):
-                    errors.append(f"rule[{i}] invalid from_type '{rule['from_type']}'")
-                if "to_type" in rule and not DamageTypes.is_valid(rule["to_type"]):
-                    errors.append(f"rule[{i}] invalid to_type '{rule['to_type']}'")
-                pct = rule.get("percent")
-                if isinstance(pct, (int, float)) and not (0.0 <= pct <= 1.0):
-                    errors.append(f"rule[{i}] conversion percent must be within [0.0, 1.0]")
-
-            elif rule_type == "tier_override":
-                if "modifier" not in rule:
-                    errors.append(f"rule[{i}] tier_override missing 'modifier'")
-                tiers = rule.get("tiers", {})
+            elif t == "tier_override":
+                if r.get("modifier") not in known_mods:
+                    errors.append(f"rule[{i}] unknown tier modifier '{r.get('modifier')}'")
+                tiers = r.get("tiers")
                 if not isinstance(tiers, dict) or not tiers:
-                    errors.append(f"rule[{i}] tier_override 'tiers' must be a non-empty dict")
+                    errors.append(f"rule[{i}] tiers must be a non-empty dict")
                 else:
-                    for tier_name, bounds in tiers.items():
-                        if not (isinstance(bounds, list) and len(bounds) == 2):
-                            errors.append(f"rule[{i}] tier '{tier_name}' must be [min, max]")
-                        elif bounds[0] > bounds[1]:
-                            errors.append(f"rule[{i}] tier '{tier_name}' min > max")
-                        elif bounds[0] < 0:
-                            errors.append(f"rule[{i}] tier '{tier_name}' has negative min")
+                    for name, b in tiers.items():
+                        if not TIER_NAME_RE.match(str(name)):
+                            errors.append(f"rule[{i}] bad tier name '{name}'")
+                        elif not (isinstance(b, list) and len(b) == 2
+                                  and all(_num(x) for x in b)):
+                            errors.append(f"rule[{i}] tier '{name}' must be [min, max] numbers")
+                        elif not (0 <= b[0] <= b[1] <= TIER_VALUE_MAX):
+                            errors.append(f"rule[{i}] tier '{name}' needs 0<=min<=max<={TIER_VALUE_MAX}")
 
-            elif rule_type == "resistance_modifier":
-                dtype = rule.get("damage_type")
-                if not dtype or not DamageTypes.is_valid(dtype):
-                    errors.append(f"rule[{i}] resistance_modifier invalid damage_type '{dtype}'")
-                delta = rule.get("delta")
-                if not isinstance(delta, (int, float)) or not (-1.0 <= delta <= 1.0):
-                    errors.append(f"rule[{i}] resistance_modifier delta must be within [-1.0, 1.0]")
+            elif t == "resistance_modifier":
+                if not DamageTypes.is_valid(r.get("damage_type")):
+                    errors.append(f"rule[{i}] invalid damage_type")
+                if r.get("target", "all") not in VALID_TARGETS:
+                    errors.append(f"rule[{i}] invalid target")
+                d = r.get("delta")
+                if not _num(d) or abs(d) > RES_DELTA_LIMIT:
+                    errors.append(f"rule[{i}] delta must be within ±{RES_DELTA_LIMIT}")
 
-        return (len(errors) == 0, errors)
+            elif t == "on_kill_effect":
+                if r.get("effect") not in ON_KILL_EFFECTS:
+                    errors.append(f"rule[{i}] effect must be one of {sorted(ON_KILL_EFFECTS)}")
+                if r.get("target", "all") not in (VALID_TARGETS - {"player"}):
+                    errors.append(f"rule[{i}] invalid target")
+                if r.get("effect") == "explode":
+                    if not DamageTypes.is_valid(r.get("damage_type", "fire")):
+                        errors.append(f"rule[{i}] invalid damage_type")
+                    if not (_num(r.get("radius", 80)) and 20 <= r.get("radius", 80) <= 200):
+                        errors.append(f"rule[{i}] radius must be in [20, 200]")
+                    if not (_num(r.get("damage_ratio", 0.3)) and 0 < r.get("damage_ratio", 0.3) <= 1.0):
+                        errors.append(f"rule[{i}] damage_ratio must be in (0, 1]")
+                if r.get("effect") == "heal_player":
+                    if not (_num(r.get("percent", 0.05)) and 0 < r.get("percent", 0.05) <= 0.2):
+                        errors.append(f"rule[{i}] percent must be in (0, 0.2]")
+        return (not errors, errors)
 
 
 class ItemValidator:
@@ -188,28 +207,56 @@ class EnemyValidator:
 
 
 class BossValidator:
-    """
-    Stub for Phase 6/7 AI-specified bosses. Per spec: difficulty must
-    come from mechanics, not absurd HP walls -- so this explicitly caps
-    max_hp far below "impossible" territory and requires at least one
-    phase to exist.
-    """
     MAX_HP = 50000
     MAX_PHASES = 6
+    MAX_HIT = 1500          # per-hit cap; level scaling reaches ~330 at lvl 100
+    MAX_ARMOR = 300         # => 75% physical mitigation
+    MIN_COOLDOWN = 0.2
+    MIN_TELEGRAPH = 0.15    # fairness floor: player must be able to react
 
     @staticmethod
-    def validate(boss_dict: dict) -> Tuple[bool, List[str]]:
+    def validate(b: dict):
         errors = []
-        hp = boss_dict.get("max_hp", 0)
-        if not isinstance(hp, (int, float)) or hp <= 0 or hp > BossValidator.MAX_HP:
-            errors.append(f"boss max_hp {hp} out of bounds (max {BossValidator.MAX_HP}) "
-                          f"-- per design principle, difficulty must come from mechanics, not HP walls")
-        phases = boss_dict.get("phases", [])
+        hp = b.get("max_hp", 0)
+        if not _num(hp) or not (0 < hp <= BossValidator.MAX_HP):
+            errors.append(f"max_hp {hp} out of bounds (max {BossValidator.MAX_HP})")
+        for f in ("melee_damage", "ranged_damage", "dash_damage"):
+            v = b.get(f, 0)
+            if not _num(v) or not (0 <= v <= BossValidator.MAX_HIT):
+                errors.append(f"{f} {v} out of bounds")
+        armor = b.get("armor", 0)
+        if not _num(armor) or not (0 <= armor <= BossValidator.MAX_ARMOR):
+            errors.append(f"armor {armor} out of bounds")
+        for k, v in (b.get("resistances") or {}).items():
+            if not _num(v) or not (-1.0 <= v <= 0.75):
+                errors.append(f"resistance '{k}' {v} out of [-1, 0.75]")
+
+        phases = b.get("phases") or []
         if not phases:
             errors.append("boss must define at least one phase")
         elif len(phases) > BossValidator.MAX_PHASES:
-            errors.append(f"boss has {len(phases)} phases, exceeds MAX_PHASES ({BossValidator.MAX_PHASES})")
-        return (len(errors) == 0, errors)
+            errors.append("too many phases")
+        else:
+            last = 1.01
+            for i, p in enumerate(phases):
+                if not isinstance(p, dict):
+                    errors.append(f"phase[{i}] must be a dict"); continue
+                th = p.get("hp_threshold")
+                if not _num(th) or not (0 < th <= 1.0) or th >= last:
+                    errors.append(f"phase[{i}] hp_threshold must be in (0,1] and strictly descending")
+                else:
+                    last = th
+                if i == 0 and th != 1.0:
+                    errors.append("phase[0] hp_threshold must be 1.0")
+                ae = p.get("armor_effectiveness", 1.0)
+                if not _num(ae) or not (0 <= ae <= 1.0):
+                    errors.append(f"phase[{i}] armor_effectiveness must be in [0,1]")
+                if p.get("attack_cooldown", 1.0) < BossValidator.MIN_COOLDOWN:
+                    errors.append(f"phase[{i}] attack_cooldown too low")
+                for tf in ("telegraph_time_melee", "telegraph_time_dash"):
+                    if p.get(tf, 0.5) < BossValidator.MIN_TELEGRAPH:
+                        errors.append(f"phase[{i}] {tf} too low")
+        return (not errors, errors)
 
 
 class LootValidator:

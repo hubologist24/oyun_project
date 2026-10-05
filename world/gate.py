@@ -1,6 +1,3 @@
-################################################################################
-# FILE: world\gate.py  (NEW)
-################################################################################
 
 """
 Gate: a physical, persistent world object marking a connection point
@@ -83,9 +80,3 @@ def reset_gate_id_counter(start_at: int = 1):
     """Used by World.from_dict() to keep ids monotonic/unique after a load."""
     global _gate_id_counter
     _gate_id_counter = itertools.count(start_at)
-
-#def open_to(self, extension_id: str):
-#    import time
-#    self.state = "open"
-#    self.target_extension_id = extension_id
-#    self.opened_at = time.time()

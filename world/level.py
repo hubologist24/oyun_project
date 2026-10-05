@@ -14,6 +14,8 @@ from enemies.boss import Boss, BossTemplate
 from items.item_generator import generate_random_item
 import core.config as config
 
+from dataclasses import asdict
+
 
 def _make_grid(cols, rows):
     return [[1 for _ in range(cols)] for _ in range(rows)]
@@ -184,10 +186,7 @@ class AreaInstance:
 
             # Even procedurally-built templates pass through BossValidator
             # (Phase 5) -- personalization must never bypass safety bounds.
-            boss_dict = {
-                "max_hp": template.max_hp,
-                "phases": template.phases,
-            }
+            boss_dict = asdict(template)   
             valid, errors = BossValidator.validate(boss_dict)
             if not valid:
                 print(f"[AreaInstance] Personalized boss failed BossValidator {errors}, "

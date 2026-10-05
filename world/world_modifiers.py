@@ -105,6 +105,12 @@ class WorldModifier:
             multiplier *= rule.data.get("multiplier", 1.0)
         return multiplier
 
+
+    def on_kill_effects_for(self, target_category: str):
+        return [dict(r.data) for r in self.rules
+                if r.type == "on_kill_effect"
+                and r.data.get("target", "all") in (target_category, "all")]
+
     def conversion_rules_for(self, scope: str):
         """Returns combat.damage.ConversionRule list applicable to a scope (player/enemy/all)."""
         from combat.damage import ConversionRule
@@ -191,6 +197,13 @@ class WorldRuleSet:
             for dtype, delta in mod.resistance_modifiers_for(target_category).items():
                 merged[dtype] = merged.get(dtype, 0.0) + delta
         return merged
+
+
+    def on_kill_effects_for(self, target_category: str):
+        out = []
+        for mod in self.modifiers:
+            out.extend(mod.on_kill_effects_for(target_category))
+        return out
 
     def summary_lines(self) -> List[str]:
         lines = []

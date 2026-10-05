@@ -119,28 +119,28 @@ def resolve_damage(base_amount: float, damage_type: str, source_stats,
     return max(1, int(round(total)))
 
 
-def resolve_damage_breakdown(base_amount: float, damage_type: str, source_stats,
-                              target_armor: float = 0.0, world_rules=None,
-                              conversion_rules: List[ConversionRule] = None,
-                              target_resistances: Dict[str, float] = None,
-                              target_category: str = "all"):
+def resolve_damage_breakdown(base_amount, damage_type, source_stats,
+                             target_armor=0.0, world_rules=None,
+                             conversion_rules=None, target_resistances=None,
+                             target_category="all", source_category="all"):
     resistances = dict(target_resistances) if target_resistances else {}
     if target_armor:
         resistances.setdefault("armor_flat", target_armor)
-
     resistances = _apply_resistance_modifiers(resistances, world_rules, target_category)
 
     instances = [DamageInstance(amount=base_amount, damage_type=damage_type)]
     instances = apply_conversion(instances, conversion_rules)
     instances = apply_modifiers(instances, source_stats)
     instances = apply_resistance(instances, resistances)
-    instances = apply_world_rules(instances, world_rules,
-                                  target_category=target_category, direction="taken")
-    instances = apply_world_rules(instances, world_rules,
-                                  target_category="all", direction="dealt")
+    instances = apply_world_rules(instances, world_rules, target_category, "taken")
+    instances = apply_world_rules(instances, world_rules, source_category, "dealt")
 
     breakdown = {}
     for i in instances:
         breakdown[i.damage_type] = breakdown.get(i.damage_type, 0) + i.amount
     total = max(1, int(round(sum(breakdown.values()))))
     return total, breakdown
+
+
+def resolve_damage(*args, **kwargs) -> int:
+    return resolve_damage_breakdown(*args, **kwargs)[0]

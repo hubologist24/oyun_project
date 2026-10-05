@@ -15,7 +15,7 @@ Adds:
 """
 import sys
 import random
-from combat import damage
+#from combat import damage
 import pygame
 
 import core.config as config
@@ -41,6 +41,21 @@ from core import audio
 
 import time
 
+MAX_ON_KILL_DEPTH = 3
+
+
+class _NullEventBus:
+    """
+    Absorbs subscriptions (and drops emits) while we rebuild an EventLog
+    from a save. We only want the restored .events list -- not a fresh
+    set of 15 callbacks attached to the live bus.
+    """
+    def subscribe(self, *args, **kwargs):
+        return None
+    def unsubscribe(self, *args, **kwargs):
+        return None
+    def emit(self, *args, **kwargs):
+        return None
 
 class Game:
     def __init__(self):
@@ -90,6 +105,9 @@ class Game:
         self._pending_gate = None
         self._pending_evolution_mode = None
         self._pending_rerolls_left = 0
+
+        self._move_button_held = False          # NEW
+        self._attack_button_held = False        # NEW
 
         self._boss_attempt_active = False
         self._boss_attempt_boss_id = None
@@ -153,7 +171,7 @@ class Game:
     def _on_level_up(self, level):
             from core import audio
             audio.play("level_up")
-            self._show_message(f"Level Up! Now level {level}")
+            #self._show_message(f"Level Up! Now level {level}")
 
     
 
@@ -164,12 +182,7 @@ class Game:
         from core import audio
         audio.play("hit_player")
 
-    def _on_player_death(self, cause=None):
-        self._show_message("You died. Respawning...")
-        if self._boss_attempt_active:
-            self.event_bus.emit("boss_attempt_ended", result="death", boss_id=self._boss_attempt_boss_id)
-            self._boss_attempt_active = False
-            self._boss_attempt_boss_id = None
+
 
     def _show_message(self, text, duration=2.5):
         self.message = text
@@ -192,6 +205,8 @@ class Game:
                 self._handle_keydown(event.key)
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 self._handle_mouse_down(event.button, event.pos)
+            elif event.type == pygame.MOUSEBUTTONUP:          # NEW
+                self._handle_mouse_up(event.button, event.pos)    
             elif event.type == pygame.MOUSEMOTION:
                 self._handle_mouse_motion(event.pos)
 
@@ -204,7 +219,8 @@ class Game:
             self.inventory_ui.handle_mouse_down(button, pos, self.player)
             return
 
-        if self.evolution_banner.visible or self.profile_screen.visible or self.gateway_menu.visible:
+        if (self.evolution_banner.visible or self.profile_screen.visible
+        or self.gateway_menu.visible or self.inventory_ui.visible):
             return
 
         if not self.player.alive:
@@ -213,14 +229,34 @@ class Game:
         world_pos = self.camera.screen_to_world(pos)
 
         if button == 1:  # left click = walk
+            self._move_button_held = True
             self.player.set_move_target(*world_pos)
         elif button == 3:  # right click = attack toward cursor
+            self._attack_button_held = True
             self.player.face_toward(*world_pos)
             self._try_attack()
 
     def _handle_mouse_motion(self, pos):
         if self.inventory_ui.visible:
             self.inventory_ui.handle_mouse_motion(pos, self.player)
+            return
+
+        if not self._move_button_held or not self.player.alive:
+            return
+        if (self.evolution_banner.visible or self.profile_screen.visible
+        or self.gateway_menu.visible or self.inventory_ui.visible):
+            return
+
+        world_pos = self.camera.screen_to_world(pos)
+        self.player.set_move_target(*world_pos)
+
+    def _handle_mouse_up(self, button, pos):
+        if button == 1:
+            self._move_button_held = False
+            if self.player.alive:
+                self.player.clear_move_target()
+        elif button == 3:                             # NEW
+            self._attack_button_held = False      
 
     def _handle_keydown(self, key):
         mods = pygame.key.get_mods()
@@ -492,6 +528,7 @@ class Game:
             self._enter_extension(ext)
 
     def _enter_starting_area(self):
+        self._clear_player_projectiles()
         self.current_area = self.starting_area
         self.current_extension_id = None
         self.current_area_id = "starting_area"
@@ -502,6 +539,7 @@ class Game:
         self._show_message("Returned to the Starting Region.")
 
     def _enter_extension(self, extension):
+        self._clear_player_projectiles()
         stream = self.world.rng_service.derive_child("world", f"extension:{extension.extension_id}:runtime")
         self.current_area = AreaInstance(extension.area, stream, extension)
         self.current_extension_id = extension.extension_id
@@ -614,7 +652,8 @@ class Game:
                                       damage_multiplier=damage_multiplier)
             self.damage_numbers.spawn(target.x, target.y - 25, str(dmg), (255, 255, 255))
             if not target.alive:
-                self._on_enemy_killed(target)
+                #self._on_enemy_killed(target)
+                return
 
     def _try_attack(self):
         if not self.player.alive or not self.player.can_attack():
@@ -681,14 +720,51 @@ class Game:
     def _clear_player_projectiles(self):
         self.player_projectiles.clear()
 
-    def _on_enemy_killed(self, enemy):
+    def _on_enemy_killed(self, enemy, _depth=0):
+        if enemy not in self.current_area.enemies:
+            return
         self.current_area.enemies.remove(enemy)
         self.player.gain_xp(enemy.xp_reward)
         self.event_bus.emit("enemy_killed", name=enemy.name)
+        rules = self._active_world_rules()
         drop_chance = 0.35 if not enemy.is_elite else 0.9
         if self.world.rng_service.get_stream("loot").random() < drop_chance:
             self.current_area.spawn_loot(enemy.x, enemy.y, area_level=enemy.area_level,
-                                         world_rules=self._active_world_rules())
+                                        world_rules=rules)
+        self._resolve_on_kill_effects(enemy, rules, _depth)
+
+    def _resolve_on_kill_effects(self, victim, rules, depth):
+        if depth >= MAX_ON_KILL_DEPTH:
+            return
+        from combat.combat import _enemy_category
+        from combat.damage import resolve_damage
+        import math
+        for eff in rules.on_kill_effects_for(_enemy_category(victim)):
+            kind = eff.get("effect")
+            if kind == "heal_player":
+                s = self.player.effective_stats
+                amt = int(s.max_hp * eff.get("percent", 0.05))
+                s.hp = min(s.max_hp, s.hp + amt)
+                self.damage_numbers.spawn(self.player.x, self.player.y - 30, f"+{amt}", (90, 255, 120))
+            elif kind == "explode":
+                radius = eff.get("radius", 80)
+                dtype = eff.get("damage_type", "fire")
+                base = victim.max_hp * eff.get("damage_ratio", 0.3)
+                for other in list(self.current_area.enemies):
+                    if other is victim or not other.alive:
+                        continue
+                    if math.hypot(other.x - victim.x, other.y - victim.y) > radius:
+                        continue
+                    dmg = resolve_damage(base, dtype, None,
+                                        target_resistances=other.resistances,
+                                        world_rules=rules,
+                                        target_category=_enemy_category(other),
+                                        source_category="all")
+                    other.take_damage(dmg)
+                    self.damage_numbers.spawn(other.x, other.y - 25, str(dmg), (255, 150, 60))
+                    if not other.alive:
+                        self._on_enemy_killed(other, depth + 1)
+
 
     def _on_boss_killed(self, boss):
         self._show_message(f"{boss.name.upper()} HAS FALLEN.", duration=6.0)
@@ -733,26 +809,59 @@ class Game:
         if not data:
             self._show_message("No save file found.")
             return
+
+        # --- 1. Reset in-flight / transient state ---------------------------
+        self._clear_player_projectiles()
+        self._hitstop_timer = 0.0
+        self._respawn_timer = 1.5
+        self._pending_extension_spec = None
+        self._pending_gate = None
+        self._pending_evolution_mode = None
+        self._pending_rerolls_left = 0
+        self._boss_attempt_active = False
+        self._boss_attempt_boss_id = None
+
+        # Close any modal UI that happened to be open at save time.
+        if self.evolution_banner.visible:
+            self.evolution_banner.dismiss()
+        if self.profile_screen.visible:
+            self.profile_screen.hide()
+        if self.gateway_menu.visible:
+            self.gateway_menu.hide()
+        if self.inventory_ui.visible:
+            self.inventory_ui.toggle()
+
+        # --- 2. Restore world & player --------------------------------------
         self.world = World.from_dict(data["world"])
         self.player = Player.from_dict(data["player"], self.event_bus)
         self.player.stash = self.save_manager.load_stash()
 
+        # --- 3. Restore event log WITHOUT re-subscribing --------------------
+        # EventLog.__init__ wires ~15 callbacks into the bus it is handed.
+        # Calling EventLog.from_dict(self.event_bus, ...) on every load left
+        # the previous instance's callbacks attached to the live bus, so each
+        # save/load cycle stacked another ghost logger. Instead: rebuild into
+        # a throwaway bus (absorbing the subscriptions) and transplant just
+        # the events list onto the one long-lived EventLog instance.
         if "event_log" in data:
-            self.event_log = EventLog.from_dict(data["event_log"], self.event_bus)
+            tmp = EventLog.from_dict(data["event_log"], _NullEventBus())
+            self.event_log.events = tmp.events
         else:
-            self.event_log = EventLog(self.event_bus)
+            self.event_log.events = []
 
         if "exploration" in data:
             self.exploration = ExplorationTracker.from_dict(data["exploration"])
         else:
             self.exploration = ExplorationTracker()
 
+        # --- 4. Place player in the saved area ------------------------------
         target_ext_id = data.get("current_extension_id")
         if target_ext_id:
             ext = self.world.get_extension(target_ext_id)
             if ext:
                 ext.ensure_built(self.world.rng_service, world=self.world)
-                stream = self.world.rng_service.derive_child("world", f"extension:{ext.extension_id}:runtime")
+                stream = self.world.rng_service.derive_child(
+                    "world", f"extension:{ext.extension_id}:runtime")
                 self.current_area = AreaInstance(ext.area, stream, ext)
                 self.current_extension_id = ext.extension_id
                 self.current_area_id = ext.extension_id
@@ -794,7 +903,8 @@ class Game:
         self.world.total_playtime_seconds += dt
         
 
-        if self.evolution_banner.visible or self.profile_screen.visible or self.gateway_menu.visible:
+        if (self.evolution_banner.visible or self.profile_screen.visible
+        or self.gateway_menu.visible or self.inventory_ui.visible):
             return
 
         if self.player.alive:
@@ -803,6 +913,10 @@ class Game:
             self._pickup_loot()
             self._check_gate_interactions()
             self.exploration.update(dt, self.current_area_id, self.player.x, self.player.y)
+            if self._attack_button_held:                  # NEW
+                world_pos = self.camera.screen_to_world(pygame.mouse.get_pos())
+                self.player.face_toward(*world_pos)
+                self._try_attack()
         else:
             self._respawn_timer = getattr(self, "_respawn_timer", 1.5) - dt
             if self._respawn_timer <= 0:
@@ -811,7 +925,7 @@ class Game:
         world_rules = self._active_world_rules()
 
         for enemy in self.current_area.enemies:
-            enemy.update(dt, self.player, self.current_area.tilemap, self.event_bus)
+            enemy.update(dt, self.player, self.current_area.tilemap, self.event_bus,world_rules=world_rules)
 
         if self.current_area.boss is not None and self.current_area.boss.alive and self.player.alive:
             self.current_area.boss.update(dt, self.player, self.event_bus, world_rules=world_rules)
@@ -833,6 +947,8 @@ class Game:
 
         gates_here = self.world.gates_in_area(self.current_area_id)
         self.current_area.draw(self.screen, self.camera, gates=gates_here)
+        self._draw_region_atmosphere()
+        
 
         for enemy in self.current_area.enemies:
             if enemy.alive:
@@ -850,7 +966,7 @@ class Game:
         self.damage_numbers.draw(self.screen, self.camera)
         self.hud.draw(self.screen, self.player, boss=boss_for_hud, message=self.message)
         self._draw_player_projectiles()
-        self.inventory_ui.draw(self.screen, self.player)
+        self.inventory_ui.draw(self.screen, self.player, world_rules=self._active_world_rules())
         self._draw_area_label()
         self.evolution_banner.draw(self.screen)
         self.profile_screen.draw(self.screen)

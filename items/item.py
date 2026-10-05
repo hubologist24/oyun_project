@@ -9,7 +9,7 @@ Phase 1 saves (pure flat-bonus items with no affixes) are migrated on
 load into "legacy flat items": they keep their original numbers exactly
 (per spec: never break old items) but carry no affix list.
 """
-import itertools
+ 
 from items.affix import RolledAffix
 
 #_id_counter = itertools.count(1)

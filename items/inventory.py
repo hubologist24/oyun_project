@@ -1,16 +1,5 @@
-"""
-Grid-based inventory - Phase 8.
 
-Replaces the flat capacity-limited list with a sparse (col, row) -> item
-mapping, per spec section 3 ("Finite Inventory Slot System (grid or
-fixed slot limits)").
 
-Backward compatibility: `.items` remains a property returning items in
-a stable reading order (top-left to bottom-right), so existing callers
-(core/game.py's _auto_equip_best/_equip_action, ui/hud.py's
-InventoryUI, save/load) keep working without modification.
-"""
-from typing import Optional, Tuple, Dict
 
 
 """

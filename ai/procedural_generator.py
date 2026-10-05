@@ -133,40 +133,46 @@ class ProceduralWorldGenerator(WorldGenerator):
         return rng.choices(pool, weights=weights, k=1)[0]
 
     # ---------------- challenge + solution pairing ----------------
-    def _select_modifiers_with_pairing(self, hints: PersonalizationHints, rng,
-                                        force_count: int = None) -> list:
-        """
-        Implements spec Example 1/3: the region can create a problem
-        AND a potential solution rather than simply countering the
-        player. If the player is defensively weak or struggling
-        against a boss, bias toward pairing a 'challenge' modifier
-        (targets their dominant damage type) with an 'enabling'
-        modifier (grants/buffs their secondary or a complementary type).
-        """
+    def _select_modifiers_with_pairing(self, hints, rng, force_count=None):
         affinity_pool = DAMAGE_AFFINITY_MODIFIERS.get(hints.dominant_damage_type, [])
         combined_pool = list(dict.fromkeys(affinity_pool + DEFAULT_MODIFIER_POOL))
 
-        count = force_count if force_count is not None else (1 if rng.random() < 0.5 else 2)
+        struggling = hints.weak_defense or hints.boss_struggling
+        add_challenge = (bool(hints.suggested_challenge_damage_type)
+                        and rng.random() < (0.35 if struggling else 0.6))
+
+        count = force_count if force_count is not None else \
+            (1 if add_challenge or rng.random() < 0.5 else 2)
         count = min(count, len(combined_pool))
 
-        chosen_ids = []
-        pool_copy = list(combined_pool)
+        chosen_ids, pool_copy = [], list(combined_pool)
         for _ in range(count):
-            if not pool_copy:
-                break
-            weights = [3 if mid in affinity_pool else 1 for mid in pool_copy]
+            weights = [3 if m in affinity_pool else 1 for m in pool_copy]
             pick = rng.choices(pool_copy, weights=weights, k=1)[0]
-            chosen_ids.append(pick)
-            pool_copy.remove(pick)
+            chosen_ids.append(pick); pool_copy.remove(pick)
 
-        #modifiers = [dict(get_modifier_template(mid)) for mid in chosen_ids]
-        modifiers = [copy.deepcopy(get_modifier_template(mid)) for mid in chosen_ids]
+        modifiers = [copy.deepcopy(get_modifier_template(m)) for m in chosen_ids]
 
-        should_pair_solution = (hints.weak_defense or hints.boss_struggling) and rng.random() < 0.6
-        if should_pair_solution and hints.suggested_enabling_damage_type:
+        if add_challenge:
+            modifiers.append(self._build_challenge_modifier(hints, rng))
+        should_pair = add_challenge or (struggling and rng.random() < 0.6)
+        if should_pair and hints.suggested_enabling_damage_type:
             modifiers.append(self._build_enabling_modifier(hints, rng))
-
         return modifiers
+
+    def _build_challenge_modifier(self, hints, rng) -> dict:
+        dtype = hints.suggested_challenge_damage_type
+        delta = round(rng.uniform(0.15, 0.35), 2)
+        return {
+            "name": f"{dtype.title()}-Warded Denizens",
+            "description": f"Enemies here have adapted to {dtype} damage.",
+            "rules": [
+                {"type": "resistance_modifier", "target": "minion",
+                "damage_type": dtype, "delta": delta},
+                {"type": "resistance_modifier", "target": "elite",
+                "damage_type": dtype, "delta": round(delta + 0.1, 2)},
+            ],
+        }
 
     def _build_enabling_modifier(self, hints: PersonalizationHints, rng) -> dict:
         """
@@ -204,7 +210,8 @@ class ProceduralWorldGenerator(WorldGenerator):
             # Per your "4.txt" idea #5 (Forgotten Items Become Relevant):
             # bias toward defensive/utility affixes, since that's the
             # most common category of "boring" items players discard.
-            rules.guarantee_enabling_affix = "armor"
+            #rules.guarantee_enabling_affix = "armor"
+            rules.guarantee_enabling_affix = "life"
 
         return rules
 

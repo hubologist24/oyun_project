@@ -111,6 +111,11 @@ class Boss:
             self.alive = False
         self._update_phase()
 
+    def _hit_player(self, player, dmg, event_bus):
+        if player.take_damage(dmg, cause=self.damage_type):
+            event_bus.emit("player_hit", source=self.name, damage=dmg,
+                        damage_type=self.damage_type)
+
     def _update_phase(self):
         ratio = self.hp / self.max_hp if self.max_hp else 0
         best_index = 0
@@ -140,6 +145,7 @@ class Boss:
                                       target_resistances={"armor_flat": effective_armor,
                                                            **player.effective_stats.resistances},
                                       world_rules=world_rules, target_category="player")
+                self._hit_player(player, dmg, event_bus)
                 player.take_damage(dmg,cause=self.damage_type)                
                 self.projectiles.remove(proj)
                 continue
@@ -199,6 +205,7 @@ class Boss:
                 dmg = resolve_damage(self.template.melee_damage, self.damage_type, None,
                                       target_resistances=target_resist, world_rules=world_rules,
                                       target_category="player")
+                self._hit_player(player, dmg, event_bus)
                 player.take_damage(dmg,cause=self.damage_type)
         elif action == "ranged":
             self.projectiles.append({
@@ -214,6 +221,7 @@ class Boss:
                 dmg = resolve_damage(self.template.dash_damage, self.damage_type, None,
                                       target_resistances=target_resist, world_rules=world_rules,
                                       target_category="player")
+                self._hit_player(player, dmg, event_bus)
                 player.take_damage(dmg,cause=self.damage_type)
             if phase.enrage_vulnerability_after_dash > 0:
                 self.enraged_vulnerable_timer = phase.enrage_vulnerability_after_dash

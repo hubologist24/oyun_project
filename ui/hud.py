@@ -271,7 +271,7 @@ class InventoryUI:
         return f"Stored {item.display_name}"
 
     # ---------------- drawing ----------------
-    def draw(self, surface, player):
+    def draw(self, surface, player,world_rules=None):
         if not self.visible:
             return
 
@@ -304,7 +304,7 @@ class InventoryUI:
                                    focused=(self.focus == FOCUS_STASH),
                                    x=stash_x, y=inv_y, label="Stash", region_kind="stash")
 
-        self._draw_active_tooltip(surface, player, panel)
+        self._draw_active_tooltip(surface, player, panel,world_rules)
 
     def _draw_equipped_panel(self, surface, player, x, y, width):
         header = self.font.render("Equipped", True, (200, 230, 255))
@@ -343,9 +343,10 @@ class InventoryUI:
                     pygame.draw.circle(surface, item.rarity_color(), cell_rect.center, cs // 2 - 6)
                 self._hit_regions.append((cell_rect, (region_kind, (c, r))))
 
-    def _draw_active_tooltip(self, surface, player, panel):
+    def _draw_active_tooltip(self, surface, player, panel,world_rules=None):
         item = None
         compare_against = None
+        compare = True
 
         if self.focus == FOCUS_INVENTORY:
             item = self.selected_inventory_item(player)
@@ -357,11 +358,15 @@ class InventoryUI:
                 compare_against = player.equipped.get(self._best_guess_equip_slot(item, player))
         elif self.focus == FOCUS_EQUIPPED:
             item = self.selected_equipped_item(player)
-            compare_against = None
+            #compare_against = None
+            compare = False
 
         if item is not None:
-            self.tooltip.draw(surface, item, panel.right + 12, panel.y, compare_against=compare_against)
-
+            #self.tooltip.draw(surface, item, panel.right + 12, panel.y, compare_against=compare_against)
+            self.tooltip.draw(surface, item, panel.right + 12, panel.y,
+                      compare_against=compare_against, compare=compare,
+                      world_rules=world_rules)
+            
     def _best_guess_equip_slot(self, item, player):
         from items.equipment_slots import resolve_equip_slot
         return resolve_equip_slot(item.slot, player.equipped)

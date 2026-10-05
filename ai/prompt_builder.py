@@ -27,7 +27,7 @@ no explanation) matching exactly this schema:
       "description": string,
       "rules": [
         {
-          "type": "damage_taken_multiplier" | "damage_dealt_multiplier" | "conversion" | "tier_override" | "resistance_modifier",
+          "type": "damage_taken_multiplier" | "damage_dealt_multiplier" | "conversion" | "tier_override" | "resistance_modifier" | "on_kill_effect",
           ... fields specific to the rule type ...
         }
       ]
@@ -40,7 +40,7 @@ Rule type field requirements:
 damage_taken_multiplier / damage_dealt_multiplier:
   "target": "minion" | "elite" | "boss" | "player" | "all"
   "damage_type": one of ["physical","fire","cold","lightning","chaos","poison","bleed"] or null
-  "multiplier": number between 0 and 10
+  "multiplier": number between 0.25 and 4
 
 conversion:
   "from_type": one of the damage types above
@@ -55,7 +55,14 @@ tier_override:
 resistance_modifier:
   "target": "minion" | "elite" | "boss" | "player" | "all"
   "damage_type": one of the damage types above
-  "delta": number between -1.0 and 1.0
+  "delta": number between -0.5 and 0.5
+
+on_kill_effect:
+  "effect": string (e.g. "explosion", "chain_lightning", "corpse_burst", "life_leech")
+  "target": "minion" | "elite" | "boss" | "player" | "all"
+  "radius": number (in world units, >= 0)
+  "damage_ratio": number between 0.0 and 4.0
+  "percent": number between 0.0 and 1.0  (chance for the effect to trigger on kill)
 
 Do not include any field not listed above. Do not wrap the JSON in
 code fences. Do not include comments.

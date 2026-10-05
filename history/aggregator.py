@@ -51,20 +51,13 @@ def _infer_boss_stats(event_log):
 
 
 def _infer_item_stats(event_log):
-    found_events = event_log.events_of_type("item_found")
-    rare_count = sum(1 for e in found_events if e.payload.get("rarity") == "rare")
-    unique_count = sum(1 for e in found_events if e.payload.get("rarity") == "unique")
-    six_mod_count = sum(1 for e in found_events if e.payload.get("is_six_mod"))
-
-    equipped_ids = {e.payload.get("item_id") for e in event_log.events_of_type("item_equipped")}
-    discarded_events = event_log.events_of_type("item_sold") + event_log.events_of_type("item_destroyed") \
-        if hasattr(event_log.events_of_type("item_sold"), "__add__") else \
-        event_log.events_of_type("item_sold") + event_log.events_of_type("item_destroyed")
-    discarded_count = len(event_log.events_of_type("item_sold")) + len(event_log.events_of_type("item_destroyed"))
-    found_count = len(found_events)
-    kept_count = max(0, found_count - discarded_count)
-
-    return rare_count, unique_count, six_mod_count, kept_count, discarded_count
+    found = event_log.events_of_type("item_found")
+    rare = sum(1 for e in found if e.payload.get("rarity") == "rare")
+    unique = sum(1 for e in found if e.payload.get("rarity") == "unique")
+    six = sum(1 for e in found if e.payload.get("is_six_mod"))
+    discarded = (len(event_log.events_of_type("item_sold"))
+                 + len(event_log.events_of_type("item_destroyed")))
+    return rare, unique, six, max(0, len(found) - discarded), discarded
 
 
 def _infer_most_used_weapon(event_log):

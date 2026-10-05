@@ -18,6 +18,8 @@ from items.affix import RolledAffix
 from items.modifiers import ModifierPools
 from items.tiers import resolve_tier_for_roll, roll_value_for_tier, get_tier_table
 
+GUARANTEE_CHANCE = 0.25
+
 WEAPON_BASES_BY_SUBTYPE = {
     "sword": [
         ("Rusty Sword", "physical_damage"),
@@ -130,29 +132,29 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
     else:
         raise ValueError(f"Unknown slot_category: {slot_category}")
 
+    # --- affix counts ---
+    # NOTE: roll_affix_counts always returns >=1P/>=1S, so this function
+    # cannot organically produce a NORMAL (zero-affix) item; the NORMAL
+    # branch below only fires for forced (0, 0) counts. rare_chance_multiplier
+    # is wired into the affix-count roll (it grants an extra pass aimed at
+    # the 3+ affix threshold) rather than a separate rarity roll.
     if force_affix_counts:
         num_prefixes, num_suffixes = force_affix_counts
     else:
         num_prefixes, num_suffixes = ModifierPools.roll_affix_counts(item_level, rng)
-        if loot_rules and loot_rules.six_mod_chance_multiplier != 1.0:
-            if (num_prefixes < 3 and num_suffixes < 3
-                    and rng.random() < (loot_rules.six_mod_chance_multiplier - 1.0)):
+        if loot_rules:
+            if (loot_rules.six_mod_chance_multiplier > 1.0
+                    and num_prefixes < 3 and num_suffixes < 3
+                    and rng.random() < loot_rules.six_mod_chance_multiplier - 1.0):
                 num_prefixes, num_suffixes = ModifierPools.roll_affix_counts(item_level, rng)
+            if (loot_rules.rare_chance_multiplier > 1.0
+                    and num_prefixes + num_suffixes < 3
+                    and rng.random() < loot_rules.rare_chance_multiplier - 1.0):
+                p2, s2 = ModifierPools.roll_affix_counts(item_level, rng)
+                if p2 + s2 > num_prefixes + num_suffixes:
+                    num_prefixes, num_suffixes = p2, s2
 
-    total_affixes = num_prefixes + num_suffixes
-    if force_rarity:
-        rarity = force_rarity
-    elif total_affixes == 0:
-        rarity = Item.RARITY_NORMAL
-    elif total_affixes <= 2:
-        rarity = Item.RARITY_MAGIC
-    else:
-        rarity = Item.RARITY_RARE
-
-    if rarity == Item.RARITY_NORMAL and loot_rules and loot_rules.rare_chance_multiplier > 1.0:
-        if rng.random() < (loot_rules.rare_chance_multiplier - 1.0) * 0.1:
-            rarity = Item.RARITY_MAGIC
-
+    # --- implicit (weapons/armor only) ---
     used_modifiers = set()
     implicit_affix = None
     if has_implicit:
@@ -173,27 +175,47 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
         )
         used_modifiers.add(implicit_modifier)
 
-    # 3) Roll the actual prefixes/suffixes.
+    # --- roll the actual prefixes/suffixes ---
     pool_slot = "armor" if slot_category in ("ring", "amulet") else slot_category
     prefix_pool = ModifierPools.prefixes_for_slot(pool_slot)
     suffix_pool = ModifierPools.suffixes_for_slot(pool_slot)
+    prefixes, suffixes = [], []
 
-    prefixes = []
+    # guarantee_enabling_affix: occasionally seed one affix with this
+    # modifier. Skipped when the modifier is already consumed by the
+    # implicit (e.g. "armor" on armor pieces) so the guarantee can
+    # actually fire across slots.
+    guaranteed = getattr(loot_rules, "guarantee_enabling_affix", None) if loot_rules else None
+    if guaranteed and guaranteed not in used_modifiers and rng.random() < GUARANTEE_CHANCE:
+        for kind, pool in (("prefix", prefix_pool), ("suffix", suffix_pool)):
+            matching = [a for a in pool if a["modifier"] == guaranteed]
+            if not matching:
+                continue
+            a = _roll_affix_from_pool_biased(matching, rng, item_level, world_rules,
+                                             used_modifiers, kind, loot_rules)
+            if a:
+                if kind == "prefix":
+                    prefixes.append(a)
+                    num_prefixes = max(0, num_prefixes - 1)
+                else:
+                    suffixes.append(a)
+                    num_suffixes = max(0, num_suffixes - 1)
+                break
+
     for _ in range(num_prefixes):
         a = _roll_affix_from_pool_biased(prefix_pool, rng, item_level, world_rules,
                                           used_modifiers, "prefix", loot_rules)
         if a:
             prefixes.append(a)
 
-    suffixes = []
     for _ in range(num_suffixes):
         a = _roll_affix_from_pool_biased(suffix_pool, rng, item_level, world_rules,
                                           used_modifiers, "suffix", loot_rules)
         if a:
             suffixes.append(a)
 
-    # 4) B13: rarity is derived from ACTUAL rolled affixes, not the
-    # requested counts. Pool exhaustion can no longer mislabel the item.
+    # --- rarity is derived from ACTUAL rolled affixes ---
+    # (pool exhaustion / forced counts can no longer mislabel the item)
     actual_total = len(prefixes) + len(suffixes)
     if force_rarity:
         rarity = force_rarity
@@ -204,11 +226,7 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
     else:
         rarity = Item.RARITY_RARE
 
-    if rarity == Item.RARITY_NORMAL and loot_rules and loot_rules.rare_chance_multiplier > 1.0:
-        if rng.random() < (loot_rules.rare_chance_multiplier - 1.0) * 0.1:
-            rarity = Item.RARITY_MAGIC
-
-    # 5) Name + build Item (unchanged from here down).
+    # --- name + build Item ---
     prefix_name = prefixes[0].display_name if prefixes else ""
     suffix_name = suffixes[0].display_name if suffixes else ""
     full_name_parts = [p for p in [prefix_name, base_name, suffix_name] if p]

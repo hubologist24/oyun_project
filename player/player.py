@@ -194,6 +194,7 @@ class Player:
         if target_slot is None:
             return False
         old = self.equipped.get(target_slot)
+        self.inventory.remove_item(item)
         if old is not None:
             self.inventory.add_item(old)
         self.equipped[target_slot] = item

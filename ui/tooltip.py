@@ -17,7 +17,7 @@ class ItemTooltip:
         self.font_body = pygame.font.SysFont("consolas", 13)
         self.font_diff = pygame.font.SysFont("consolas", 13, bold=True)
 
-    def draw(self, surface, item, x, y, compare_against=None, max_width=280):
+    def draw(self, surface, item, x, y, compare_against=None, max_width=280 ,compare=True, world_rules=None):
         """
         Draws a tooltip box for `item` at (x, y) (top-left anchor).
         If `compare_against` is given (the currently-equipped item in
@@ -28,8 +28,8 @@ class ItemTooltip:
         if item is None:
             return
 
-        lines = self._build_info_lines(item)
-        diffs = compare_items(item, compare_against) if compare_against is not None or True else []
+        lines = self._build_info_lines(item,world_rules)
+        diffs = compare_items(item, compare_against) if compare else []
         diff_lines = [format_diff_line(d) for d in diffs]
 
         padding = 10
@@ -69,7 +69,7 @@ class ItemTooltip:
                 surface.blit(surf, (x + padding, cy))
                 cy += line_h
 
-    def _build_info_lines(self, item):
+    def _build_info_lines(self, item,world_rules=None):
         """Returns list of (text, color) tuples for the info section."""
         lines = [(item.display_name, item.rarity_color())]
         lines.append((f"{item.slot.title()}  -  {item.rarity.title()}  -  ilvl {item.item_level}",
@@ -97,7 +97,7 @@ class ItemTooltip:
 
         # --- vintage: affixes whose tier table has since changed ---
         from items.tiers import get_tier_table
-        table = get_tier_table(None)
+        table = get_tier_table(world_rules)
         shown_vintage = False
         for affix in item.all_affixes():
             mod = affix.modifier

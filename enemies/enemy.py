@@ -51,7 +51,8 @@ class Enemy:
             self.hp = 0
             self.alive = False
 
-    def update(self, dt, player, tilemap, event_bus):
+    def update(self, dt, player, tilemap, event_bus,world_rules=None):
+        self._world_rules = world_rules
         if not self.alive:
             return
         if self._attack_timer > 0:
@@ -119,7 +120,7 @@ class Enemy:
         if self._attack_timer > 0:
             return
         from combat.combat import enemy_attack_player
-        enemy_attack_player(self, player, event_bus)
+        enemy_attack_player(self, player, event_bus,world_rules=self._world_rules)
         self._attack_timer = config.ENEMY_CONTACT_DAMAGE_COOLDOWN
 
 
@@ -203,7 +204,7 @@ class Enemy:
                 target_res["armor_flat"] = stats.armor
                 dmg = resolve_damage(proj["damage"], self.damage_type, None,
                                     target_resistances=target_res,
-                                    target_category="player")
+                                    target_category="player", world_rules=self._world_rules)
                 if player.take_damage(dmg, cause=self.damage_type):
                     event_bus.emit("player_hit", source=self.name,
                                 damage=dmg, damage_type=self.damage_type)

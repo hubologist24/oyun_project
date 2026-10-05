@@ -59,7 +59,13 @@ class WorldExtensionGenerator:
         if spec is None:
             return None
 
-        valid, errors = WorldValidator.validate(spec, existing_extension_ids, player_profile.level)
+        #valid, errors = WorldValidator.validate(spec, existing_extension_ids, player_profile.level)
+        try:
+            valid, errors = WorldValidator.validate(spec, existing_extension_ids, player_profile.level)
+            prog_valid, prog_errors = ProgressionValidator.validate(spec, player_profile.level)
+        except Exception as e:
+            print(f"[WorldExtensionGenerator] Validation crashed on {type(backend).__name__}: {e}")
+            return None
         if not valid:
             print(f"[WorldExtensionGenerator] {type(backend).__name__} output rejected by "
                   f"WorldValidator: {errors}")
