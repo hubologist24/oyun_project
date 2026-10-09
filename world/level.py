@@ -94,9 +94,16 @@ class Level:
         self.loot_drops = []
 
         self._spawn_enemies()
-        self.boss = Boss(*self._room_center(rooms["boss_room"]), BossTemplate.hollow_warden())
+        boss = Boss(*self._room_center(rooms["boss_room"]), BossTemplate.hollow_warden())
+        boss.region_id = "starting_area"
+        self.bosses = [boss]
         self.start_pos = self._room_center(rooms["start"])
         self.gate_room = rooms["gate_room"]
+
+        self.region_rects = []          # [(region_id, pygame.Rect in tiles)]
+        self.tile_region = {}           # (col,row) -> region_id for carved corridors
+        self.region_start = {"starting_area": self.start_pos}
+        self.region_loot_rules = {}
 
     def _room_center(self, room):
         x0, y0, x1, y1 = room
@@ -116,123 +123,49 @@ class Level:
                 x, y = col * ts + ts / 2, row * ts + ts / 2
                 self.enemies.append(spawn_basic_enemy(x, y, self.rng, area_level=area_level))
 
+    def region_at_tile(self, col, row):
+        rid = self.tile_region.get((col, row))
+        if rid:
+            return rid
+        for rid, rect in reversed(self.region_rects):
+            if rect.collidepoint(col, row):
+                return rid
+        return "starting_area"
+
+    def region_at_pixel(self, x, y):
+        ts = config.TILE_SIZE
+        return self.region_at_tile(int(x // ts), int(y // ts))
+
+    def region_walkable_count(self, rid):
+        for r_id, rect in self.region_rects:
+            if r_id == rid:
+                g = self.tilemap.grid
+                return sum(1 for r in range(rect.top, rect.bottom)
+                           for c in range(rect.left, rect.right) if g[r][c] == 0)
+        return 0
+
     def spawn_loot(self, x, y, area_level=1, world_rules=None):
+        rid = self.region_at_pixel(x, y)
+        ctx = {}
+        if world_rules:
+            ctx["world_rules"] = world_rules
+        loot_rules = self.region_loot_rules.get(rid)
+        if loot_rules:
+            ctx["loot_rules"] = loot_rules
+        if rid != "starting_area":
+            ctx["extension_id"] = rid
         item = generate_random_item(self.rng, area_level=area_level,
-                                     world_context={"world_rules": world_rules} if world_rules else None)
+                                    world_context=ctx or None)
         self.loot_drops.append({"x": x, "y": y, "item": item})
 
     def draw(self, surface, camera, gates=None):
-        self.tilemap.draw(surface, camera)
+        self.tilemap.draw(surface, camera)     # doors are tiles now
         for drop in self.loot_drops:
             pos = camera.world_to_screen((drop["x"], drop["y"]))
             pygame.draw.circle(surface, drop["item"].rarity_color(), pos, 8)
             pygame.draw.circle(surface, (0, 0, 0), pos, 8, 1)
-        self._draw_gates(surface, camera, gates)
 
-    def _draw_gates(self, surface, camera, gates):
-        if not gates:
-            return
-        ts = config.TILE_SIZE
-        for gate in gates:
-            wx, wy = gate.tile_col * ts + ts / 2, gate.tile_row * ts + ts / 2
-            pos = camera.world_to_screen((wx, wy))
-            color = (90, 230, 255) if gate.is_open() else (90, 90, 100)
-            pygame.draw.circle(surface, color, pos, 16)
-            pygame.draw.circle(surface, (255, 255, 255), pos, 16, 2)
-            if not gate.is_open():
-                # simple "locked" glyph
-                pygame.draw.line(surface, (200, 200, 210), (pos[0]-6, pos[1]), (pos[0]+6, pos[1]), 3)
 
-class AreaInstance:
-    """
-    Runtime playable area built from an Extension's procedural map data.
-    Phase 7: boss is now personalized via enemies/boss_factory.py, and
-    loot generation is biased via the extension's LootRules.
-    """
-
-    def __init__(self, area_data: dict, rng_stream, extension):
-        self.tilemap = area_data["tilemap"]
-        self.rooms = area_data["rooms"]
-        self.area_level = area_data["area_level"]
-        self.extension = extension
-        self.rng = rng_stream
-
-        self.enemies = []
-        self.loot_drops = []
-
-        ts = config.TILE_SIZE
-        start_room = area_data["start_room"]
-        self.start_pos = self._room_center(start_room, ts)
-
-        for room in area_data["enemy_rooms"]:
-            count = rng_stream.randint(2, 4)
-            for _ in range(count):
-                x0, y0, x1, y1 = room
-                col = rng_stream.randint(x0 + 1, max(x0 + 1, x1 - 2))
-                row = rng_stream.randint(y0 + 1, max(y0 + 1, y1 - 2))
-                x, y = col * ts + ts / 2, row * ts + ts / 2
-                self.enemies.append(spawn_basic_enemy(x, y, rng_stream, area_level=self.area_level))
-
-        self.boss = None
-        if area_data.get("boss_room") and extension.spec.boss_template_id:
-            from enemies.boss_factory import build_personalized_boss_template
-            from ai.validators import BossValidator
-
-            bx, by = self._room_center(area_data["boss_room"], ts)
-            boss_name = f"Guardian of {extension.spec.extension_name}"
-            template = build_personalized_boss_template(
-                boss_name, extension.spec.boss_personalization, self.area_level, rng_stream
-            )
-
-            # Even procedurally-built templates pass through BossValidator
-            # (Phase 5) -- personalization must never bypass safety bounds.
-            boss_dict = asdict(template)   
-            valid, errors = BossValidator.validate(boss_dict)
-            if not valid:
-                print(f"[AreaInstance] Personalized boss failed BossValidator {errors}, "
-                      f"using safe default template.")
-                template = BossTemplate.hollow_warden()
-                template.name = boss_name
-
-            self.boss = Boss(bx, by, template)
-
-    def _room_center(self, room, ts):
-        x0, y0, x1, y1 = room
-        return ((x0 + x1) / 2 * ts, (y0 + y1) / 2 * ts)
-
-    def spawn_loot(self, x, y, area_level=None, world_rules=None):
-        lvl = area_level if area_level is not None else self.area_level
-        loot_rules = None
-        if hasattr(self.extension, "spec") and self.extension.spec.loot_rules:
-            from world.loot_rules import LootRules
-            loot_rules = LootRules.from_dict(self.extension.spec.loot_rules)
-
-        item = generate_random_item(
-            self.rng, area_level=lvl,
-            world_context={"world_rules": world_rules, "loot_rules": loot_rules} if world_rules or loot_rules else None,
-        )
-        self.loot_drops.append({"x": x, "y": y, "item": item})
-
-    def draw(self, surface, camera, gates=None):
-        self.tilemap.draw(surface, camera)
-        for drop in self.loot_drops:
-            pos = camera.world_to_screen((drop["x"], drop["y"]))
-            pygame.draw.circle(surface, drop["item"].rarity_color(), pos, 8)
-            pygame.draw.circle(surface, (0, 0, 0), pos, 8, 1)
-        self._draw_gates(surface, camera, gates)
-
-    def _draw_gates(self, surface, camera, gates):
-        if not gates:
-            return
-        ts = config.TILE_SIZE
-        for gate in gates:
-            wx, wy = gate.tile_col * ts + ts / 2, gate.tile_row * ts + ts / 2
-            pos = camera.world_to_screen((wx, wy))
-            color = (90, 230, 255) if gate.is_open() else (90, 90, 100)
-            pygame.draw.circle(surface, color, pos, 16)
-            pygame.draw.circle(surface, (255, 255, 255), pos, 16, 2)
-            if not gate.is_open():
-                pygame.draw.line(surface, (200, 200, 210), (pos[0]-6, pos[1]), (pos[0]+6, pos[1]), 3)
 
 def build_level(rng_service) -> Level:
     stream = rng_service.get_stream("starting_area")

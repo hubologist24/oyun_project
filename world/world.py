@@ -18,7 +18,7 @@ class World:
         self.gates: list[Gate] = []   # NEW: all gates across the whole world
 
     # ---------------- gate management ----------------
-    def register_starting_gate(self, room_index: int, tile_col: int, tile_row: int) -> Gate:
+    def register_starting_gate(self, room_index: int, tile_col: int, tile_row: int , side="e") -> Gate:
         """Called once at game startup to register the starting area's
         reserved (closed) gate slot."""
         gate = Gate(
@@ -29,12 +29,13 @@ class World:
             tile_row=tile_row,
             state="closed",
             is_starting_gate=True,
+            side=side
         )
         self.gates.append(gate)
         return gate
 
     def register_extension_gate(
-        self, extension_id: str, room_index: int, tile_col: int, tile_row: int
+        self, extension_id: str, room_index: int, tile_col: int, tile_row: int, side="e"
     ) -> Gate:
         """Called when a new extension is built (ensure_built) to reserve
         ITS fresh closed gate slot, per spec's 'reserving expansion slots'
@@ -46,6 +47,7 @@ class World:
             tile_col=tile_col,
             tile_row=tile_row,
             state="closed",
+            side=side
         )
         self.gates.append(gate)
         return gate

@@ -34,6 +34,7 @@ class Gate:
     target_extension_id: Optional[str] = None   # set when opened
     is_starting_gate: bool = False  # True only for gates present in the starting area
     opened_at: Optional[float] = None   # wall-clock timestamp when opened
+    side: str = "e" 
 
     def open_to(self, extension_id: str):
         import time
@@ -55,6 +56,7 @@ class Gate:
             "target_extension_id": self.target_extension_id,
             "is_starting_gate": self.is_starting_gate,
             "opened_at": self.opened_at,
+            "side": self.side,
         }
 
     @staticmethod
@@ -69,6 +71,7 @@ class Gate:
             target_extension_id=d.get("target_extension_id"),
             is_starting_gate=d.get("is_starting_gate", False),
             opened_at=d.get("opened_at"),
+            side=d.get("side", "e"),
         )
 
 

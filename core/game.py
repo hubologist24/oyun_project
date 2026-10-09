@@ -22,7 +22,9 @@ import core.config as config
 from core.rng import RNGService
 from core.events import EventBus
 from player.player import Player
-from world.level import build_level, AreaInstance
+
+from world.level import build_level
+from world.expansion import attach_extension, find_door_site, stamp_door
 from world.world import World
 from world.extension_generator import WorldExtensionGenerator
 from world.camera import Camera
@@ -36,6 +38,9 @@ from ui.gateway_menu import GatewayMenu
 from history.event_log import EventLog
 from history.exploration import ExplorationTracker
 from history.aggregator import build_player_profile
+
+import math
+import textwrap
 
 from core import audio
 
@@ -112,6 +117,10 @@ class Game:
         self._boss_attempt_active = False
         self._boss_attempt_boss_id = None
 
+        self.show_region_details = False
+        self._info_font = pygame.font.SysFont("consolas", 14)
+        self._info_font_b = pygame.font.SysFont("consolas", 16, bold=True)
+
         self.damage_numbers = DamageNumbers()
 
         self._register_events()
@@ -150,17 +159,17 @@ class Game:
         return WorldExtensionGenerator(backend=procedural, fallback_backend=procedural)
 
     def _ensure_starting_gate_registered(self):
-        """
-        Idempotent: registers the starting area's single reserved
-        closed gate exactly once. Safe to call both on fresh-world
-        __init__ AND after a load, in case the loaded save predates
-        the gate system or otherwise ended up with zero gates.
-        """
-        if self.world.gates_in_area("starting_area"):
+        existing = self.world.gates_in_area("starting_area")
+        if existing:
+            for g in existing:
+                stamp_door(self.starting_area, g)
             return
-        gx0, gy0, gx1, gy1 = self.starting_area.gate_room
-        tile_col, tile_row = (gx0 + gx1) // 2, (gy0 + gy1) // 2
-        self.world.register_starting_gate(room_index=0, tile_col=tile_col, tile_row=tile_row)
+        site = find_door_site(self.starting_area.tilemap.grid,
+                              [self.starting_area.gate_room])
+        if site:
+            c, r, side, _ = site
+            gate = self.world.register_starting_gate(0, c, r, side)
+            stamp_door(self.starting_area, gate)
 
     def _register_events(self):
         self.event_bus.subscribe("player_death", self._on_player_death)
@@ -348,6 +357,7 @@ class Game:
             self._debug_spawn_item()
         elif key == pygame.K_F3:
             self._debug_spawn_item(force_rarity="rare")
+        elif key == pygame.K_F4: self.show_region_details = not self.show_region_details
         elif key == pygame.K_F5:
             self._debug_spawn_item(force_affix_counts=(3, 3))
         elif key == pygame.K_F6:
@@ -425,10 +435,23 @@ class Game:
             self.evolution_banner.dismiss()
             return
 
-        extension = self.world.add_extension(spec)
-        extension.ensure_built(self.world.rng_service, world=self.world)
+        #extension = self.world.add_extension(spec)
+        #extension.ensure_built(self.world.rng_service, world=self.world)
 
+        #opened_gate = self.world.open_gate_to(gate, spec.extension_id)
+        if gate is None:
+            self._pending_extension_spec = None
+            self._pending_gate = None
+            self._pending_evolution_mode = None
+            self.evolution_banner.dismiss()
+            self._show_message("The world has no sealed door left to open.", duration=3.0)
+            return
+
+        extension = self.world.add_extension(spec)
         opened_gate = self.world.open_gate_to(gate, spec.extension_id)
+        attach_extension(self.current_area, extension, gate,
+                         self.world.rng_service, self.world)
+        self._on_map_expanded(spec.extension_id)
 
         self.event_bus.emit("extension_generated", extension_id=spec.extension_id,
                             mode=self._pending_evolution_mode,
@@ -499,56 +522,13 @@ class Game:
             self._generate_next_extension(mode=config.EXTENSION_MODE_AUTOMATIC)
 
     # ---------------- gates / travel -----------------
-    def _check_gate_interactions(self):
-        """
-        Walking onto an OPEN gate's tile teleports the player to that
-        gate's target extension's start position. Standing on a CLOSED
-        gate does nothing (visually distinct -- drawn dim/locked).
-        """
-        gates_here = self.world.gates_in_area(self.current_area_id)
-        if not gates_here:
-            return
-        ts = config.TILE_SIZE
-        player_col, player_row = int(self.player.x // ts), int(self.player.y // ts)
+    
 
-        for gate in gates_here:
-            if gate.tile_col == player_col and gate.tile_row == player_row and gate.is_open():
-                self._travel_via_gate(gate)
-                return
+    
 
-    def _travel_via_gate(self, gate):
-        target_id = gate.target_extension_id
-        if target_id == "starting_area":
-            self._enter_starting_area()
-        else:
-            ext = self.world.get_extension(target_id)
-            if ext is None:
-                return
-            ext.ensure_built(self.world.rng_service, world=self.world)
-            self._enter_extension(ext)
+    
 
-    def _enter_starting_area(self):
-        self._clear_player_projectiles()
-        self.current_area = self.starting_area
-        self.current_extension_id = None
-        self.current_area_id = "starting_area"
-        self.player.x, self.player.y = self.starting_area.start_pos
-        self.camera = Camera(*self.starting_area.tilemap.pixel_size())
-        self.exploration.register_area(self.current_area_id, self.current_area.tilemap)
-        self.event_bus.emit("area_entered", area_id=self.current_area_id)
-        self._show_message("Returned to the Starting Region.")
-
-    def _enter_extension(self, extension):
-        self._clear_player_projectiles()
-        stream = self.world.rng_service.derive_child("world", f"extension:{extension.extension_id}:runtime")
-        self.current_area = AreaInstance(extension.area, stream, extension)
-        self.current_extension_id = extension.extension_id
-        self.current_area_id = extension.extension_id
-        self.exploration.register_area(self.current_area_id, self.current_area.tilemap)
-        self.player.x, self.player.y = self.current_area.start_pos
-        self.camera = Camera(*self.current_area.tilemap.pixel_size())
-        self.event_bus.emit("area_entered", area_id=self.current_area_id)
-        self._show_message(f"Traveled to {extension.spec.extension_name}")
+    
 
     def _open_gateway_menu(self):
         open_gates = self.world.open_gates()
@@ -570,15 +550,65 @@ class Game:
             return
         self.gateway_menu.show(entries)
 
+    def _update_current_region(self):
+        ts = config.TILE_SIZE
+        rid = self.current_area.region_at_tile(int(self.player.x // ts),
+                                               int(self.player.y // ts))
+        if rid == self.current_area_id:
+            return
+        self.current_area_id = rid
+        self.current_extension_id = None if rid == "starting_area" else rid
+        self.event_bus.emit("area_entered", area_id=rid)
+        if rid == "starting_area":
+            self._show_message("Entering the Starting Region")
+        else:
+            ext = self.world.get_extension(rid)
+            if ext:
+                self._show_message(f"Entering {ext.spec.extension_name} "
+                                   f"(Area Lvl {ext.spec.area_level})", duration=3.0)
+
+    def _teleport_to_region(self, rid):
+        pos = self.current_area.region_start.get(rid)
+        if not pos:
+            return
+        self._clear_player_projectiles()
+        self.player.x, self.player.y = pos
+        self.player.clear_move_target()
+        self._update_current_region()
+        self.camera.update(self.player.x, self.player.y)
+
+    def _on_map_expanded(self, rid):
+        tm = self.current_area.tilemap
+        self.camera.world_w, self.camera.world_h = tm.pixel_size()
+        self.exploration.register_region(rid, self.current_area.region_walkable_count(rid))
+
     def _handle_gateway_menu_select(self, target_area_id):
         self.gateway_menu.hide()
-        if target_area_id == "starting_area":
-            self._enter_starting_area()
-        else:
-            ext = self.world.get_extension(target_area_id)
-            if ext:
-                ext.ensure_built(self.world.rng_service, world=self.world)
-                self._enter_extension(ext)
+        self._teleport_to_region(target_area_id)
+
+    def _open_gateway_menu(self):
+        entries = []
+        if self.current_area_id != "starting_area":
+            entries.append({"label": "Starting Region", "target_area_id": "starting_area"})
+        for ext in self.world.extensions:
+            if ext.extension_id != self.current_area_id:
+                entries.append({
+                    "label": f"{ext.spec.extension_name}   (Lvl {ext.spec.area_level})",
+                    "target_area_id": ext.extension_id})
+        if not entries:
+            self._show_message("Nothing to travel to yet. Trigger world evolution first.")
+            return
+        self.gateway_menu.show(entries)
+
+    def _nearest_boss(self, max_dist=700):
+        best, best_d = None, max_dist
+        for b in self.current_area.bosses:
+            if not b.alive:
+                continue
+            d = math.hypot(b.x - self.player.x, b.y - self.player.y)
+            if d < best_d:
+                best, best_d = b, d
+        return best
 
     def _active_world_rules(self):
         return self.world.aggregate_rule_set()
@@ -619,11 +649,16 @@ class Game:
         self._show_message("World rule info printed to console (F7).")
 
     # ---------------- combat -----------------
-    def _live_attack_targets(self):
+    def _live_attack_targets_sil(self):
         targets = [e for e in self.current_area.enemies if e.alive]
         boss = self.current_area.boss
         if boss is not None and boss.alive:
             targets.append(boss)
+        return targets
+
+    def _live_attack_targets(self):
+        targets = [e for e in self.current_area.enemies if e.alive]
+        targets.extend(b for b in self.current_area.bosses if b.alive)
         return targets
 
     def _apply_player_hit(self, target, world_rules, damage_multiplier=1.0):
@@ -648,12 +683,11 @@ class Game:
                 self._on_boss_killed(target)
         else:
             dmg = player_attack_enemy(self.player, target, self.event_bus,
-                                      world_rules=world_rules,
-                                      damage_multiplier=damage_multiplier)
+                                    world_rules=world_rules,
+                                    damage_multiplier=damage_multiplier)
             self.damage_numbers.spawn(target.x, target.y - 25, str(dmg), (255, 255, 255))
             if not target.alive:
-                #self._on_enemy_killed(target)
-                return
+                self._on_enemy_killed(target)
 
     def _try_attack(self):
         if not self.player.alive or not self.player.can_attack():
@@ -708,11 +742,13 @@ class Game:
                         consumed = True
                         break
 
-            if not consumed and area.boss is not None and area.boss.alive \
-                    and proj.rect.colliderect(area.boss.rect):
-                self._apply_player_hit(area.boss, proj.world_rules, proj.damage_multiplier)
-                if not proj.piercing:
-                    consumed = True
+            if not consumed:
+                for boss in area.bosses:
+                    if boss.alive and proj.rect.colliderect(boss.rect):
+                        self._apply_player_hit(boss, proj.world_rules, proj.damage_multiplier)
+                        if not proj.piercing:
+                            consumed = True
+                            break
 
             if consumed:
                 self.player_projectiles.remove(proj)
@@ -854,30 +890,25 @@ class Game:
         else:
             self.exploration = ExplorationTracker()
 
-        # --- 4. Place player in the saved area ------------------------------
-        target_ext_id = data.get("current_extension_id")
-        if target_ext_id:
-            ext = self.world.get_extension(target_ext_id)
-            if ext:
-                ext.ensure_built(self.world.rng_service, world=self.world)
-                stream = self.world.rng_service.derive_child(
-                    "world", f"extension:{ext.extension_id}:runtime")
-                self.current_area = AreaInstance(ext.area, stream, ext)
-                self.current_extension_id = ext.extension_id
-                self.current_area_id = ext.extension_id
-                self.camera = Camera(*self.current_area.tilemap.pixel_size())
-        else:
-            self.starting_area = build_level(self.world.rng_service)
-            self.current_area = self.starting_area
-            self.current_extension_id = None
-            self.current_area_id = "starting_area"
-            self.camera = Camera(*self.starting_area.tilemap.pixel_size())
-
-        # Defensive: guarantees a starting gate exists even if this save
-        # predates the gate system or World.from_dict() restored zero gates.
+        # --- 4. Rebuild the single map and replay expansions in order -------
+        self.starting_area = build_level(self.world.rng_service)
+        self.current_area = self.starting_area
+        self.current_area_id = "starting_area"
+        self.current_extension_id = None
+        self.exploration.register_area("starting_area", self.starting_area.tilemap)
         self._ensure_starting_gate_registered()
 
-        self.exploration.register_area(self.current_area_id, self.current_area.tilemap)
+        for ext in self.world.extensions:
+            gate = next((g for g in self.world.gates
+                         if g.target_extension_id == ext.extension_id), None)
+            if gate is None:
+                continue
+            attach_extension(self.current_area, ext, gate,
+                             self.world.rng_service, self.world)
+            self._on_map_expanded(ext.extension_id)
+
+        self.camera = Camera(*self.current_area.tilemap.pixel_size())
+        self._update_current_region()
         self._show_message("Game loaded.")
 
     def _update(self, dt):
@@ -911,7 +942,8 @@ class Game:
             keys = pygame.key.get_pressed()
             self.player.handle_input(dt, keys, self.current_area.tilemap)
             self._pickup_loot()
-            self._check_gate_interactions()
+            #self._check_gate_interactions()
+            self._update_current_region()
             self.exploration.update(dt, self.current_area_id, self.player.x, self.player.y)
             if self._attack_button_held:                  # NEW
                 world_pos = self.camera.screen_to_world(pygame.mouse.get_pos())
@@ -924,11 +956,23 @@ class Game:
 
         world_rules = self._active_world_rules()
 
+        px, py = self.player.x, self.player.y
         for enemy in self.current_area.enemies:
-            enemy.update(dt, self.player, self.current_area.tilemap, self.event_bus,world_rules=world_rules)
+            if abs(enemy.x - px) > 1200 or abs(enemy.y - py) > 1200:
+                continue                      # whole map is one area now; skip far enemies
+            enemy.update(dt, self.player, self.current_area.tilemap, self.event_bus,
+                         world_rules=world_rules)
 
-        if self.current_area.boss is not None and self.current_area.boss.alive and self.player.alive:
-            self.current_area.boss.update(dt, self.player, self.event_bus, world_rules=world_rules)
+        if self.player.alive:
+            for boss in self.current_area.bosses:
+                if boss.alive and abs(boss.x - px) < 1200 and abs(boss.y - py) < 1200:
+                    boss.update(dt, self.player, self.event_bus, world_rules=world_rules)
+
+        #for enemy in self.current_area.enemies:
+        #    enemy.update(dt, self.player, self.current_area.tilemap, self.event_bus,world_rules=world_rules)
+
+        #if self.current_area.boss is not None and self.current_area.boss.alive and self.player.alive:
+        #    self.current_area.boss.update(dt, self.player, self.event_bus, world_rules=world_rules)
 
         self._update_player_projectiles(dt)
 
@@ -936,7 +980,9 @@ class Game:
         self._check_automatic_extension()
 
     def _respawn_player(self):
-        self.player.x, self.player.y = self.current_area.start_pos
+        #self.player.x, self.player.y = self.current_area.start_pos
+        self.player.x, self.player.y = self.current_area.region_start.get(
+        self.current_area_id, self.current_area.start_pos)
         self.player.alive = True
         self.player.heal_to_full()
         self._respawn_timer = 1.5
@@ -954,20 +1000,26 @@ class Game:
             if enemy.alive:
                 enemy.draw(self.screen, self.camera)
 
-        if self.current_area.boss is not None and self.current_area.boss.alive:
-            self.current_area.boss.draw(self.screen, self.camera)
+        #if self.current_area.boss is not None and self.current_area.boss.alive:
+        #    self.current_area.boss.draw(self.screen, self.camera)
+
+        for boss in self.current_area.bosses:
+            if boss.alive:
+                boss.draw(self.screen, self.camera)
 
         if self.player.alive:
             self.player.draw(self.screen, self.camera)
 
         
 
-        boss_for_hud = self.current_area.boss
+        #boss_for_hud = self.current_area.boss
+        boss_for_hud = self._nearest_boss()
         self.damage_numbers.draw(self.screen, self.camera)
         self.hud.draw(self.screen, self.player, boss=boss_for_hud, message=self.message)
         self._draw_player_projectiles()
         self.inventory_ui.draw(self.screen, self.player, world_rules=self._active_world_rules())
         self._draw_area_label()
+        self._draw_region_info()
         self.evolution_banner.draw(self.screen)
         self.profile_screen.draw(self.screen)
         self.gateway_menu.draw(self.screen)
@@ -979,6 +1031,64 @@ class Game:
                 pos = self.camera.world_to_screen((proj.x, proj.y))
                 pygame.draw.circle(self.screen, (255, 220, 120), pos, proj.radius)
                 pygame.draw.circle(self.screen, (255, 255, 255), pos, proj.radius, 1)
+
+    def _draw_region_info(self):
+        rid = self.current_area_id
+        ext = self.world.get_extension(rid) if rid != "starting_area" else None
+        W = 320
+        lines = []   # (text, color, bold)
+
+        if ext is None:
+            lines.append(("Starting Region", (255, 255, 255), True))
+            lines.append(("Area Lvl 1  -  the original world", (200, 200, 210), False))
+        else:
+            s = ext.spec
+            lines.append((s.extension_name, (255, 255, 255), True))
+            tag = "  [ANOMALY]" if s.is_anomaly else ""
+            lines.append((f"Area Lvl {s.area_level}{tag}", (255, 120, 120) if s.is_anomaly
+                          else (200, 200, 210), False))
+            gate = next((g for g in self.world.gates
+                         if g.target_extension_id == rid), None)
+            if gate:
+                lines.append((f"Opened from: {self._area_display_name(gate.owner_area_id)}",
+                              (140, 220, 255), False))
+            if s.world_modifiers:
+                lines.append(("World rules:", (180, 255, 180), False))
+                for m in s.world_modifiers:
+                    lines.append((f" - {m.get('name', '?')}", (180, 255, 180), False))
+                    if self.show_region_details:
+                        for w in textwrap.wrap(m.get("description", ""), 40):
+                            lines.append((f"     {w}", (140, 190, 140), False))
+
+        alive = sum(1 for e in self.current_area.enemies
+                    if e.alive and getattr(e, "region_id", "starting_area") == rid)
+        lines.append((f"Enemies left: {alive}", (230, 200, 200), False))
+        for b in self.current_area.bosses:
+            if getattr(b, "region_id", "starting_area") == rid:
+                lines.append((f"Boss: {b.name} ({'alive' if b.alive else 'defeated'})",
+                              (220, 150, 240), False))
+
+        if self.show_region_details and ext is not None:
+            fav = ext.spec.loot_rules.get("favored_damage_types", {})
+            if fav:
+                lines.append(("Loot favors: " + ", ".join(fav.keys()), (240, 220, 120), False))
+            arch = ext.spec.boss_personalization.get("mechanic_archetype")
+            if arch:
+                lines.append((f"Boss style: {arch}", (240, 220, 120), False))
+        lines.append((f"Explored {self.exploration.fraction_for(rid) * 100:.0f}%   "
+                      f"(F4: {'less' if self.show_region_details else 'more'})",
+                      (150, 150, 160), False))
+
+        h = 16 + sum(22 if b else 18 for _, _, b in lines)
+        panel = pygame.Surface((W, h), pygame.SRCALPHA)
+        panel.fill((10, 10, 16, 190))
+        self.screen.blit(panel, (config.SCREEN_WIDTH - W - 12, 12))
+        y = 20
+        for text, color, bold in lines:
+            font = self._info_font_b if bold else self._info_font
+            self.screen.blit(font.render(text, True, color),
+                             (config.SCREEN_WIDTH - W - 4, y))
+            y += 22 if bold else 18
     
     def _draw_area_label(self):
         font = pygame.font.SysFont("consolas", 18, bold=True)

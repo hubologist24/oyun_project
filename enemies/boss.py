@@ -146,7 +146,7 @@ class Boss:
                                                            **player.effective_stats.resistances},
                                       world_rules=world_rules, target_category="player")
                 self._hit_player(player, dmg, event_bus)
-                player.take_damage(dmg,cause=self.damage_type)                
+                #player.take_damage(dmg,cause=self.damage_type)                
                 self.projectiles.remove(proj)
                 continue
             if proj["life"] <= 0:
@@ -206,7 +206,7 @@ class Boss:
                                       target_resistances=target_resist, world_rules=world_rules,
                                       target_category="player")
                 self._hit_player(player, dmg, event_bus)
-                player.take_damage(dmg,cause=self.damage_type)
+                #player.take_damage(dmg,cause=self.damage_type)
         elif action == "ranged":
             self.projectiles.append({
                 "x": self.x, "y": self.y,
@@ -222,7 +222,7 @@ class Boss:
                                       target_resistances=target_resist, world_rules=world_rules,
                                       target_category="player")
                 self._hit_player(player, dmg, event_bus)
-                player.take_damage(dmg,cause=self.damage_type)
+                #player.take_damage(dmg,cause=self.damage_type)
             if phase.enrage_vulnerability_after_dash > 0:
                 self.enraged_vulnerable_timer = phase.enrage_vulnerability_after_dash
 

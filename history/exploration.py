@@ -60,6 +60,12 @@ class ExplorationTracker:
             "area_totals": self.area_totals,
         }
 
+    def register_region(self, area_id: str, total_walkable: int):
+        if area_id in self.area_totals:
+            return
+        self.area_totals[area_id] = max(1, total_walkable)
+        self.visited.setdefault(area_id, set())
+
     @staticmethod
     def from_dict(d):
         tracker = ExplorationTracker()

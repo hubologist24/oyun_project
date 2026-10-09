@@ -90,7 +90,7 @@ def _apply_resistance_modifiers(resistances: Dict[str, float], world_rules,
     return merged
 
 
-def resolve_damage(base_amount: float, damage_type: str, source_stats,
+def resolve_damage_sil(base_amount: float, damage_type: str, source_stats,
                    target_armor: float = 0.0,
                    world_rules=None, conversion_rules: List[ConversionRule] = None,
                    target_resistances: Dict[str, float] = None,
