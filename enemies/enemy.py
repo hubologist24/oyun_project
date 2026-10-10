@@ -29,6 +29,7 @@ class Enemy:
         self.damage_type = damage_type
         self.resistances = dict(resistances) if resistances else {}
         self.resistances.setdefault("armor_flat", armor)
+        self.affixes = []
 
         self.behavior = behavior
         self._strafe_dir = 1 if random.random() < 0.5 else -1
@@ -39,6 +40,8 @@ class Enemy:
         self.alive = True
         self._attack_timer = 0.0
         self._aggro_range = 260
+
+    _affix_font = None
 
     @property
     def rect(self) -> pygame.Rect:
@@ -55,6 +58,11 @@ class Enemy:
         self._world_rules = world_rules
         if not self.alive:
             return
+
+        if "regenerating" in self.affixes and self.hp < self.max_hp:
+            self.hp = min(self.max_hp, self.hp + self.max_hp * 0.04 * dt)
+
+        
         if self._attack_timer > 0:
             self._attack_timer -= dt
         if self._ranged_timer > 0:
@@ -73,6 +81,8 @@ class Enemy:
             "ambusher": self._tick_ambusher,
             "circler":  self._tick_circler,
             "ranged":   self._tick_ranged,
+            "brute": self._tick_chaser,
+            "swarmer": self._tick_chaser,
         }.get(self.behavior, self._tick_chaser)
         handler(dt, player, tilemap, dist, dx, dy, event_bus)
 
@@ -86,7 +96,8 @@ class Enemy:
         rect = camera.world_to_screen_rect(self.rect)
         base = config.COLOR_ELITE if self.is_elite else config.COLOR_ENEMY
         tint = {"chaser": (0, 0, 0), "ambusher": (40, 0, 40),
-                "circler": (0, 30, 40), "ranged": (40, 20, 0)}.get(self.behavior, (0, 0, 0))
+                "circler": (0, 30, 40), "ranged": (40, 20, 0),
+                "brute": (0, 0, 70), "swarmer": (0, 60, 0)}.get(self.behavior, (0, 0, 0))
         color = tuple(min(255, c + t) for c, t in zip(base, tint))
         pygame.draw.rect(surface, color, rect, border_radius=4)
 
@@ -102,6 +113,14 @@ class Enemy:
             p = camera.world_to_screen((proj["x"], proj["y"]))
             pygame.draw.circle(surface, (255, 160, 80), p, 5)
             pygame.draw.circle(surface, (255, 255, 255), p, 5, 1)
+
+        if self.affixes:
+            if Enemy._affix_font is None:
+                Enemy._affix_font = pygame.font.SysFont("consolas", 11, bold=True)
+            col = AFFIX_COLORS[self.affixes[0]]
+            pygame.draw.rect(surface, col, rect, 2, border_radius=4)
+            t = Enemy._affix_font.render("/".join(self.affixes), True, col)
+            surface.blit(t, (rect.centerx - t.get_width() // 2, rect.y - 22))
 
     def _step_toward(self, dt, tilemap, dir_x, dir_y, speed_scale=1.0):
         v = pygame.Vector2(dir_x, dir_y)
@@ -215,29 +234,54 @@ BEHAVIOR_TABLE = [
     ("ambusher", 20, 0.9, 1.2, 110.0),
     ("circler",  20, 1.0, 0.9, 105.0),
     ("ranged",   10, 0.8, 0.8, 85.0),
+    ("brute",     8, 2.5, 1.5, 65.0),    # slow tank, hits hard
+    ("swarmer",  14, 0.45, 0.6, 135.0),
 ]
 NAME_POOL = {
     "chaser":   ["Feral Rat", "Bandit", "Wild Wolf", "Skeleton"],
     "ambusher": ["Lurker", "Cave Spider", "Stalker"],
     "circler":  ["Wisp", "Dust Shade", "Slinker"],
     "ranged":   ["Cultist", "Bone Archer", "Hexer"],
+    "brute":    ["Ogre", "Bone Golem", "Crypt Brute"],
+    "swarmer":  ["Carrion Bat", "Gnawer", "Imp"]
 }
 
 
-def spawn_basic_enemy(x, y, rng, area_level=1):
-    is_elite = rng.random() < 0.12
-    behavior, _, hp_mult, dmg_mult, speed = rng.choices(
-        BEHAVIOR_TABLE,
-        weights=[w for _, w, *_ in BEHAVIOR_TABLE],
-        k=1,
-    )[0]
+ELITE_AFFIXES = ["swift", "armored", "explosive", "regenerating"]
+AFFIX_COLORS = {"swift": (90, 220, 255), "armored": (190, 190, 200),
+                "explosive": (255, 140, 40), "regenerating": (110, 255, 130)}
+
+def spawn_basic_enemy(x, y, rng, area_level=1, force_behavior=None):
+    is_elite = rng.random() < 0.12 and force_behavior is None
+    if force_behavior:
+        row = next(r for r in BEHAVIOR_TABLE if r[0] == force_behavior)
+    else:
+        row = rng.choices(BEHAVIOR_TABLE, weights=[r[1] for r in BEHAVIOR_TABLE], k=1)[0]
+    behavior, _, hp_mult, dmg_mult, speed = row
 
     hp = int((24 + area_level * 6) * hp_mult * (1.8 if is_elite else 1.0))
     dmg = int((6 + area_level * 1.6) * dmg_mult * (1.6 if is_elite else 1.0))
-    name = (f"Elite {behavior.title()}" if is_elite
-            else rng.choice(NAME_POOL[behavior]))
+    base_name = rng.choice(NAME_POOL[behavior])
 
-    return Enemy(x, y, name=name, hp=hp, damage=dmg, armor=area_level,
-                 speed=speed, xp_reward=18 if is_elite else 10,
-                 is_elite=is_elite, area_level=area_level, behavior=behavior)
+    affixes = []
+    if is_elite:
+        k = 2 if (area_level >= 6 and rng.random() < 0.35) else 1
+        affixes = rng.sample(ELITE_AFFIXES, k)
+    name = f"{affixes[0].title()} {base_name}" if affixes else base_name
 
+    en = Enemy(x, y, name=name, hp=hp, damage=dmg, armor=area_level,
+               speed=speed, xp_reward=18 if is_elite else 10,
+               is_elite=is_elite, area_level=area_level, behavior=behavior)
+    if behavior == "brute":
+        en.width = en.height = 40
+    elif behavior == "swarmer":
+        en.width = en.height = 20
+
+    if "swift" in affixes:
+        en.speed *= 1.5
+    if "armored" in affixes:
+        en.armor = 20 + area_level * 6
+        en.resistances["armor_flat"] = en.armor
+        en.max_hp = en.hp = int(en.max_hp * 1.3)
+    en.affixes = affixes
+    return en

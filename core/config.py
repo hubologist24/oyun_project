@@ -12,7 +12,7 @@ FPS = 60
 TILE_SIZE = 48
 
 # World extension threshold (used starting Phase 3+, defined now per spec)
-WORLD_EXTENSION_HOURS = 10
+
 
 # Player
 PLAYER_SPEED = 260.0  # pixels/sec
@@ -56,7 +56,7 @@ EXTENSION_MODE_DEBUG = "debug"
 
 # Automatic generation checks playtime against this threshold (hours).
 # Converted to seconds for comparison against World.total_playtime_seconds.
-WORLD_EXTENSION_HOURS = 10
+WORLD_EXTENSION_HOURS = 0.25
 WORLD_EXTENSION_SECONDS = WORLD_EXTENSION_HOURS * 3600
 
 

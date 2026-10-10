@@ -86,7 +86,8 @@ class HUD:
         ]
         for i, h in enumerate(hints):
             text = self.font.render(h, True, (170, 170, 180))
-            surface.blit(text, (20, config.SCREEN_HEIGHT - 44 + i * 18))
+            #surface.blit(text, (20, config.SCREEN_HEIGHT - 44 + i * 18))
+            surface.blit(text, (20, config.SCREEN_HEIGHT - 70 + i * 18))
 
 
 # Focus targets for keyboard navigation
@@ -277,20 +278,32 @@ class InventoryUI:
 
         self._hit_regions = []  # rebuilt fresh every frame
 
-        panel_w = 460 if not self.stash_visible else 900
-        panel = pygame.Rect(config.SCREEN_WIDTH // 2 - panel_w // 2, 40, panel_w, 620)
+        panel_w = 660 if not self.stash_visible else 1130
+        panel = pygame.Rect(config.SCREEN_WIDTH // 2 - panel_w // 2, 40, panel_w, 600)
         pygame.draw.rect(surface, (25, 25, 32), panel)
         pygame.draw.rect(surface, (90, 90, 100), panel, 2)
 
-        title = self.font_title.render(
-            "Inventory  (Click/Arrows: select | E/dbl-click: equip | R/right-click: store | "
-            "B: stash | I: close)", True, config.COLOR_TEXT)
+        title = self.font_title.render("Inventory", True, config.COLOR_TEXT)
         surface.blit(title, (panel.x + 10, panel.y + 8))
+        hint = self.font_small.render(
+            "Click/Arrows: select | E/dbl-click: equip | R/right-click: store | B: stash | I: close",
+            True, (150, 150, 160))
+        surface.blit(hint, (panel.x + 10, panel.bottom - 20))
 
         equipped_x = panel.x + 10
         equipped_y = panel.y + 40
         equipped_w = 230
         self._draw_equipped_panel(surface, player, equipped_x, equipped_y, equipped_w)
+
+        sy = equipped_y + 240
+        pts = [(equipped_x + 8, sy), (equipped_x + 16, sy + 9),
+            (equipped_x + 8, sy + 18), (equipped_x, sy + 9)]
+        pygame.draw.polygon(surface, (170, 90, 255), pts)
+        stones = self.font_title.render(f"Extension Stones: {player.extension_stones}",
+                                        True, (200, 150, 255))
+        surface.blit(stones, (equipped_x + 24, sy))
+        sub = self.font_small.render("F11: spend 1 to evolve the world", True, (140, 120, 170))
+        surface.blit(sub, (equipped_x + 24, sy + 22))
 
         inv_x = equipped_x + equipped_w + 20
         inv_y = equipped_y
@@ -361,11 +374,11 @@ class InventoryUI:
             #compare_against = None
             compare = False
 
+
         if item is not None:
-            #self.tooltip.draw(surface, item, panel.right + 12, panel.y, compare_against=compare_against)
-            self.tooltip.draw(surface, item, panel.right + 12, panel.y,
-                      compare_against=compare_against, compare=compare,
-                      world_rules=world_rules)
+            self.tooltip.draw(surface, item, panel.x + 260, panel.y + 300,
+                            compare_against=compare_against, compare=compare,
+                            world_rules=world_rules, max_width=380)
             
     def _best_guess_equip_slot(self, item, player):
         from items.equipment_slots import resolve_equip_slot

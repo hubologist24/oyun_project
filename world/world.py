@@ -61,13 +61,10 @@ class World:
     def gates_in_area(self, area_id: str) -> list:
         return [g for g in self.gates if g.owner_area_id == area_id]
 
-    def pick_next_gate(self, rng):
-        """
-        Choose (but do not open) the gate that the next evolution WOULD
-        link. Prefers the starting area's reserved gates first, so the
-        hub-and-spoke feel of the portal room filling up is preserved.
-        """
+    def pick_next_gate(self, rng, eligible=None):
         candidates = self.closed_gates()
+        if eligible is not None:
+            candidates = [g for g in candidates if eligible(g)]
         if not candidates:
             return None
         starting_candidates = [g for g in candidates if g.is_starting_gate]

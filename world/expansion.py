@@ -20,6 +20,9 @@ from enemies.boss import Boss, BossTemplate
 MARGIN = 3
 SIDES = {"e": (1, 0), "s": (0, 1)}
 
+BIOME_ELEMENT = {"ash_canyon": "fire", "frozen_reach": "cold", "storm_peaks": "lightning",
+                 "corrupted_hollow": "chaos", "sunken_library": "chaos"}
+
 
 def _line_clear(grid, col, row, dx, dy):
     rows, cols = len(grid), len(grid[0])
@@ -116,12 +119,16 @@ def attach_extension(level, extension, gate, rng_service, world=None):
     # --- enemies ---
     spawn_rng = rng_service.derive_child("world", f"extension:{rid}:runtime")
     for (x0, y0, x1, y1) in area["enemy_rooms"]:
-        for _ in range(spawn_rng.randint(2, 4)):
+        for _ in range(spawn_rng.randint(5, 8)):
             col = spawn_rng.randint(x0 + 1, max(x0 + 1, x1 - 2)) + ox
             row = spawn_rng.randint(y0 + 1, max(y0 + 1, y1 - 2)) + oy
             e = spawn_basic_enemy(col * ts + ts / 2, row * ts + ts / 2,
                                   spawn_rng, area_level=spec.area_level)
             e.region_id = rid
+            elem = BIOME_ELEMENT.get(spec.biome)
+            if elem:                              # biome enemies hit with and resist that element
+                e.damage_type = elem
+                e.resistances[elem] = 0.25
             level.enemies.append(e)
 
     # --- boss (still validated) ---

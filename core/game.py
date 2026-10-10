@@ -16,6 +16,7 @@ Adds:
 import sys
 import random
 #from combat import damage
+from enemies import boss
 import pygame
 
 import core.config as config
@@ -38,6 +39,8 @@ from ui.gateway_menu import GatewayMenu
 from history.event_log import EventLog
 from history.exploration import ExplorationTracker
 from history.aggregator import build_player_profile
+
+from enemies.enemy import spawn_basic_enemy
 
 import math
 import textwrap
@@ -118,12 +121,42 @@ class Game:
         self._boss_attempt_boss_id = None
 
         self.show_region_details = False
+        self._roam_timer = 0.0
         self._info_font = pygame.font.SysFont("consolas", 14)
         self._info_font_b = pygame.font.SysFont("consolas", 16, bold=True)
 
         self.damage_numbers = DamageNumbers()
 
         self._register_events()
+
+    def _update_roaming_spawns(self, dt):
+        self._roam_timer -= dt
+        if self._roam_timer > 0:
+            return
+        self._roam_timer = 6.0
+        px, py = self.player.x, self.player.y
+        near = sum(1 for e in self.current_area.enemies
+                if abs(e.x - px) < 1000 and abs(e.y - py) < 1000)
+        if near >= 18:
+            return
+        ts = config.TILE_SIZE
+        grid = self.current_area.tilemap.grid
+        rng = self.world.rng_service.get_stream("roaming")
+        pc, pr = int(px // ts), int(py // ts)
+        for _ in range(30):
+            c, r = pc + rng.randint(-24, 24), pr + rng.randint(-16, 16)
+            if not (0 <= r < len(grid) and 0 <= c < len(grid[0])) or grid[r][c] != 0:
+                continue
+            x, y = c * ts + ts / 2, r * ts + ts / 2
+            if math.hypot(x - px, y - py) < 700:      # off-screen
+                continue
+            rid = self.current_area.region_at_tile(c, r)
+            ext = self.world.get_extension(rid)
+            lvl = ext.spec.area_level if ext else max(2, self.player.progression.level)
+            e = spawn_basic_enemy(x, y, rng, area_level=lvl)
+            e.region_id = rid
+            self.current_area.enemies.append(e)
+            break
 
     def _build_extension_generator(self):
         """
@@ -282,6 +315,9 @@ class Game:
                     self._handle_gateway_menu_select(target)
             elif key == pygame.K_ESCAPE:
                 self.gateway_menu.hide()
+            elif key == pygame.K_LSHIFT:
+                self.player.face_toward(*self.camera.screen_to_world(pygame.mouse.get_pos()))
+                self.player.try_dash()
             return
 
         if self.profile_screen.visible:
@@ -397,16 +433,21 @@ class Game:
         so the closed-gate set cannot change between offer and accept.
         """
         if self._pending_extension_spec is not None:
-            return  # already mid-negotiation
+            return
+        debug = (mode == config.EXTENSION_MODE_DEBUG)
+        if not debug and self.player.extension_stones <= 0:
+            self._show_message("No Extension Stones left. Bosses and elites may drop more.")
+            return
+        preview_gate = self._pick_gate(debug)
+        if preview_gate is None:
+            self._show_message(self._locked_hint(), duration=3.0)
+            return
 
         existing_ids = {ext.extension_id for ext in self.world.extensions}
         rng = self.world.rng_service.get_stream("extension_selection")
         profile = self._current_profile()
-
         spec = self.extension_generator.generate(profile, existing_ids, rng)
-
-        gate_rng = self.world.rng_service.get_stream("gate_selection")
-        preview_gate = self.world.pick_next_gate(gate_rng)
+        #preview_gate = self.world.pick_next_gate(gate_rng)
 
         self._pending_extension_spec = spec
         self._pending_gate = preview_gate
@@ -448,6 +489,10 @@ class Game:
             return
 
         extension = self.world.add_extension(spec)
+
+        if self._pending_evolution_mode != config.EXTENSION_MODE_DEBUG:
+            self.player.extension_stones -= 1
+
         opened_gate = self.world.open_gate_to(gate, spec.extension_id)
         attach_extension(self.current_area, extension, gate,
                          self.world.rng_service, self.world)
@@ -483,8 +528,9 @@ class Game:
         profile = self._current_profile()
         spec = self.extension_generator.generate(profile, existing_ids, rng)
 
-        gate_rng = self.world.rng_service.get_stream("gate_selection")
-        preview_gate = self.world.pick_next_gate(gate_rng)
+        #gate_rng = self.world.rng_service.get_stream("gate_selection")
+        #preview_gate = self.world.pick_next_gate(gate_rng)
+        preview_gate = self._pick_gate(self._pending_evolution_mode == config.EXTENSION_MODE_DEBUG)
 
         self._pending_extension_spec = spec
         self._pending_gate = preview_gate
@@ -518,42 +564,15 @@ class Game:
         return ext.spec.extension_name if ext else area_id
 
     def _check_automatic_extension(self):
+        return
         if self.world.automatic_generation_due():
             self._generate_next_extension(mode=config.EXTENSION_MODE_AUTOMATIC)
 
     # ---------------- gates / travel -----------------
-    
-
-    
-
-    
-
-    
-
-    def _open_gateway_menu(self):
-        open_gates = self.world.open_gates()
-        entries = []
-        if self.current_area_id != "starting_area":
-            entries.append({"label": "Starting Region", "target_area_id": "starting_area"})
-        
-        for gate in open_gates:
-            ext = self.world.get_extension(gate.target_extension_id)
-            if ext and ext.extension_id != self.current_area_id:
-                label = ext.spec.extension_name
-                if gate.opened_at:
-                    mins = max(1, int((time.time() - gate.opened_at) / 60))
-                    label += f"   (gate opened {mins} min ago)"
-                entries.append({"label": label, "target_area_id": ext.extension_id})
-        
-        if not entries:
-            self._show_message("No open gates yet. Explore and trigger world evolution first.")
-            return
-        self.gateway_menu.show(entries)
-
     def _update_current_region(self):
         ts = config.TILE_SIZE
         rid = self.current_area.region_at_tile(int(self.player.x // ts),
-                                               int(self.player.y // ts))
+                                            int(self.player.y // ts))
         if rid == self.current_area_id:
             return
         self.current_area_id = rid
@@ -565,7 +584,25 @@ class Game:
             ext = self.world.get_extension(rid)
             if ext:
                 self._show_message(f"Entering {ext.spec.extension_name} "
-                                   f"(Area Lvl {ext.spec.area_level})", duration=3.0)
+                                f"(Area Lvl {ext.spec.area_level})", duration=3.0)
+
+    def _gate_unlocked(self, gate):
+        """A region's gate is usable only once that region's boss is dead."""
+        if gate.owner_area_id == "starting_area":
+            return True
+        return not any(b.alive and getattr(b, "region_id", None) == gate.owner_area_id
+                    for b in self.current_area.bosses)
+
+    def _pick_gate(self, debug=False):
+        rng = self.world.rng_service.get_stream("gate_selection")
+        return self.world.pick_next_gate(rng, eligible=None if debug else self._gate_unlocked)
+
+    def _locked_hint(self):
+        for g in self.world.closed_gates():
+            if not self._gate_unlocked(g):
+                return f"Defeat the guardian of {self._area_display_name(g.owner_area_id)} to unseal more gates."
+        return "The world has no sealed door left to open."
+    
 
     def _teleport_to_region(self, rid):
         pos = self.current_area.region_start.get(rid)
@@ -763,10 +800,28 @@ class Game:
         self.player.gain_xp(enemy.xp_reward)
         self.event_bus.emit("enemy_killed", name=enemy.name)
         rules = self._active_world_rules()
-        drop_chance = 0.35 if not enemy.is_elite else 0.9
-        if self.world.rng_service.get_stream("loot").random() < drop_chance:
+
+        if "explosive" in getattr(enemy, "affixes", ()):
+            self.damage_numbers.spawn(enemy.x, enemy.y - 30, "BOOM", (255, 140, 40))
+            if self.player.alive and math.hypot(enemy.x - self.player.x,
+                                                enemy.y - self.player.y) < 90:
+                dmg = max(1, int(enemy.damage * 2))
+                if self.player.take_damage(dmg, cause="fire"):
+                    self.event_bus.emit("player_hit", source=enemy.name,
+                                        damage=dmg, damage_type="fire")
+
+        if getattr(enemy, "is_add", False):      # boss minions drop nothing
+            return
+
+        rng = self.world.rng_service.get_stream("loot")
+        if rng.random() < (0.05 if enemy.is_elite else 0.01):
+            self.current_area.spawn_pickup(enemy.x + 12, enemy.y, "stone")
+        drop_chance = 0.12 if not enemy.is_elite else 0.5
+        if rng.random() < drop_chance:
             self.current_area.spawn_loot(enemy.x, enemy.y, area_level=enemy.area_level,
                                         world_rules=rules)
+        elif rng.random() < 0.10:
+            self.current_area.spawn_orb(enemy.x, enemy.y)
         self._resolve_on_kill_effects(enemy, rules, _depth)
 
     def _resolve_on_kill_effects(self, victim, rules, depth):
@@ -806,27 +861,59 @@ class Game:
         self._show_message(f"{boss.name.upper()} HAS FALLEN.", duration=6.0)
         self.event_bus.emit("boss_killed", name=boss.name)
         if self._boss_attempt_active:
-            self.event_bus.emit("boss_attempt_ended", result="victory", boss_id=self._boss_attempt_boss_id)
+            self.event_bus.emit("boss_attempt_ended", result="victory",
+                                boss_id=self._boss_attempt_boss_id)
             self._boss_attempt_active = False
             self._boss_attempt_boss_id = None
+
+        # kill its summoned minions
+        for e in list(self.current_area.enemies):
+            if getattr(e, "is_add", False):
+                e.take_damage(10**9)
+                self.current_area.enemies.remove(e)
+
+        rules = self._active_world_rules()
+        rid = getattr(boss, "region_id", "starting_area")
+        ext = self.world.get_extension(rid)
+        lvl = max(self.player.progression.level, ext.spec.area_level if ext else 3) + 2
+        for i, counts in enumerate([(3, 2), (2, 2), (2, 1), (1, 2)]):
+            self.current_area.spawn_loot(boss.x + (i - 1.5) * 30, boss.y,
+                                        area_level=lvl, world_rules=rules,
+                                        force_affix_counts=counts)
+        self.current_area.spawn_orb(boss.x, boss.y + 30)
+        self.current_area.spawn_pickup(boss.x + 40, boss.y + 30, "stone")
 
     def _pickup_loot(self):
         px, py = self.player.x, self.player.y
         for drop in list(self.current_area.loot_drops):
             dist = ((drop["x"] - px) ** 2 + (drop["y"] - py) ** 2) ** 0.5
-            if dist < 30:
-                if self.player.inventory.add_item(drop["item"]):
+            if dist >= 30:
+                continue
+            if drop.get("kind") == "heal":
+                s = self.player.effective_stats
+                if s.hp < s.max_hp:
+                    amt = max(1, int(s.max_hp * 0.25))
+                    s.hp = min(s.max_hp, s.hp + amt)
                     self.current_area.loot_drops.remove(drop)
-                    item = drop["item"]
-                    self.event_bus.emit("item_found", item_id=item.item_id, rarity=item.rarity,
-                                        is_six_mod=item.is_six_mod())
-                    tag = item.affix_count_label()
-                    if item.is_six_mod():
-                        self._show_message(f"★★★ EXCEPTIONAL ITEM: {item.display_name} [{tag}] ★★★",
-                                           duration=5.0)
-                    else:
-                        self._show_message(f"Picked up {item.display_name} [{tag}]", duration=1.4)
-
+                    self.damage_numbers.spawn(px, py - 30, f"+{amt}", (90, 255, 120))
+                continue
+            if drop.get("kind") == "stone":
+                self.player.extension_stones += 1
+                self.current_area.loot_drops.remove(drop)
+                self._show_message(f"+1 Extension Stone ({self.player.extension_stones})", duration=2.0)
+                continue
+            if self.player.inventory.add_item(drop["item"]):
+                self.current_area.loot_drops.remove(drop)
+                item = drop["item"]
+                self.event_bus.emit("item_found", item_id=item.item_id, rarity=item.rarity,
+                                    is_six_mod=item.is_six_mod())
+                tag = item.affix_count_label()
+                if item.is_six_mod():
+                    self._show_message(f"★★★ EXCEPTIONAL ITEM: {item.display_name} [{tag}] ★★★",
+                                    duration=5.0)
+                else:
+                    self._show_message(f"Picked up {item.display_name} [{tag}]", duration=1.4)
+        
     def _save_game(self):
         state = {
             "world": self.world.to_dict(),
@@ -944,6 +1031,7 @@ class Game:
             self._pickup_loot()
             #self._check_gate_interactions()
             self._update_current_region()
+            self._update_roaming_spawns(dt)
             self.exploration.update(dt, self.current_area_id, self.player.x, self.player.y)
             if self._attack_button_held:                  # NEW
                 world_pos = self.camera.screen_to_world(pygame.mouse.get_pos())
@@ -967,6 +1055,8 @@ class Game:
             for boss in self.current_area.bosses:
                 if boss.alive and abs(boss.x - px) < 1200 and abs(boss.y - py) < 1200:
                     boss.update(dt, self.player, self.event_bus, world_rules=world_rules)
+                    if boss.summon_requests:
+                        self._spawn_boss_adds(boss)
 
         #for enemy in self.current_area.enemies:
         #    enemy.update(dt, self.player, self.current_area.tilemap, self.event_bus,world_rules=world_rules)
@@ -987,6 +1077,32 @@ class Game:
         self.player.heal_to_full()
         self._respawn_timer = 1.5
         self._show_message("Respawned.")
+
+    def _spawn_boss_adds(self, boss):
+        n, boss.summon_requests = boss.summon_requests, 0
+        alive_adds = sum(1 for e in self.current_area.enemies
+                        if getattr(e, "is_add", False) and e.alive)
+        n = min(n, 8 - alive_adds)
+        if n <= 0:
+            return
+        rid = getattr(boss, "region_id", "starting_area")
+        ext = self.world.get_extension(rid)
+        lvl = ext.spec.area_level if ext else 3
+        rng = self.world.rng_service.get_stream("boss_adds")
+        tm = self.current_area.tilemap
+        for _ in range(n):
+            for _try in range(10):
+                x = boss.x + rng.randint(-140, 140)
+                y = boss.y + rng.randint(-140, 140)
+                if tm.collides_rect(pygame.Rect(int(x - 10), int(y - 10), 20, 20)):
+                    continue
+                e = spawn_basic_enemy(x, y, rng, area_level=lvl, force_behavior="swarmer")
+                e.region_id = rid
+                e.is_add = True
+                e.xp_reward = 3
+                self.current_area.enemies.append(e)
+                break
+        self._show_message("The guardian summons minions!", duration=1.5)    
 
     def _draw(self):
         self.screen.fill(config.COLOR_BG)
@@ -1023,6 +1139,9 @@ class Game:
         self.evolution_banner.draw(self.screen)
         self.profile_screen.draw(self.screen)
         self.gateway_menu.draw(self.screen)
+
+        if not self.inventory_ui.visible:
+            self._draw_region_info()
 
         pygame.display.flip()
 

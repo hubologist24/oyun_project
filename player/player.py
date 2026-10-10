@@ -24,6 +24,8 @@ class Player:
         self.move_target: pygame.Vector2 | None = None
         self._move_target_stop_radius = 6.0
 
+        self.extension_stones = 10
+
         self.base_stats = Stats()
         self.effective_stats = Stats()
         self.progression = Progression()
@@ -36,6 +38,10 @@ class Player:
         self._attack_cooldown_timer = 0.0
         self._invuln_timer = 0.0
         self._last_hit_flash = 0.0
+        
+        self._dash_timer = 0.0
+        self._dash_cd = 0.0
+        self._dash_vec = pygame.Vector2(0, 0)
 
         self.alive = True
         self.recalc_stats()
@@ -86,8 +92,17 @@ class Player:
         else:
             vec = pygame.Vector2(0, 0)
 
+        # Calculate default speed & update dash state
+        speed = self.effective_stats.speed
+        if self._dash_cd > 0:
+            self._dash_cd -= dt
+        if self._dash_timer > 0:
+            self._dash_timer -= dt
+            vec = self._dash_vec
+            speed = 720.0
+
+        # Move entity using effective vector and speed
         if vec.length_squared() > 0:
-            speed = self.effective_stats.speed
             new_x = self.x + vec.x * speed * dt
             new_y = self.y + vec.y * speed * dt
             if not tilemap.collides_rect(self._rect_at(new_x, self.y)):
@@ -110,6 +125,14 @@ class Player:
         vec = pygame.Vector2(world_x - self.x, world_y - self.y)
         if vec.length_squared() > 0:
             self.facing = vec.normalize()
+
+    def try_dash(self):
+        if self._dash_cd > 0 or self._dash_timer > 0 or self.facing.length_squared() == 0:
+            return False
+        self._dash_vec = pygame.Vector2(self.facing).normalize()
+        self._dash_timer, self._dash_cd = 0.16, 0.9
+        self._invuln_timer = max(self._invuln_timer, 0.22)   # i-frames
+        return True
 
     def _rect_at(self, x, y) -> pygame.Rect:
         return pygame.Rect(int(x - self.width / 2), int(y - self.height / 2),
@@ -230,6 +253,7 @@ class Player:
             "base_stats": self.base_stats.to_dict(),
             "progression": self.progression.to_dict(),
             "inventory": self.inventory.to_dict(),
+            "extension_stones": self.extension_stones,
             "equipped": {
                 slot: (item.to_dict() if item else None)
                 for slot, item in self.equipped.items()
@@ -274,6 +298,8 @@ class Player:
                 if slot in p.equipped and isinstance(item_dict, dict):
                     p.equipped[slot] = Item.from_dict(item_dict)
 
+        p.extension_stones = int(d.get("extension_stones", 10))
+        
         p.recalc_stats()
         hp = d.get("current_hp", p.effective_stats.max_hp)
         if not isinstance(hp, (int, float)):

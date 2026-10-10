@@ -144,7 +144,7 @@ class Level:
                            for c in range(rect.left, rect.right) if g[r][c] == 0)
         return 0
 
-    def spawn_loot(self, x, y, area_level=1, world_rules=None):
+    def spawn_loot(self, x, y, area_level=1, world_rules=None, **item_kwargs):
         rid = self.region_at_pixel(x, y)
         ctx = {}
         if world_rules:
@@ -155,13 +155,31 @@ class Level:
         if rid != "starting_area":
             ctx["extension_id"] = rid
         item = generate_random_item(self.rng, area_level=area_level,
-                                    world_context=ctx or None)
+                                    world_context=ctx or None, **item_kwargs)
         self.loot_drops.append({"x": x, "y": y, "item": item})
+
+
+    def spawn_pickup(self, x, y, kind):
+        self.loot_drops.append({"x": x, "y": y, "item": None, "kind": kind})
+
+    def spawn_orb(self, x, y):
+        self.spawn_pickup(x, y, "heal")
 
     def draw(self, surface, camera, gates=None):
         self.tilemap.draw(surface, camera)     # doors are tiles now
         for drop in self.loot_drops:
             pos = camera.world_to_screen((drop["x"], drop["y"]))
+            kind = drop.get("kind")
+            if kind == "heal":
+                pygame.draw.circle(surface, (220, 50, 70), pos, 7)
+                pygame.draw.circle(surface, (255, 200, 200), pos, 7, 1)
+                continue
+            if kind == "stone":
+                pts = [(pos[0], pos[1] - 10), (pos[0] + 8, pos[1]),
+                    (pos[0], pos[1] + 10), (pos[0] - 8, pos[1])]
+                pygame.draw.polygon(surface, (170, 90, 255), pts)
+                pygame.draw.polygon(surface, (240, 220, 255), pts, 2)
+                continue
             pygame.draw.circle(surface, drop["item"].rarity_color(), pos, 8)
             pygame.draw.circle(surface, (0, 0, 0), pos, 8, 1)
 

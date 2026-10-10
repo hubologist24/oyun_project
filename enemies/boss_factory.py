@@ -62,6 +62,8 @@ def build_personalized_boss_template(name: str, boss_personalization: dict,
 
     phases = _build_phases(archetype)
 
+    
+
     template = BossTemplate(
         name=name,
         max_hp=max_hp,
@@ -73,6 +75,9 @@ def build_personalized_boss_template(name: str, boss_personalization: dict,
         resistances=resistances,
         phases=phases,
     )
+
+    template.summoner = (archetype == "summoner")
+
     return template
 
 

@@ -38,6 +38,7 @@ class BossTemplate:
     damage_type: str = "physical"
     resistances: Dict[str, float] = field(default_factory=dict)
     phases: List[BossPhaseConfig] = field(default_factory=list)
+    summoner: bool = False
 
     @staticmethod
     def hollow_warden():
@@ -90,6 +91,9 @@ class Boss:
         self._state_timer = 0.0
         self._cooldown_timer = 1.0
 
+        self.summon_requests = 0
+        self._summon_timer = 5.0
+
         self._dash_target = pygame.Vector2(x, y)
         self._facing = pygame.Vector2(0, 1)
         self.projectiles = []
@@ -122,6 +126,9 @@ class Boss:
         for i, phase in enumerate(self.template.phases):
             if ratio <= phase.hp_threshold:
                 best_index = i
+        #self.phase_index = best_index
+        if best_index > self.phase_index and self.template.summoner:
+            self.summon_requests += 3          # burst on phase change
         self.phase_index = best_index
 
     def player_armor_effectiveness(self) -> float:
@@ -157,6 +164,12 @@ class Boss:
         dist = math.hypot(dx, dy)
         if dist > 0:
             self._facing = pygame.Vector2(dx / dist, dy / dist)
+
+        if self.template.summoner and dist < 500:
+            self._summon_timer -= dt
+            if self._summon_timer <= 0:
+                self.summon_requests += 2 + self.phase_index
+                self._summon_timer = 10.0
 
         if self._cooldown_timer > 0:
             self._cooldown_timer -= dt
