@@ -83,16 +83,20 @@ def build_personalized_boss_template(name: str, boss_personalization: dict,
 
 def _build_phases(archetype: str):
     if archetype == "dash_predator":
-        return [
-            BossPhaseConfig(hp_threshold=1.0, enables_dash=True, armor_effectiveness=1.0,
-                             attack_cooldown=0.9, telegraph_time_dash=0.4),
-            BossPhaseConfig(hp_threshold=0.55, enables_dash=True, armor_effectiveness=0.6,
-                             attack_cooldown=0.65, telegraph_time_dash=0.3,
-                             enrage_vulnerability_after_dash=1.3),
-            BossPhaseConfig(hp_threshold=0.2, enables_dash=True, armor_effectiveness=0.5,
-                             attack_cooldown=0.45, telegraph_time_dash=0.22,
-                             enrage_vulnerability_after_dash=1.8),
-        ]
+         return [
+        BossPhaseConfig(hp_threshold=1.0, enables_dash=True, armor_effectiveness=1.0,
+                        attack_cooldown=0.9, telegraph_time_dash=0.4),
+        BossPhaseConfig(hp_threshold=0.55, enables_dash=True, enables_blink=True,
+                        armor_effectiveness=0.6, attack_cooldown=0.65,
+                        telegraph_time_dash=0.3, telegraph_time_blink=0.45,
+                        enrage_vulnerability_after_dash=1.3,
+                        blink_arrival_damage_ratio=0.6),
+        BossPhaseConfig(hp_threshold=0.2, enables_dash=True, enables_blink=True,
+                        armor_effectiveness=0.5, attack_cooldown=0.45,
+                        telegraph_time_dash=0.22, telegraph_time_blink=0.32,
+                        enrage_vulnerability_after_dash=1.8,
+                        blink_arrival_damage_ratio=0.9),
+    ]
     if archetype == "ranged_zoner":
         return [
             BossPhaseConfig(hp_threshold=1.0, enables_dash=False, armor_effectiveness=1.0,
@@ -120,15 +124,19 @@ def _build_phases(archetype: str):
         ]
     if archetype == "berserker":
         return [
-            BossPhaseConfig(hp_threshold=1.0, enables_dash=True, armor_effectiveness=0.9,
-                             attack_cooldown=0.8, telegraph_time_dash=0.35),
-            BossPhaseConfig(hp_threshold=0.7, enables_dash=True, armor_effectiveness=0.6,
-                             attack_cooldown=0.55, telegraph_time_dash=0.25,
-                             enrage_vulnerability_after_dash=1.2),
-            BossPhaseConfig(hp_threshold=0.35, enables_dash=True, armor_effectiveness=0.4,
-                             attack_cooldown=0.35, telegraph_time_dash=0.18,
-                             enrage_vulnerability_after_dash=1.6),
-        ]
+        BossPhaseConfig(hp_threshold=1.0, enables_dash=True, armor_effectiveness=0.9,
+                        attack_cooldown=0.8, telegraph_time_dash=0.35),
+        BossPhaseConfig(hp_threshold=0.7, enables_dash=True, enables_blink=True,
+                        armor_effectiveness=0.6, attack_cooldown=0.55,
+                        telegraph_time_dash=0.25, telegraph_time_blink=0.4,
+                        enrage_vulnerability_after_dash=1.2,
+                        blink_arrival_damage_ratio=0.7),
+        BossPhaseConfig(hp_threshold=0.35, enables_dash=True, enables_blink=True,
+                        armor_effectiveness=0.4, attack_cooldown=0.35,
+                        telegraph_time_dash=0.18, telegraph_time_blink=0.28,
+                        enrage_vulnerability_after_dash=1.6,
+                        blink_arrival_damage_ratio=1.0),
+    ]
     # Fallback: identical to Phase 3's Hollow Warden phase curve.
     return [
         BossPhaseConfig(hp_threshold=1.0, enables_dash=False, armor_effectiveness=1.0, attack_cooldown=1.2),

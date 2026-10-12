@@ -43,7 +43,11 @@ class Player:
         self._dash_cd = 0.0
         self._dash_vec = pygame.Vector2(0, 0)
 
+        self.combo_count = 0
+        self.combo_timer = 0.0
+
         self.alive = True
+        self.trophies = []
         self.recalc_stats()
 
     # ---------- geometry ----------
@@ -59,6 +63,15 @@ class Player:
         if self.effective_stats.max_hp > 0:
             old_hp_ratio = self.effective_stats.hp / self.effective_stats.max_hp
         self.effective_stats = compute_effective_stats(self.base_stats, equipped_items)
+
+        for t in self.trophies[:10]:                      # NEW: capped at 10
+            dt_ = t.get("damage_type")
+            if dt_:
+                self.effective_stats.resistances[dt_] = \
+                    self.effective_stats.resistances.get(dt_, 0.0) + 0.03
+            self.effective_stats.max_hp += 5
+
+        self.effective_stats.hp = int(self.effective_stats.max_hp * old_hp_ratio)
         self.effective_stats.hp = int(self.effective_stats.max_hp * old_hp_ratio)
         self.effective_stats.clamp_hp()
 
@@ -118,6 +131,11 @@ class Player:
             self._attack_cooldown_timer -= dt
         if self._invuln_timer > 0:
             self._invuln_timer -= dt
+
+        if self.combo_timer > 0:
+            self.combo_timer -= dt
+            if self.combo_timer <= 0:
+                self.combo_count = 0
 
     def face_toward(self, world_x: float, world_y: float):
         """Called by right-click-to-attack: faces the player toward the
@@ -254,6 +272,7 @@ class Player:
             "progression": self.progression.to_dict(),
             "inventory": self.inventory.to_dict(),
             "extension_stones": self.extension_stones,
+            "trophies": self.trophies,
             "equipped": {
                 slot: (item.to_dict() if item else None)
                 for slot, item in self.equipped.items()
@@ -299,6 +318,8 @@ class Player:
                     p.equipped[slot] = Item.from_dict(item_dict)
 
         p.extension_stones = int(d.get("extension_stones", 10))
+
+        p.trophies = list(d.get("trophies", [])) if isinstance(d.get("trophies", []), list) else []
         
         p.recalc_stats()
         hp = d.get("current_hp", p.effective_stats.max_hp)

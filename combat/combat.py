@@ -39,6 +39,12 @@ def player_attack_enemy(player, enemy, event_bus, world_rules=None,
     )
     enemy.take_damage(dmg)
 
+    if is_crit:
+        event_bus.emit("critical_hit",
+                    x=enemy.x, y=enemy.y,
+                    damage_type=stats.primary_damage_type,
+                    crit_damage=dmg)
+
     weapon = player.equipped.get("weapon")
     distance = math.hypot(enemy.x - player.x, enemy.y - player.y)
 
@@ -73,6 +79,7 @@ def enemy_attack_player(enemy, player, event_bus, world_rules=None,
         target_category="player",
         source_category=_enemy_category(enemy),   # <-- FIX
     )
+    event_bus.emit("attacker_info", enemy=enemy) 
     applied = player.take_damage(dmg, cause=damage_type)
     if applied:
         event_bus.emit("player_hit", source=enemy.name, damage=dmg,

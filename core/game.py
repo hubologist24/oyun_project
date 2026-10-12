@@ -40,7 +40,13 @@ from history.event_log import EventLog
 from history.exploration import ExplorationTracker
 from history.aggregator import build_player_profile
 
+from combat.reactions import ReactionSystem
+from core.nemesis_manager import NemesisManager
+from enemies.dialogue import (boss_engage_line, boss_phase_line,
+                              boss_death_taunt, boss_last_words)
+
 from enemies.enemy import spawn_basic_enemy
+from world import swing_fx
 
 import math
 import textwrap
@@ -50,6 +56,8 @@ from core import audio
 import time
 
 MAX_ON_KILL_DEPTH = 3
+CRIT_BURST_RADIUS = 70.0
+CRIT_BURST_RATIO = 0.50
 
 
 class _NullEventBus:
@@ -73,6 +81,11 @@ class Game:
         self.clock = pygame.time.Clock()
         self.running = True
         self.player_projectiles = []
+
+        self.player_swings = []
+        self._fx_surface = pygame.Surface(
+            (config.SCREEN_WIDTH, config.SCREEN_HEIGHT), pygame.SRCALPHA
+)
 
         self.event_bus = EventBus()
         self.save_manager = SaveManager()
@@ -109,6 +122,8 @@ class Game:
         self.message = ""
         self._message_timer = 0.0
 
+        self.crit_bursts = []
+
         self._pending_extension_spec = None
         self._pending_gate = None
         self._pending_evolution_mode = None
@@ -127,28 +142,104 @@ class Game:
 
         self.damage_numbers = DamageNumbers()
 
+        self.dialogue = None
+        self.reactions = ReactionSystem(self)
+        self.nemesis = NemesisManager(self)
+
+        
+
         self._register_events()
+
+
+
+    def _on_critical_hit(self, x, y, damage_type, crit_damage, **kwargs):
+        """Elemental crit detonation: on a crit, splash a small AoE of the
+        same damage type around the struck enemy. Enables a crit-focused
+        build to clear packs, not just single targets."""
+        from combat.combat import _enemy_category
+        from combat.damage import resolve_damage
+
+        rules = self._active_world_rules()
+        explosion_damage = max(1, int(crit_damage * CRIT_BURST_RATIO))
+        radius = CRIT_BURST_RADIUS
+
+        # Splash to nearby enemies (not the original target -- it already ate
+        # the crit, and double-dipping would make crits absurd).
+        for other in list(self.current_area.enemies):
+            if not other.alive:
+                continue
+            d = math.hypot(other.x - x, other.y - y)
+            if d < 1.0 or d > radius:
+                continue
+            dmg = resolve_damage(explosion_damage, damage_type, None,
+                                target_resistances=other.resistances,
+                                world_rules=rules,
+                                target_category=_enemy_category(other),
+                                source_category="player")
+            other.take_damage(dmg)
+            self.damage_numbers.spawn(other.x, other.y - 25, str(dmg),
+                                    self._damage_type_color(damage_type))
+            if not other.alive:
+                self._on_enemy_killed(other)
+
+        # Also splash onto bosses if they're in range (blink duels get spicy).
+        for boss in self.current_area.bosses:
+            if not boss.alive:
+                continue
+            if math.hypot(boss.x - x, boss.y - y) > radius:
+                continue
+            dmg = resolve_damage(explosion_damage, damage_type, None,
+                                target_resistances=boss.resistances,
+                                world_rules=rules,
+                                target_category="boss",
+                                source_category="player")
+            boss.take_damage(dmg)
+            self.damage_numbers.spawn(boss.x, boss.y - 40, str(dmg),
+                                    self._damage_type_color(damage_type))
+            # Boss phase transition check will fire from _apply_player_hit
+            # normally; here we only handle the splash, so we don't re-trigger
+            # the cutscene beat from a splash hit.
+
+        # Visual expanding ring, tinted by damage type.
+        self.crit_bursts.append({
+            "x": x, "y": y,
+            "radius": radius,
+            "life": 0.30, "max_life": 0.30,
+            "color": self._damage_type_color(damage_type),
+        })
+
+
+    def _damage_type_color(self, dtype):
+        return {
+            "fire":      (255, 130, 40),
+            "cold":      (120, 200, 255),
+            "lightning": (255, 240, 120),
+            "chaos":     (200, 90, 255),
+            "physical":  (220, 220, 220),
+            "poison":    (140, 230, 120),
+            "bleed":     (220, 60, 60),
+        }.get(dtype, (255, 255, 255))
 
     def _update_roaming_spawns(self, dt):
         self._roam_timer -= dt
         if self._roam_timer > 0:
             return
-        self._roam_timer = 6.0
+        self._roam_timer = 2.5
         px, py = self.player.x, self.player.y
         near = sum(1 for e in self.current_area.enemies
                 if abs(e.x - px) < 1000 and abs(e.y - py) < 1000)
-        if near >= 18:
+        if near >= 45:
             return
         ts = config.TILE_SIZE
         grid = self.current_area.tilemap.grid
         rng = self.world.rng_service.get_stream("roaming")
         pc, pr = int(px // ts), int(py // ts)
-        for _ in range(30):
+        for _ in range(60):
             c, r = pc + rng.randint(-24, 24), pr + rng.randint(-16, 16)
             if not (0 <= r < len(grid) and 0 <= c < len(grid[0])) or grid[r][c] != 0:
                 continue
             x, y = c * ts + ts / 2, r * ts + ts / 2
-            if math.hypot(x - px, y - py) < 700:      # off-screen
+            if math.hypot(x - px, y - py) < 520:      # off-screen
                 continue
             rid = self.current_area.region_at_tile(c, r)
             ext = self.world.get_extension(rid)
@@ -209,11 +300,36 @@ class Game:
         self.event_bus.subscribe("level_up", lambda level: self._show_message(f"Level Up! Now level {level}"))
         self.event_bus.subscribe("player_hit", self._on_player_hit_feedback)
         self.event_bus.subscribe("level_up", self._on_level_up)
+        self.event_bus.subscribe("critical_hit", self._on_critical_hit)
+        self.event_bus.subscribe("attacker_info", self.nemesis.on_attacker_info)
+        self.event_bus.subscribe("area_entered", self.nemesis.on_area_entered)
     
     def _on_level_up(self, level):
             from core import audio
             audio.play("level_up")
             #self._show_message(f"Level Up! Now level {level}")
+
+    def _say(self, speaker, text, duration=4.5):
+        self.dialogue = {"speaker": speaker, "text": text, "t": duration}
+
+    def _boss_greeting(self, boss):
+        attempts = sum(1 for e in self.event_log.events_of_type("boss_attempt_started")
+                       if e.payload.get("boss_id") == boss.name)
+        fallen = [e.payload.get("name") for e in self.event_log.events_of_type("boss_killed")
+                  if e.payload.get("name") != boss.name]
+        self._say(boss.name, boss_engage_line(attempts, self._current_profile().main_damage, fallen))
+
+    def _draw_dialogue(self):
+        if not self.dialogue:
+            return
+        d = self.dialogue
+        txt = self._info_font_b.render(f'{d["speaker"]}: "{d["text"]}"', True, (255, 210, 230))
+        bg = pygame.Surface((txt.get_width() + 24, txt.get_height() + 12), pygame.SRCALPHA)
+        bg.fill((10, 10, 16, 200))
+        x = config.SCREEN_WIDTH // 2 - bg.get_width() // 2
+        y = config.SCREEN_HEIGHT - 130
+        self.screen.blit(bg, (x, y))
+        self.screen.blit(txt, (x + 12, y + 6))
 
     
 
@@ -221,8 +337,11 @@ class Game:
         self.damage_numbers.spawn(self.player.x, self.player.y - 30, str(damage), (255, 90, 90))
         self.camera.shake(magnitude=6, duration=0.20) #shake
         self._trigger_hitstop(0.04)  #shake
+        self.player.combo_count = 0
+        self.player.combo_timer = 0.0
         from core import audio
         audio.play("hit_player")
+
 
 
 
@@ -590,8 +709,11 @@ class Game:
         """A region's gate is usable only once that region's boss is dead."""
         if gate.owner_area_id == "starting_area":
             return True
-        return not any(b.alive and getattr(b, "region_id", None) == gate.owner_area_id
-                    for b in self.current_area.bosses)
+        #return not any(b.alive and getattr(b, "region_id", None) == gate.owner_area_id
+        #            for b in self.current_area.bosses)
+        return not any(b.alive and not getattr(b, "is_nemesis", False)
+                       and getattr(b, "region_id", None) == gate.owner_area_id
+                       for b in self.current_area.bosses)
 
     def _pick_gate(self, debug=False):
         rng = self.world.rng_service.get_stream("gate_selection")
@@ -636,6 +758,20 @@ class Game:
             self._show_message("Nothing to travel to yet. Trigger world evolution first.")
             return
         self.gateway_menu.show(entries)
+
+        near = self.nemesis.regions_with_nemesis()
+        def warn(rid):
+            return f"   !! {' & '.join(near[rid]).upper()} IS NEAR !!" if rid in near else ""
+        entries = []
+        if self.current_area_id != "starting_area":
+            entries.append({"label": "Starting Region" + warn("starting_area"),
+                            "target_area_id": "starting_area"})
+        for ext in self.world.extensions:
+            if ext.extension_id != self.current_area_id:
+                entries.append({
+                    "label": f"{ext.spec.extension_name}   (Lvl {ext.spec.area_level})"
+                             + warn(ext.extension_id),
+                    "target_area_id": ext.extension_id})
 
     def _nearest_boss(self, max_dist=700):
         best, best_d = None, max_dist
@@ -701,30 +837,59 @@ class Game:
     def _apply_player_hit(self, target, world_rules, damage_multiplier=1.0):
         is_boss = getattr(target, "is_boss", False)
         if is_boss:
-            if not self._boss_attempt_active:
+            if not self._boss_attempt_active and not getattr(target, "is_nemesis", False):
                 self._boss_attempt_active = True
                 self._boss_attempt_boss_id = target.name
                 self.event_bus.emit("boss_attempt_started", boss_id=target.name)
+                self._boss_greeting(target)
             dmg = player_attack_enemy(self.player, target, self.event_bus,
                                       world_rules=world_rules,
                                       damage_multiplier=damage_multiplier)
             if dmg > 0:
-                self._trigger_hitstop(0.06 if is_boss else 0.03)
-            self.camera.shake(magnitude=4 if is_boss else 2, duration=0.12)#shake
-            from core import audio
-            audio.play("hit_boss" if is_boss else "hit_enemy")
-            
+                self._trigger_hitstop(0.06)
+            self.camera.shake(magnitude=4, duration=0.12)
+            audio.play("hit_boss")
             self.damage_numbers.spawn(target.x, target.y - 40, str(dmg), (255, 215, 90))
+            if target.alive:
+                self.reactions.on_hit(target, dmg, self.player, world_rules)
+            if getattr(target, "phase_just_changed", False):
+                target.phase_just_changed = False
+                self._trigger_phase_transition(target)
             self.event_bus.emit("boss_attempt_damage")
             if not target.alive:
                 self._on_boss_killed(target)
         else:
             dmg = player_attack_enemy(self.player, target, self.event_bus,
-                                    world_rules=world_rules,
-                                    damage_multiplier=damage_multiplier)
+                                      world_rules=world_rules,
+                                      damage_multiplier=damage_multiplier)
             self.damage_numbers.spawn(target.x, target.y - 25, str(dmg), (255, 255, 255))
+            if target.alive:
+                self.reactions.on_hit(target, dmg, self.player, world_rules)
             if not target.alive:
                 self._on_enemy_killed(target)
+
+
+    def _trigger_phase_transition(self, boss):
+        """0.18s hitstop + hard shake + a deep audio cue + a screen ring.
+        Pure feel; no gameplay numbers change. Reuses the 'evolution' tone
+        because it's already the deepest synth in core/audio.py."""
+        self._trigger_hitstop(0.18)
+        self.camera.shake(magnitude=10, duration=0.35)
+        from core import audio
+        audio.play("evolution")
+        self._show_message(
+            f"{boss.name} enters Phase {boss.phase_index + 1}!",
+            duration=1.6,
+        )
+        # Reuse the crit-burst ring for a big phase-change shockwave at the boss.
+        self.crit_bursts.append({
+            "x": boss.x, "y": boss.y,
+            "radius": 140,
+            "life": 0.55, "max_life": 0.55,
+            "color": (255, 90, 200),
+        })
+        if not getattr(boss, "is_nemesis", False):
+            self._say(boss.name, boss_phase_line(boss.phase_index), 3.0)
 
     def _try_attack(self):
         if not self.player.alive or not self.player.can_attack():
@@ -754,8 +919,21 @@ class Game:
         hits = find_arc_targets(self.player, targets, profile)
         if not profile.hits_all:
             hits = hits[:1]
-        for target in hits:
-            self._apply_player_hit(target, world_rules, profile.damage_multiplier)
+
+        #if profile.kind in ("arc", "cone_aoe"):
+        #    swing_fx.spawn_swing(self.player_swings, self.player.x, self.player.y,
+        #                         self.player.facing, profile)
+        if profile.kind in ("arc", "cone_aoe"):
+            if hits:
+                self.player.combo_count += 1
+                self.player.combo_timer = 2.0
+            combo_mult = 1.0 + min(self.player.combo_count, 10) * 0.06   # up to +60%
+            for target in hits:
+                self._apply_player_hit(target, world_rules,
+                                    profile.damage_multiplier * combo_mult)
+
+        #for target in hits:
+        #    self._apply_player_hit(target, world_rules, profile.damage_multiplier)
 
     def _update_player_projectiles(self, dt):
         area = self.current_area
@@ -810,18 +988,29 @@ class Game:
                     self.event_bus.emit("player_hit", source=enemy.name,
                                         damage=dmg, damage_type="fire")
 
+        if getattr(enemy, "nemesis", None):
+            self.nemesis.on_killed(enemy)
+            return
+
         if getattr(enemy, "is_add", False):      # boss minions drop nothing
             return
 
         rng = self.world.rng_service.get_stream("loot")
-        if rng.random() < (0.05 if enemy.is_elite else 0.01):
+        
+        # --- UPDATED DROP LOGIC START ---
+        # Stone (world-extension currency) drop
+        if rng.random() < (0.02 if enemy.is_elite else 0.003):
             self.current_area.spawn_pickup(enemy.x + 12, enemy.y, "stone")
-        drop_chance = 0.12 if not enemy.is_elite else 0.5
+            
+        # Item / orb drop
+        drop_chance = 0.05 if not enemy.is_elite else 0.28
         if rng.random() < drop_chance:
             self.current_area.spawn_loot(enemy.x, enemy.y, area_level=enemy.area_level,
                                         world_rules=rules)
-        elif rng.random() < 0.10:
+        elif rng.random() < 0.06:
             self.current_area.spawn_orb(enemy.x, enemy.y)
+        # --- UPDATED DROP LOGIC END ---
+        
         self._resolve_on_kill_effects(enemy, rules, _depth)
 
     def _resolve_on_kill_effects(self, victim, rules, depth):
@@ -858,6 +1047,15 @@ class Game:
 
 
     def _on_boss_killed(self, boss):
+
+        if getattr(boss, "_death_handled", False):
+            return
+        boss._death_handled = True
+        if getattr(boss, "nemesis", None):
+            self.nemesis.on_killed(boss)
+            return
+        self._say(boss.name, boss_last_words(), 4.0)
+
         self._show_message(f"{boss.name.upper()} HAS FALLEN.", duration=6.0)
         self.event_bus.emit("boss_killed", name=boss.name)
         if self._boss_attempt_active:
@@ -921,6 +1119,7 @@ class Game:
             "current_extension_id": self.current_extension_id,
             "event_log": self.event_log.to_dict(),
             "exploration": self.exploration.to_dict(),
+             "nemesis": self.nemesis.to_dict(),
         }
         state["player"]["current_hp"] = self.player.effective_stats.hp
         self.save_manager.save(state)
@@ -958,6 +1157,10 @@ class Game:
         self.world = World.from_dict(data["world"])
         self.player = Player.from_dict(data["player"], self.event_bus)
         self.player.stash = self.save_manager.load_stash()
+
+        self.reactions.reset()
+        self.dialogue = None
+        self.nemesis.load(data.get("nemesis"))
 
         # --- 3. Restore event log WITHOUT re-subscribing --------------------
         # EventLog.__init__ wires ~15 callbacks into the bus it is handed.
@@ -1000,9 +1203,23 @@ class Game:
 
     def _update(self, dt):
 
+        if self.dialogue:
+            self.dialogue["t"] -= dt
+            if self.dialogue["t"] <= 0:
+                self.dialogue = None
+
+        # after self._update_player_projectiles(dt):
+        self.reactions.tick(dt)
+        self.nemesis.update(dt)
+
         if self._hitstop_timer > 0:
             self._hitstop_timer -= dt
             self.damage_numbers.update(dt)
+
+            for b in self.crit_bursts:
+                b["life"] -= dt
+            self.crit_bursts = [b for b in self.crit_bursts if b["life"] > 0]
+
             if self._message_timer > 0:
                 self._message_timer -= dt
                 if self._message_timer <= 0:
@@ -1066,6 +1283,8 @@ class Game:
 
         self._update_player_projectiles(dt)
 
+        swing_fx.tick(self.player_swings, dt)
+
         self.camera.update(self.player.x, self.player.y)
         self._check_automatic_extension()
 
@@ -1082,7 +1301,7 @@ class Game:
         n, boss.summon_requests = boss.summon_requests, 0
         alive_adds = sum(1 for e in self.current_area.enemies
                         if getattr(e, "is_add", False) and e.alive)
-        n = min(n, 8 - alive_adds)
+        n = min(n, 14 - alive_adds)
         if n <= 0:
             return
         rid = getattr(boss, "region_id", "starting_area")
@@ -1122,9 +1341,17 @@ class Game:
         for boss in self.current_area.bosses:
             if boss.alive:
                 boss.draw(self.screen, self.camera)
+        
+        self.reactions.draw(self.screen, self.camera)
+       
+        
 
         if self.player.alive:
             self.player.draw(self.screen, self.camera)
+
+        self.nemesis.draw(self.screen, self.camera)
+
+        self._draw_swing_fx()
 
         
 
@@ -1132,7 +1359,11 @@ class Game:
         boss_for_hud = self._nearest_boss()
         self.damage_numbers.draw(self.screen, self.camera)
         self.hud.draw(self.screen, self.player, boss=boss_for_hud, message=self.message)
+
+        self._draw_dialogue()
+
         self._draw_player_projectiles()
+        self._draw_crit_bursts()
         self.inventory_ui.draw(self.screen, self.player, world_rules=self._active_world_rules())
         self._draw_area_label()
         self._draw_region_info()
@@ -1144,6 +1375,39 @@ class Game:
             self._draw_region_info()
 
         pygame.display.flip()
+
+
+    def _draw_swing_fx(self):
+        if not self.player_swings:
+            return
+        self._fx_surface.fill((0, 0, 0, 0))
+        for fx in self.player_swings:
+            pts = swing_fx.build_polygon_points(fx, self.camera.world_to_screen)
+            frac = fx["life"] / fx["max_life"]
+            alpha = int(150 * frac)
+            # Greatsword cones get a warmer tint than sword arcs
+            fill = (255, 235, 130, alpha) if fx["arc_deg"] >= 150 else (200, 230, 255, alpha)
+            pygame.draw.polygon(self._fx_surface, fill, pts)
+            pygame.draw.lines(self._fx_surface,
+                              (255, 255, 255, min(255, alpha + 80)),
+                              True, pts, 2)
+        self.screen.blit(self._fx_surface, (0, 0))
+
+
+    def _draw_crit_bursts(self):
+        for b in self.crit_bursts:
+            frac = b["life"] / b["max_life"]
+            # Expands from 0 -> radius over the lifetime; fades out.
+            current_r = b["radius"] * (1.0 - frac)
+            if current_r < 2:
+                continue
+            center = self.camera.world_to_screen((b["x"], b["y"]))
+            r, g, bl = b["color"]
+            faded = (int(r * frac + 40 * (1 - frac)),
+                    int(g * frac + 40 * (1 - frac)),
+                    int(bl * frac + 40 * (1 - frac)))
+            width = max(1, int(4 * frac))
+            pygame.draw.circle(self.screen, faded, center, int(current_r), width)
 
     def _draw_player_projectiles(self):
             for proj in self.player_projectiles:
@@ -1220,6 +1484,12 @@ class Game:
         label += f"  |  Explored {explored:.0f}%"    
         text = font.render(label, True, (220, 220, 230))
         self.screen.blit(text, (config.SCREEN_WIDTH // 2 - text.get_width() // 2, config.SCREEN_HEIGHT - 24))
+        if self.player.combo_count >= 2:
+            font = pygame.font.SysFont("consolas", 22, bold=True)
+            pct = int(min(self.player.combo_count, 10) * 6)
+            txt = font.render(f"COMBO x{self.player.combo_count}  (+{pct}%)",
+                            True, (255, 210, 90))
+            self.screen.blit(txt, (config.SCREEN_WIDTH // 2 - txt.get_width() // 2, 96))
 
     def _on_player_death(self, cause=None):
         lost = self.player.progression.lose_xp_progress(0.10)  # tune: 0.10 = 10%
@@ -1228,9 +1498,13 @@ class Game:
             msg = f"You died (-{lost} XP progress). Respawning..."
         self._show_message(msg)
         if self._boss_attempt_active:
+            b = self._nearest_boss(1500)
+            if b:
+                self._say(b.name, boss_death_taunt(self._current_profile().main_damage))
             self.event_bus.emit("boss_attempt_ended", result="death", boss_id=self._boss_attempt_boss_id)
             self._boss_attempt_active = False
             self._boss_attempt_boss_id = None
+        self.nemesis.on_player_death(cause) 
     
     def _draw_region_atmosphere(self):
         """Translucent color wash so each extension feels visually distinct."""

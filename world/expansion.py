@@ -119,7 +119,7 @@ def attach_extension(level, extension, gate, rng_service, world=None):
     # --- enemies ---
     spawn_rng = rng_service.derive_child("world", f"extension:{rid}:runtime")
     for (x0, y0, x1, y1) in area["enemy_rooms"]:
-        for _ in range(spawn_rng.randint(5, 8)):
+        for _ in range(spawn_rng.randint(9, 15)):
             col = spawn_rng.randint(x0 + 1, max(x0 + 1, x1 - 2)) + ox
             row = spawn_rng.randint(y0 + 1, max(y0 + 1, y1 - 2)) + oy
             e = spawn_basic_enemy(col * ts + ts / 2, row * ts + ts / 2,

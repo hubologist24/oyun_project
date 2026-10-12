@@ -224,6 +224,7 @@ class Enemy:
                 dmg = resolve_damage(proj["damage"], self.damage_type, None,
                                     target_resistances=target_res,
                                     target_category="player", world_rules=self._world_rules)
+                event_bus.emit("attacker_info", enemy=self)
                 if player.take_damage(dmg, cause=self.damage_type):
                     event_bus.emit("player_hit", source=self.name,
                                 damage=dmg, damage_type=self.damage_type)
@@ -259,8 +260,11 @@ def spawn_basic_enemy(x, y, rng, area_level=1, force_behavior=None):
         row = rng.choices(BEHAVIOR_TABLE, weights=[r[1] for r in BEHAVIOR_TABLE], k=1)[0]
     behavior, _, hp_mult, dmg_mult, speed = row
 
-    hp = int((24 + area_level * 6) * hp_mult * (1.8 if is_elite else 1.0))
-    dmg = int((6 + area_level * 1.6) * dmg_mult * (1.6 if is_elite else 1.0))
+    #hp = int((24 + area_level * 6) * hp_mult * (1.8 if is_elite else 1.0))
+    #dmg = int((6 + area_level * 1.6) * dmg_mult * (1.6 if is_elite else 1.0))
+    hp  = int((32 + area_level * 9)  * hp_mult * (2.1 if is_elite else 1.0))
+    dmg = int((9  + area_level * 2.2) * dmg_mult * (1.7 if is_elite else 1.0))
+    
     base_name = rng.choice(NAME_POOL[behavior])
 
     affixes = []

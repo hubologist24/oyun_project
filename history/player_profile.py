@@ -33,6 +33,7 @@ class PlayerProfile:
 
     playtime_seconds: float = 0.0
     extensions_generated: int = 0
+    trophies: list = field(default_factory=list)
 
     melee_ranged_preference: str = "melee"   # Phase 1-3 only has melee attack; placeholder for future skills
     average_combat_distance: float = 0.0
@@ -63,6 +64,7 @@ class PlayerProfile:
             "average_combat_distance": round(self.average_combat_distance, 1),
             "items_kept": self.items_kept,
             "items_discarded": self.items_discarded,
+            "trophies": self.trophies,
         }
 
     @staticmethod

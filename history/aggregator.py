@@ -94,15 +94,18 @@ def build_player_profile(player, event_log, world, exploration_tracker=None) -> 
     profile = PlayerProfile()
     profile.level = player.progression.level
 
+
     main, secondary = _infer_main_damage_types(event_log)
     profile.main_damage = DAMAGE_TYPE_KEYWORDS.get(main, main) if main else "physical"
     profile.secondary_damage = DAMAGE_TYPE_KEYWORDS.get(secondary, secondary) if secondary else None
-
+    
     weapon = player.equipped.get("weapon")
     profile.most_used_weapon = weapon.display_name if weapon else _infer_most_used_weapon(event_log)
     profile.favorite_skill = "basic_attack"  # only skill that exists through Phase 4
 
     profile.defensive_strength = _infer_defensive_strength(player)
+
+    profile.trophies = [t.get("name", "?") for t in getattr(player, "trophies", [])]
 
     deaths = _infer_death_causes(event_log)
     profile.deaths = deaths

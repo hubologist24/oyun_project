@@ -55,6 +55,7 @@ class ProfileScreen:
             f"Items Kept: {d['items_kept']}    Items Discarded: {d['items_discarded']}",
             "",
             f"Melee/Ranged Preference: {d['melee_ranged_preference']}",
+            f"Nemesis Trophies: {', '.join(d['trophies']) or 'none'}",
             f"Average Combat Distance: {d['average_combat_distance']} px",
             "",
             f"Playtime: {d['playtime_seconds']:.0f}s    Extensions Generated: {d['extensions_generated']}",

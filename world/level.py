@@ -50,7 +50,7 @@ LEVEL_SPEC = {
         "boss_room": (30, 16, 44, 30),
         "gate_room": (16, 16, 26, 24),   # NEW: dedicated small room for the starting gate
     },
-    "enemy_counts": {"arena_a": 4, "arena_b": 5, "arena_c": 5},
+    "enemy_counts": {"arena_a": 8, "arena_b": 11, "arena_c": 10},
     "loot_spots": 6,
 }
 
@@ -144,12 +144,13 @@ class Level:
                            for c in range(rect.left, rect.right) if g[r][c] == 0)
         return 0
 
-    def spawn_loot(self, x, y, area_level=1, world_rules=None, **item_kwargs):
+    def spawn_loot(self, x, y, area_level=1, world_rules=None,loot_rules_override=None, **item_kwargs):
         rid = self.region_at_pixel(x, y)
         ctx = {}
         if world_rules:
             ctx["world_rules"] = world_rules
-        loot_rules = self.region_loot_rules.get(rid)
+        #loot_rules = self.region_loot_rules.get(rid)
+        loot_rules = loot_rules_override or self.region_loot_rules.get(rid)
         if loot_rules:
             ctx["loot_rules"] = loot_rules
         if rid != "starting_area":
