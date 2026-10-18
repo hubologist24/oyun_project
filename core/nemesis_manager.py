@@ -3,17 +3,31 @@ import pygame
 from dataclasses import asdict
 
 import core.config as config
-from history.nemesis import Nemesis, NemesisRegistry, make_name, taunt_for
+#from history.nemesis import Nemesis, NemesisRegistry, make_name, taunt_for
 from enemies.enemy import spawn_basic_enemy
 from enemies.boss import Boss, BossTemplate
 from world.loot_rules import LootRules
 from combat.damage import resolve_damage
+
+from history.nemesis import (Nemesis, NemesisRegistry, make_name, taunt_for,
+                             pick_personality, personality_taunt, PERSONALITIES)
 
 RESPAWN_DELAY = 180.0        # playtime seconds before a slain nemesis returns stronger
 MAX_GENERATION = 5
 WORLD_BOSS_KILLS = 3
 NOVA_RADIUS = 130
 NOVA_DELAY = 0.85            # telegraph time (fairness floor)
+
+# --- RNG-based progression ---------------------------------------------
+NEMESIS_CREATION_CHANCE = 0.60       # 60% of "worthy" deaths create a nemesis
+NEMESIS_EVOLUTION_CHANCE = 0.30      # 30% of repeat-kills evolve
+NEMESIS_FORCED_EVOLUTION_GRUDGE = 3  # but force it after N non-evolving kills
+WORLD_BOSS_BASE_CHANCE = 0.05        # 5% base per kill (only gen >= 2)
+WORLD_BOSS_CHANCE_PER_GEN = 0.03     # +3% per generation beyond 1
+WORLD_BOSS_MIN_GEN = 2               # must have evolved at least once
+ESCAPE_HP_FRACTION = 0.15            # only considers fleeing below 15% HP
+ESCAPE_BASE_CHANCE = 0.15            # 15% base flee
+ESCAPE_PER_GEN = 0.05                # +5% per generation
 
 
 class NemesisManager:
@@ -39,6 +53,29 @@ class NemesisManager:
         self.last_attacker = enemy
         self.last_attacker_time = self._now()
 
+    def _should_become_world_boss(self, nem, rng) -> bool:
+        if nem.generation < WORLD_BOSS_MIN_GEN:
+            return False
+        chance = WORLD_BOSS_BASE_CHANCE + WORLD_BOSS_CHANCE_PER_GEN * (nem.generation - 1)
+        if nem.generation >= MAX_GENERATION:
+            chance *= 2.0  # nowhere left to evolve -> higher boss chance
+        return rng.random() < chance
+
+    def _should_evolve(self, nem, rng) -> bool:
+        if nem.grudge >= NEMESIS_FORCED_EVOLUTION_GRUDGE:
+            return True   # guarantees progress eventually
+        return rng.random() < NEMESIS_EVOLUTION_CHANCE
+
+    def _evolve(self, enemy, nem):
+        nem.generation += 1
+        nem.grudge = 0
+        self._apply(enemy, nem)
+        self.game._show_message(
+            f"{nem.short()} has EVOLVED! (Generation {nem.generation})",
+            duration=4.0,
+        )
+
+
     def on_player_death(self, cause=None):
         a = self.last_attacker
         self.last_attacker = None
@@ -48,22 +85,47 @@ class NemesisManager:
         cause = cause or "physical"
         nem = getattr(a, "nemesis", None)
         g = self.game
+        rng = self._rng()
+
         if nem is None:
-            nem = Nemesis(name=make_name(cause, self._rng()), damage_type=cause,
-                          behavior=a.behavior, area_level=a.area_level)
-            nem.taunt = taunt_for(cause, 1, self._rng())
+            # 60% chance the death is "memorable" enough to mark a new rival
+            if rng.random() > NEMESIS_CREATION_CHANCE:
+                g._show_message("You fell to a common foe...", duration=2.5)
+                return
+            nem = Nemesis(
+                name=make_name(cause, rng),
+                damage_type=cause,
+                behavior=a.behavior,
+                area_level=a.area_level,
+                personality=pick_personality(rng),
+            )
+            nem.taunt = taunt_for(cause, 1, rng)
             self.registry.add(nem)
             self._apply(a, nem)
             g._show_message(f"{nem.name} has marked you!", duration=4.0)
         else:
+            # Existing nemesis killed you again
             nem.kills_on_player += 1
-            nem.taunt = taunt_for(nem.damage_type, nem.kills_on_player, self._rng())
-            if nem.kills_on_player >= WORLD_BOSS_KILLS and not nem.world_boss:
-                self._make_world_boss(a, nem)
-            else:
-                self._apply(a, nem)
-        g._say(nem.short(), nem.taunt, 5.0)
+            nem.grudge += 1
 
+            # Personality sometimes bleeds into the taunt
+            if rng.random() < 0.4:
+                nem.taunt = personality_taunt(nem.personality, rng)
+            else:
+                nem.taunt = taunt_for(nem.damage_type, nem.kills_on_player, rng)
+
+            if not nem.world_boss and self._should_become_world_boss(nem, rng):
+                self._make_world_boss(a, nem)
+            elif nem.generation < MAX_GENERATION and self._should_evolve(nem, rng):
+                self._evolve(a, nem)
+            else:
+                # No evolution — it grows slightly bolder, nothing more
+                self._apply(a, nem)
+                g._show_message(
+                    f"{nem.short()} gloats, but has not evolved yet.", duration=3.0)
+
+        g._say(nem.short(), nem.taunt, 5.0)
+    
     def on_area_entered(self, area_id=None, **kw):
         g = self.game
         if area_id is None:
@@ -85,19 +147,30 @@ class NemesisManager:
         if not hasattr(enemy, "_nem_base"):
             enemy._nem_base = (enemy.max_hp, enemy.damage)
         bhp, bdmg = enemy._nem_base
-        scale = 1 + 0.3 * (nem.generation - 1) + 0.2 * (nem.kills_on_player - 1)
+
+        # Generation drives power; grudge gives a small nudge so non-evolving
+        # kills still feel like *something* changed (just not a full evolution).
+        scale = 1 + 0.3 * (nem.generation - 1) + 0.05 * nem.grudge
+
+        pers = PERSONALITIES.get(nem.personality, {})
+        hp_mult = pers.get("hp_mult", 1.0)
+        dmg_mult = pers.get("damage_mult", 1.0)
+        speed_mult = pers.get("speed_mult", 1.0)
+
         enemy.nemesis = nem
         enemy.name = nem.display()
         enemy.is_elite = True
-        enemy.max_hp = int(bhp * 2.2 * scale)
+        enemy.max_hp = int(bhp * 2.2 * scale * hp_mult)
         enemy.hp = enemy.max_hp
-        enemy.damage = int(bdmg * 1.4 * scale)
+        enemy.damage = int(bdmg * 1.4 * scale * dmg_mult)
         enemy.damage_type = nem.damage_type
         enemy.resistances[nem.damage_type] = 0.3
         enemy.xp_reward = 60 * nem.generation
         enemy._aggro_range = 700
         enemy.width = enemy.height = max(enemy.width, 34)
         enemy.alive = True
+        if hasattr(enemy, "speed"):
+            enemy.speed *= speed_mult
 
     def _build_boss(self, x, y, nem, rid):
         from enemies.boss_factory import build_personalized_boss_template
@@ -207,6 +280,21 @@ class NemesisManager:
             g._show_message(f"{nem.short()} rises again, stronger than before.", duration=4.0)
             g._say(nem.short(), "Did you think I was finished?", 4.0)
 
+
+    def _nemesis_escape(self, enemy):
+        g = self.game
+        nem = enemy.nemesis
+        nem.status = "pending"
+        nem.respawn_at = self._now() + RESPAWN_DELAY * 0.5   # comes back faster
+        nem.escapes += 1
+        nem.grudge += 1                                       # escaping stings
+        if enemy in g.current_area.enemies:
+            g.current_area.enemies.remove(enemy)
+        elif enemy in g.current_area.bosses:
+            g.current_area.bosses.remove(enemy)
+        g._show_message(f"{nem.short()} ESCAPED! They'll be back, angrier.", duration=4.0)
+        g._say(nem.short(), "You cannot finish what you cannot catch!", 3.5)
+
     def update(self, dt):
         g, p = self.game, self.game.player
         if not p.alive:
@@ -221,6 +309,15 @@ class NemesisManager:
                         and now - getattr(e, "_warn_at", -99) > 45):
                     e._warn_at = now
                     g._show_message(f"{e.nemesis.short().upper()} IS NEAR", duration=2.5)
+            # Nemesis escape: if badly hurt, might flee to come back angrier
+            for e in self._in_play():
+                if (not getattr(e, "is_boss", False)
+                        and not getattr(e, "_escape_checked", False)
+                        and e.hp > 0 and e.hp < e.max_hp * ESCAPE_HP_FRACTION):
+                    e._escape_checked = True
+                    chance = ESCAPE_BASE_CHANCE + ESCAPE_PER_GEN * (e.nemesis.generation - 1)
+                    if self._rng().random() < chance:
+                        self._nemesis_escape(e)
 
         # signature nova: telegraphed ground circle in the killing damage type
         for e in self._in_play():

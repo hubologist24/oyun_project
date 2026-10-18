@@ -53,6 +53,12 @@ BOSS_MECHANIC_POOL = [
     "dash_predator", "ranged_zoner", "summoner", "reflector", "berserker",
 ]
 
+TECHNIQUE_COUNTER = {
+    "retreat_shot": "dash_predator", "perfect_range": "dash_predator",
+    "dash_strike": "summoner", "intercept": "ranged_zoner",
+    "reverse_slash": "ranged_zoner", "heavy_reversal": "dash_predator",
+}
+
 
 class ProceduralWorldGenerator(WorldGenerator):
 
@@ -227,6 +233,8 @@ class ProceduralWorldGenerator(WorldGenerator):
             mechanic = "reflector" if hints.dominant_damage_type in hints.frequent_death_causes else "dash_predator"
         elif hints.boss_dominant:
             mechanic = rng.choice(["summoner", "berserker"])
+        elif profile.favorite_technique in TECHNIQUE_COUNTER:
+            mechanic = TECHNIQUE_COUNTER[profile.favorite_technique]
         else:
             mechanic = rng.choice(BOSS_MECHANIC_POOL)
 

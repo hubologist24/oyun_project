@@ -15,7 +15,7 @@ def _enemy_category(enemy) -> str:
 
 def player_attack_enemy(player, enemy, event_bus, world_rules=None,
                         damage_multiplier: float = 1.0,
-                        rng: random.Random | None = None) -> int:
+                        rng: random.Random | None = None,pierce: bool = False) -> int:
     rng = rng or random
     conversion_rules = world_rules.conversion_rules_for("player") if world_rules else None
     stats = player.effective_stats
@@ -26,12 +26,19 @@ def player_attack_enemy(player, enemy, event_bus, world_rules=None,
     if is_crit:
         base_amount *= CRIT_MULTIPLIER
 
+    target_res = dict(getattr(enemy, "resistances",
+                              {"armor_flat": getattr(enemy, "armor", 0)}))
+    if pierce:   # Dash Strike: ignore armor, halve positive resistances
+        target_res["armor_flat"] = 0
+        for k, v in list(target_res.items()):
+            if k != "armor_flat" and v > 0:
+                target_res[k] = v * 0.5
+
     dmg = resolve_damage(
         base_amount=base_amount,
         damage_type=stats.primary_damage_type,
         source_stats=stats,
-        target_resistances=getattr(enemy, "resistances",
-                                    {"armor_flat": getattr(enemy, "armor", 0)}),
+        target_resistances=target_res,
         world_rules=world_rules,
         conversion_rules=conversion_rules,
         target_category=_enemy_category(enemy),
@@ -63,7 +70,9 @@ def enemy_attack_player(enemy, player, event_bus, world_rules=None,
                         damage_multiplier: float = 1.0) -> int:
     damage_type = getattr(enemy, "damage_type", "physical")
     conversion_rules = world_rules.conversion_rules_for("enemy") if world_rules else None
-    base_amount = getattr(enemy, "damage", 0) * damage_multiplier
+
+    base_amount = (getattr(enemy, "damage", 0) * damage_multiplier
+                   * getattr(enemy, "pack_damage_mult", 1.0))
 
     player_stats = player.effective_stats
     target_resistances = dict(player_stats.resistances)

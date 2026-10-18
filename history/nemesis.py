@@ -23,6 +23,28 @@ REPEAT = ["Again? I was hoping for a challenge.", "I remember your scent.",
 ROMAN = ["", "", " II", " III", " IV", " V"]
 
 
+PERSONALITIES = {
+    "aggressive": {"display": "the Relentless", "speed_mult": 1.20, "damage_mult": 1.15},
+    "patient":    {"display": "the Patient",    "hp_mult":   1.30, "speed_mult": 0.85},
+    "cunning":    {"display": "the Cunning",    "damage_mult": 1.10, "resist_bonus": 0.10},
+    "frenzied":   {"display": "the Frenzied",   "speed_mult": 1.15, "damage_mult": 1.20, "hp_mult": 0.85},
+    "resilient":  {"display": "the Unbroken",   "hp_mult":   1.40, "speed_mult": 0.90},
+}
+
+def pick_personality(rng):
+    return rng.choice(list(PERSONALITIES.keys()))
+
+def personality_taunt(personality, rng):
+    lines = {
+        "aggressive": ["No mercy this time!", "I'll tear you apart!"],
+        "patient":    ["I've waited for this moment...", "Your time will come, wanderer."],
+        "cunning":    ["A trap, and you walked right in.", "Predictable, as always."],
+        "frenzied":   ["BLOOD! BLOOD!", "FASTER! FASTER!"],
+        "resilient":  ["You cannot break me.", "I have endured worse than you."],
+    }
+    return rng.choice(lines.get(personality, ["You cannot win."]))
+
+
 def make_name(dtype, rng):
     return f"{rng.choice(FIRST.get(dtype, FIRST['physical']))}, {EPITHET.get(dtype, 'the Unyielding')}"
 
@@ -49,6 +71,9 @@ class Nemesis:
     archetype: str = "dash_predator"
     status: str = "alive"        # alive | pending | dead
     respawn_at: float = 0.0
+    grudge: int = 0                       # kills since last evolution (forces evolve at 3)
+    escapes: int = 0                      # times this nemesis fled a fight
+    personality: str = "aggressive"       # key into PERSONALITIES
 
     def short(self):
         return self.name.split(",")[0]

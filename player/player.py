@@ -198,6 +198,8 @@ class Player:
     def take_damage(self, amount: int, cause: str = "physical") -> bool:
         """Returns True if damage was actually applied (not invulnerable)."""
         if self._invuln_timer > 0:
+            if self._dash_timer > 0 or self._dash_cd > 0.65:
+                self.event_bus.emit("near_miss")
             return False
         self.effective_stats.hp -= amount
         self.effective_stats.clamp_hp()

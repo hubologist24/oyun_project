@@ -137,4 +137,7 @@ def build_player_profile(player, event_log, world, exploration_tracker=None) -> 
         distances = [e.payload.get("distance", 0.0) for e in attack_events]
         profile.average_combat_distance = sum(distances) / len(distances)
 
+    techs = Counter(e.payload.get("name") for e in event_log.events_of_type("kinetic_technique"))
+    profile.favorite_technique = techs.most_common(1)[0][0] if techs else None
+
     return profile

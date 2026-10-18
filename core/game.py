@@ -144,6 +144,15 @@ class Game:
 
         self.dialogue = None
         self.reactions = ReactionSystem(self)
+        from combat.kinetic import KineticTracker
+        self.kinetic = KineticTracker(self)
+
+        from enemies.packs import PackManager
+        from world.terrain import TerrainSystem
+        self.terrain = TerrainSystem(self)
+        self.packs = PackManager(self)
+        self.packs.assign_new()
+
         self.nemesis = NemesisManager(self)
 
         
@@ -183,6 +192,7 @@ class Game:
                 self._on_enemy_killed(other)
 
         # Also splash onto bosses if they're in range (blink duels get spicy).
+
         for boss in self.current_area.bosses:
             if not boss.alive:
                 continue
@@ -196,18 +206,17 @@ class Game:
             boss.take_damage(dmg)
             self.damage_numbers.spawn(boss.x, boss.y - 40, str(dmg),
                                     self._damage_type_color(damage_type))
-            # Boss phase transition check will fire from _apply_player_hit
-            # normally; here we only handle the splash, so we don't re-trigger
-            # the cutscene beat from a splash hit.
 
-        # Visual expanding ring, tinted by damage type.
-        self.crit_bursts.append({
-            "x": x, "y": y,
-            "radius": radius,
-            "life": 0.30, "max_life": 0.30,
-            "color": self._damage_type_color(damage_type),
-        })
+            # Splash-damage that reaches a phase boundary must still fire the
+            # phase cutscene (previously the effect was silently skipped).
+            if getattr(boss, "phase_just_changed", False):
+                boss.phase_just_changed = False
+                self._trigger_phase_transition(boss)
 
+            # Splash-kill on a boss must also go through the normal kill path
+            # (loot burst, event log, dialogue) instead of just zeroing HP.
+            if not boss.alive:
+                self._on_boss_killed(boss)
 
     def _damage_type_color(self, dtype):
         return {
@@ -246,6 +255,9 @@ class Game:
             lvl = ext.spec.area_level if ext else max(2, self.player.progression.level)
             e = spawn_basic_enemy(x, y, rng, area_level=lvl)
             e.region_id = rid
+
+            e._pack_checked = True      # roamers never join packs
+
             self.current_area.enemies.append(e)
             break
 
@@ -502,6 +514,13 @@ class Game:
             self.inventory_ui.toggle_stash()
         elif key == pygame.K_TAB:
             self._open_gateway_menu()
+        elif key == pygame.K_LSHIFT:
+            k = pygame.key.get_pressed()
+            moving = any(k[x] for x in (pygame.K_w, pygame.K_a, pygame.K_s, pygame.K_d,
+                                        pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT))
+            if not moving:
+                self.player.face_toward(*self.camera.screen_to_world(pygame.mouse.get_pos()))
+            self.player.try_dash()
         elif key == pygame.K_F9:
             self._save_game()
         elif key == pygame.K_F10:
@@ -616,6 +635,8 @@ class Game:
         attach_extension(self.current_area, extension, gate,
                          self.world.rng_service, self.world)
         self._on_map_expanded(spec.extension_id)
+
+        self.packs.assign_new() 
 
         self.event_bus.emit("extension_generated", extension_id=spec.extension_id,
                             mode=self._pending_evolution_mode,
@@ -746,22 +767,11 @@ class Game:
         self._teleport_to_region(target_area_id)
 
     def _open_gateway_menu(self):
-        entries = []
-        if self.current_area_id != "starting_area":
-            entries.append({"label": "Starting Region", "target_area_id": "starting_area"})
-        for ext in self.world.extensions:
-            if ext.extension_id != self.current_area_id:
-                entries.append({
-                    "label": f"{ext.spec.extension_name}   (Lvl {ext.spec.area_level})",
-                    "target_area_id": ext.extension_id})
-        if not entries:
-            self._show_message("Nothing to travel to yet. Trigger world evolution first.")
-            return
-        self.gateway_menu.show(entries)
-
         near = self.nemesis.regions_with_nemesis()
+
         def warn(rid):
             return f"   !! {' & '.join(near[rid]).upper()} IS NEAR !!" if rid in near else ""
+
         entries = []
         if self.current_area_id != "starting_area":
             entries.append({"label": "Starting Region" + warn("starting_area"),
@@ -772,6 +782,10 @@ class Game:
                     "label": f"{ext.spec.extension_name}   (Lvl {ext.spec.area_level})"
                              + warn(ext.extension_id),
                     "target_area_id": ext.extension_id})
+        if not entries:
+            self._show_message("Nothing to travel to yet. Trigger world evolution first.")
+            return
+        self.gateway_menu.show(entries)
 
     def _nearest_boss(self, max_dist=700):
         best, best_d = None, max_dist
@@ -834,7 +848,9 @@ class Game:
         targets.extend(b for b in self.current_area.bosses if b.alive)
         return targets
 
-    def _apply_player_hit(self, target, world_rules, damage_multiplier=1.0):
+    def _apply_player_hit(self, target, world_rules, damage_multiplier=1.0, techniques=None):
+        techniques = list(techniques or [])
+        pierce = "dash_strike" in techniques
         is_boss = getattr(target, "is_boss", False)
         if is_boss:
             if not self._boss_attempt_active and not getattr(target, "is_nemesis", False):
@@ -844,12 +860,14 @@ class Game:
                 self._boss_greeting(target)
             dmg = player_attack_enemy(self.player, target, self.event_bus,
                                       world_rules=world_rules,
-                                      damage_multiplier=damage_multiplier)
+                                      damage_multiplier=damage_multiplier, pierce=pierce)
             if dmg > 0:
                 self._trigger_hitstop(0.06)
             self.camera.shake(magnitude=4, duration=0.12)
             audio.play("hit_boss")
             self.damage_numbers.spawn(target.x, target.y - 40, str(dmg), (255, 215, 90))
+            if techniques:
+                self.kinetic.trigger(techniques, target)
             if target.alive:
                 self.reactions.on_hit(target, dmg, self.player, world_rules)
             if getattr(target, "phase_just_changed", False):
@@ -861,8 +879,10 @@ class Game:
         else:
             dmg = player_attack_enemy(self.player, target, self.event_bus,
                                       world_rules=world_rules,
-                                      damage_multiplier=damage_multiplier)
+                                      damage_multiplier=damage_multiplier, pierce=pierce)
             self.damage_numbers.spawn(target.x, target.y - 25, str(dmg), (255, 255, 255))
+            if techniques:
+                self.kinetic.trigger(techniques, target)
             if target.alive:
                 self.reactions.on_hit(target, dmg, self.player, world_rules)
             if not target.alive:
@@ -907,6 +927,7 @@ class Game:
                 damage_type=self.player.effective_stats.primary_damage_type,
                 world_rules=world_rules,
             )
+            proj.technique = self.kinetic.classify_ranged(self.player)
             self.player_projectiles.append(proj)
             weapon = self.player.equipped.get("weapon")
             self.event_bus.emit("skill_used", skill="basic_attack", damage=0, target=None,
@@ -914,26 +935,31 @@ class Game:
                                 weapon_name=weapon.display_name if weapon else None)
             return
 
-        # Arc / cone patterns
+        swing_tech = self.kinetic.classify_melee(self.player, profile)
+        if swing_tech == "reverse_slash":
+            profile = self.kinetic.widen(profile)
+
+        # Melee visual: spawn the arc/cone FX *before* checking hits so a
+        # whiffed swing still shows. Previously this call was missing, so
+        # player_swings stayed empty and Game._draw_swing_fx was dead code.
+        swing_fx.spawn_swing(self.player_swings, self.player.x, self.player.y,
+                            self.player.facing, profile)
+
         targets = self._live_attack_targets()
         hits = find_arc_targets(self.player, targets, profile)
         if not profile.hits_all:
             hits = hits[:1]
 
-        #if profile.kind in ("arc", "cone_aoe"):
-        #    swing_fx.spawn_swing(self.player_swings, self.player.x, self.player.y,
-        #                         self.player.facing, profile)
-        if profile.kind in ("arc", "cone_aoe"):
-            if hits:
-                self.player.combo_count += 1
-                self.player.combo_timer = 2.0
-            combo_mult = 1.0 + min(self.player.combo_count, 10) * 0.06   # up to +60%
-            for target in hits:
-                self._apply_player_hit(target, world_rules,
-                                    profile.damage_multiplier * combo_mult)
-
-        #for target in hits:
-        #    self._apply_player_hit(target, world_rules, profile.damage_multiplier)
+        if hits:
+            self.player.combo_count += 1
+            self.player.combo_timer = 2.0
+        combo_mult = 1.0 + min(self.player.combo_count, 10) * 0.06
+        for target in hits:
+            techs = [swing_tech] if swing_tech else []
+            if self.kinetic.is_intercept(target):
+                techs.append("intercept")
+            self._apply_player_hit(target, world_rules,
+                                   profile.damage_multiplier * combo_mult, techs)
 
     def _update_player_projectiles(self, dt):
         area = self.current_area
@@ -949,23 +975,35 @@ class Game:
 
             consumed = False
             for enemy in list(area.enemies):
-                if not enemy.alive:
+                if not enemy.alive or id(enemy) in proj.hit_ids:
                     continue
                 if proj.rect.colliderect(enemy.rect):
-                    self._apply_player_hit(enemy, proj.world_rules, proj.damage_multiplier)
+                    proj.hit_ids.add(id(enemy))
+                    techs = self.kinetic.projectile_techniques(proj)
+                    self._apply_player_hit(enemy, proj.world_rules, proj.damage_multiplier, techs)
                     if not proj.piercing:
+                        if "perfect_range" in techs and not proj.bonus_used:
+                            proj.bonus_used = True      # Perfect Range: pierce one extra
+                            continue
                         consumed = True
                         break
 
             if not consumed:
-                for boss in area.bosses:
-                    if boss.alive and proj.rect.colliderect(boss.rect):
-                        self._apply_player_hit(boss, proj.world_rules, proj.damage_multiplier)
+                for boss in list(area.bosses):
+                    if not boss.alive or id(boss) in proj.hit_ids:
+                        continue
+                    if proj.rect.colliderect(boss.rect):
+                        proj.hit_ids.add(id(boss))
+                        techs = self.kinetic.projectile_techniques(proj)
+                        self._apply_player_hit(boss, proj.world_rules, proj.damage_multiplier, techs)
                         if not proj.piercing:
+                            if "perfect_range" in techs and not proj.bonus_used:
+                                proj.bonus_used = True
+                                continue
                             consumed = True
                             break
 
-            if consumed:
+            if consumed and proj in self.player_projectiles:
                 self.player_projectiles.remove(proj)
 
     def _clear_player_projectiles(self):
@@ -975,6 +1013,10 @@ class Game:
         if enemy not in self.current_area.enemies:
             return
         self.current_area.enemies.remove(enemy)
+
+        self.packs.on_member_killed(enemy)
+        self.terrain.on_enemy_killed(enemy)
+
         self.player.gain_xp(enemy.xp_reward)
         self.event_bus.emit("enemy_killed", name=enemy.name)
         rules = self._active_world_rules()
@@ -1180,6 +1222,9 @@ class Game:
         else:
             self.exploration = ExplorationTracker()
 
+        self.kinetic.reset()
+        self.kinetic.restore_from_log(self.event_log)
+
         # --- 4. Rebuild the single map and replay expansions in order -------
         self.starting_area = build_level(self.world.rng_service)
         self.current_area = self.starting_area
@@ -1197,20 +1242,19 @@ class Game:
                              self.world.rng_service, self.world)
             self._on_map_expanded(ext.extension_id)
 
+        self.packs.reset()
+        self.terrain.reset()
+        self.packs.assign_new()
+        
         self.camera = Camera(*self.current_area.tilemap.pixel_size())
         self._update_current_region()
         self._show_message("Game loaded.")
 
     def _update(self, dt):
-
         if self.dialogue:
             self.dialogue["t"] -= dt
             if self.dialogue["t"] <= 0:
                 self.dialogue = None
-
-        # after self._update_player_projectiles(dt):
-        self.reactions.tick(dt)
-        self.nemesis.update(dt)
 
         if self._hitstop_timer > 0:
             self._hitstop_timer -= dt
@@ -1224,10 +1268,10 @@ class Game:
                 self._message_timer -= dt
                 if self._message_timer <= 0:
                     self.message = ""
-            self.camera.tick(dt)   # shake still decays; see Pass 2
+            self.camera.tick(dt)
             self.camera.update(self.player.x, self.player.y)
             return
-        
+
         self.damage_numbers.update(dt)
 
         if self._message_timer > 0:
@@ -1236,21 +1280,26 @@ class Game:
                 self.message = ""
 
         self.world.total_playtime_seconds += dt
-        
 
         if (self.evolution_banner.visible or self.profile_screen.visible
         or self.gateway_menu.visible or self.inventory_ui.visible):
             return
 
+        # Moved here from above the modal guard: DoT ticks and telegraphed
+        # novas must not resolve while the player is reading a menu or the
+        # evolution banner (they were previously visible to nemesis novas).
+        self.reactions.tick(dt)
+        self.nemesis.update(dt)
+
         if self.player.alive:
             keys = pygame.key.get_pressed()
             self.player.handle_input(dt, keys, self.current_area.tilemap)
+            self.kinetic.update(dt)
             self._pickup_loot()
-            #self._check_gate_interactions()
             self._update_current_region()
             self._update_roaming_spawns(dt)
             self.exploration.update(dt, self.current_area_id, self.player.x, self.player.y)
-            if self._attack_button_held:                  # NEW
+            if self._attack_button_held:
                 world_pos = self.camera.screen_to_world(pygame.mouse.get_pos())
                 self.player.face_toward(*world_pos)
                 self._try_attack()
@@ -1261,10 +1310,13 @@ class Game:
 
         world_rules = self._active_world_rules()
 
+        self.packs.update(dt)
+        self.terrain.update(dt)
+
         px, py = self.player.x, self.player.y
         for enemy in self.current_area.enemies:
             if abs(enemy.x - px) > 1200 or abs(enemy.y - py) > 1200:
-                continue                      # whole map is one area now; skip far enemies
+                continue
             enemy.update(dt, self.player, self.current_area.tilemap, self.event_bus,
                          world_rules=world_rules)
 
@@ -1274,12 +1326,6 @@ class Game:
                     boss.update(dt, self.player, self.event_bus, world_rules=world_rules)
                     if boss.summon_requests:
                         self._spawn_boss_adds(boss)
-
-        #for enemy in self.current_area.enemies:
-        #    enemy.update(dt, self.player, self.current_area.tilemap, self.event_bus,world_rules=world_rules)
-
-        #if self.current_area.boss is not None and self.current_area.boss.alive and self.player.alive:
-        #    self.current_area.boss.update(dt, self.player, self.event_bus, world_rules=world_rules)
 
         self._update_player_projectiles(dt)
 
@@ -1294,6 +1340,7 @@ class Game:
         self.current_area_id, self.current_area.start_pos)
         self.player.alive = True
         self.player.heal_to_full()
+        self.terrain.clear_hostile()
         self._respawn_timer = 1.5
         self._show_message("Respawned.")
 
@@ -1329,6 +1376,8 @@ class Game:
         gates_here = self.world.gates_in_area(self.current_area_id)
         self.current_area.draw(self.screen, self.camera, gates=gates_here)
         self._draw_region_atmosphere()
+
+        self.terrain.draw(self.screen, self.camera)
         
 
         for enemy in self.current_area.enemies:
@@ -1341,6 +1390,8 @@ class Game:
         for boss in self.current_area.bosses:
             if boss.alive:
                 boss.draw(self.screen, self.camera)
+
+        self.packs.draw(self.screen, self.camera)
         
         self.reactions.draw(self.screen, self.camera)
        

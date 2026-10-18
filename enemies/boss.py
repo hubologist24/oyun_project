@@ -121,6 +121,12 @@ class Boss:
             self.alive = False
         self._update_phase()
 
+    def interrupt(self):
+        """Intercept: cancels a telegraphed attack."""
+        if self._state == "telegraph":
+            self._state = "recover"
+            self._state_timer = 0.7
+
     def _hit_player(self, player, dmg, event_bus):
         if player.take_damage(dmg, cause=self.damage_type):
             event_bus.emit("player_hit", source=self.name, damage=dmg,
@@ -187,12 +193,7 @@ class Boss:
                 base = 4 if self.template.summoner else 2
                 self.summon_requests += base + self.phase_index
                 self._summon_timer = 6.0 if self.template.summoner else 11.0
-
-        if self.template.summoner and dist < 500:
-            self._summon_timer -= dt
-            if self._summon_timer <= 0:
-                self.summon_requests += 2 + self.phase_index
-                self._summon_timer = 10.0
+       
 
         if self._cooldown_timer > 0:
             self._cooldown_timer -= dt

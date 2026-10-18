@@ -37,6 +37,16 @@ class Enemy:
         self._ranged_timer = 1.2
         self.projectiles = []
 
+        self.stagger_timer = 0.0
+        self.slow_timer = 0.0
+        self.slow_factor = 1.0
+
+        self.pack = None
+        self.pack_role = None
+        self.pack_speed_mult = 1.0
+        self.pack_damage_mult = 1.0
+        self._pack_checked = False
+
         self.alive = True
         self._attack_timer = 0.0
         self._aggro_range = 260
@@ -49,10 +59,26 @@ class Enemy:
                             self.width, self.height)
 
     def take_damage(self, amount: int):
+        if self.pack is not None:
+            self.pack.alerted = True
         self.hp -= amount
         if self.hp <= 0:
             self.hp = 0
             self.alive = False
+
+
+    def apply_stagger(self, duration):
+        self.stagger_timer = max(self.stagger_timer, duration)
+
+    def apply_slow(self, duration, factor=0.5):
+        self.slow_timer = max(self.slow_timer, duration)
+        self.slow_factor = factor
+
+    def interrupt(self):
+        """Cancels the enemy's current attack windup."""
+        self._attack_timer = max(self._attack_timer, 1.0)
+        self._ranged_timer = max(self._ranged_timer, 1.5)
+        self.apply_stagger(0.3)        
 
     def update(self, dt, player, tilemap, event_bus,world_rules=None):
         self._world_rules = world_rules
@@ -61,6 +87,13 @@ class Enemy:
 
         if "regenerating" in self.affixes and self.hp < self.max_hp:
             self.hp = min(self.max_hp, self.hp + self.max_hp * 0.04 * dt)
+
+        if self.slow_timer > 0:
+            self.slow_timer -= dt
+        if self.stagger_timer > 0:
+            self.stagger_timer -= dt
+            self._tick_projectiles(dt, player, event_bus)
+            return
 
         
         if self._attack_timer > 0:
@@ -75,6 +108,11 @@ class Enemy:
         dx = player.x - self.x
         dy = player.y - self.y
         dist = math.hypot(dx, dy)
+
+        if self.pack is not None and self.pack_role:
+            if self.pack.handle(self, dt, player, tilemap, dist):
+                self._tick_projectiles(dt, player, event_bus)
+                return
 
         handler = {
             "chaser":   self._tick_chaser,
@@ -122,13 +160,23 @@ class Enemy:
             t = Enemy._affix_font.render("/".join(self.affixes), True, col)
             surface.blit(t, (rect.centerx - t.get_width() // 2, rect.y - 22))
 
+        if self.stagger_timer > 0:
+            pygame.draw.rect(surface, (255, 255, 255), rect.inflate(6, 6), 2, border_radius=5)
+        elif self.slow_timer > 0:
+            pygame.draw.rect(surface, (120, 220, 255), rect.inflate(6, 6), 1, border_radius=5)
+
     def _step_toward(self, dt, tilemap, dir_x, dir_y, speed_scale=1.0):
         v = pygame.Vector2(dir_x, dir_y)
         if v.length_squared() == 0:
             return
         v = v.normalize()
+        if self.slow_timer > 0:
+            speed_scale *= self.slow_factor
+        speed_scale *= self.pack_speed_mult
         nx = self.x + v.x * self.speed * speed_scale * dt
         ny = self.y + v.y * self.speed * speed_scale * dt
+     
+
         if not tilemap.collides_rect(self._rect_at(nx, self.y)):
             self.x = nx
         if not tilemap.collides_rect(self._rect_at(self.x, ny)):
@@ -198,12 +246,14 @@ class Enemy:
     def _fire_bolt(self, dx, dy, dist):
         if dist < 1:
             return
+        if self.pack is not None:
+            self.pack.alerted = True
         speed = 260.0
         self.projectiles.append({
             "x": self.x, "y": self.y,
             "vx": dx / dist * speed,
             "vy": dy / dist * speed,
-            "damage": self.damage,
+            "damage": int(self.damage * self.pack_damage_mult),
             "life": 3.0,
         })
 

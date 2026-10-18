@@ -43,6 +43,7 @@ TRACKED_EVENTS = [
     "extension_generated",
     "area_entered",
     "skill_used",
+    "kinetic_technique"
 ]
 
 

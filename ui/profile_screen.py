@@ -59,6 +59,7 @@ class ProfileScreen:
             f"Average Combat Distance: {d['average_combat_distance']} px",
             "",
             f"Playtime: {d['playtime_seconds']:.0f}s    Extensions Generated: {d['extensions_generated']}",
+            f"Favorite Technique: {d['favorite_technique']}",
         ]
         for line in lines:
             text = self.font_body.render(line, True, (220, 220, 225))

@@ -41,6 +41,8 @@ class PlayerProfile:
     items_kept: int = 0
     items_discarded: int = 0
 
+    favorite_technique: Optional[str] = None
+
     def to_dict(self):
         return {
             "level": self.level,
@@ -65,6 +67,8 @@ class PlayerProfile:
             "items_kept": self.items_kept,
             "items_discarded": self.items_discarded,
             "trophies": self.trophies,
+            "favorite_technique": self.favorite_technique,
+        
         }
 
     @staticmethod

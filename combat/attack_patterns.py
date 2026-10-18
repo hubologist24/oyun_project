@@ -89,6 +89,11 @@ class PlayerProjectile:
         self.remaining_range = max_range
         self.radius = radius
         self.alive = True
+        
+        self.max_range = max_range
+        self.technique = None
+        self.hit_ids = set()
+        self.bonus_used = False
 
     @property
     def rect(self) -> pygame.Rect:
