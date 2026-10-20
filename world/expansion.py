@@ -113,6 +113,26 @@ def attach_extension(level, extension, gate, rng_service, world=None):
 
     level.region_start[rid] = (((sx0 + sx1) / 2 + ox) * ts, ((sy0 + sy1) / 2 + oy) * ts)
 
+    # --- shrines in this extension ---
+    from world.shrine import make_shrine
+    if not any(s.area_id == rid for s in level.shrines):
+        rooms = area["rooms"]
+        occupied = {0, len(rooms) - 1, area.get("gate_room_index", -1)}
+        candidates = [i for i in range(len(rooms)) if i not in occupied]
+        if candidates:
+            idx = spawn_rng.choice(candidates)
+            rx0, ry0, rx1, ry1 = rooms[idx]
+            ax = ((rx0 + rx1) / 2 + ox) * ts
+            ay = ((ry0 + ry1) / 2 + oy) * ts
+            level.shrines.append(make_shrine("sacrifice_altar", ax, ay, rid))
+
+        for enemy_room in area["enemy_rooms"][:2]:
+            x0, y0, x1, y1 = enemy_room
+            cx = (spawn_rng.uniform(x0 + 1, x1 - 1) + ox) * ts
+            cy = (spawn_rng.uniform(y0 + 1, y1 - 1) + oy) * ts
+            level.shrines.append(make_shrine("loot_chest", cx, cy, rid)) 
+
+
     if spec.loot_rules:
         level.region_loot_rules[rid] = LootRules.from_dict(spec.loot_rules)
 

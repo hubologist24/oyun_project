@@ -219,16 +219,25 @@ class NemesisManager:
                            "generation": gen_at_kill})
         p.recalc_stats()
 
+        #rules = LootRules(favored_damage_types={nem.damage_type: 3.0},
+        #                  rare_chance_multiplier=1.5, six_mod_chance_multiplier=1.1)
+        #lvl = max(p.progression.level, nem.area_level) + 2
+        #counts = [(3, 2), (2, 2), (2, 1)] + ([(3, 3)] if nem.world_boss else [])
+        #for i, c in enumerate(counts):
+        #    g.current_area.spawn_loot(victim.x + (i - 1.5) * 30, victim.y, area_level=lvl,
+        #                              world_rules=g._active_world_rules(),
+        #                              loot_rules_override=rules, force_affix_counts=c)
+        #g.current_area.spawn_pickup(victim.x, victim.y + 30, "stone")
+        #g.current_area.spawn_orb(victim.x + 30, victim.y + 30)
+
         rules = LootRules(favored_damage_types={nem.damage_type: 3.0},
-                          rare_chance_multiplier=1.5, six_mod_chance_multiplier=1.1)
+                  rare_chance_multiplier=1.5, six_mod_chance_multiplier=1.1)
         lvl = max(p.progression.level, nem.area_level) + 2
-        counts = [(3, 2), (2, 2), (2, 1)] + ([(3, 3)] if nem.world_boss else [])
-        for i, c in enumerate(counts):
-            g.current_area.spawn_loot(victim.x + (i - 1.5) * 30, victim.y, area_level=lvl,
-                                      world_rules=g._active_world_rules(),
-                                      loot_rules_override=rules, force_affix_counts=c)
-        g.current_area.spawn_pickup(victim.x, victim.y + 30, "stone")
-        g.current_area.spawn_orb(victim.x + 30, victim.y + 30)
+        rng = g.world.rng_service.get_stream("nemesis_loot")
+        g._roll_boss_loot(victim, lvl, g._active_world_rules(), rng,
+                        world_boss=nem.world_boss, loot_rules_override=rules)
+
+
         g._show_message(f"NEMESIS SLAIN: {nem.name}! Trophy earned "
                         f"(+3% {nem.damage_type} res, +5 life).", duration=6.0)
         g._say(nem.short(), "This... is not... the end.", 4.0)

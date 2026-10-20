@@ -60,6 +60,19 @@ CRIT_BURST_RADIUS = 70.0
 CRIT_BURST_RATIO = 0.50
 
 
+BOSS_ITEM_DROPS = [
+    (0.90, (3, 2)),   # near-guaranteed best roll
+    (0.75, (2, 2)),
+    (0.60, (2, 1)),
+    (0.40, (1, 2)),   # bonus slot
+]
+BOSS_STONE_DROPS = [0.70, 0.30, 0.10]   # 1st stone, 2nd stone, 3rd stone
+
+WORLD_BOSS_ITEM_CHANCE_BONUS = 0.15     # added to each slot
+WORLD_BOSS_EXTRA_ITEM_SLOT = (0.45, (3, 3))
+WORLD_BOSS_STONE_CHANCE_BONUS = 0.10 
+
+
 class _NullEventBus:
     """
     Absorbs subscriptions (and drops emits) while we rebuild an EventLog
@@ -444,6 +457,8 @@ class Game:
                 target = self.gateway_menu.confirm_selection()
                 if target:
                     self._handle_gateway_menu_select(target)
+            elif key == pygame.K_e:
+                self._try_interact_shrine()
             elif key == pygame.K_ESCAPE:
                 self.gateway_menu.hide()
             elif key == pygame.K_LSHIFT:
@@ -556,6 +571,25 @@ class Game:
 
 
 
+    def _try_interact_shrine(self) -> bool:
+        for shrine in self.current_area.shrines:
+            if shrine.area_id != self.current_area_id:
+                continue
+            if not shrine.player_in_range(self.player):
+                continue
+            msg = shrine.interact(self)
+            if msg:
+                self._show_message(msg, duration=3.5)
+            return True
+        return False
+
+    def _apply_shrine_persistence(self):
+        for shrine in self.current_area.shrines:
+            if shrine.unique_id() in self.world.used_shrines:
+                shrine.used = True    
+
+
+
     # ---------------- world / extensions -----------------
     def _generate_next_extension(self, mode=config.EXTENSION_MODE_MANUAL):
         """
@@ -634,6 +668,9 @@ class Game:
         opened_gate = self.world.open_gate_to(gate, spec.extension_id)
         attach_extension(self.current_area, extension, gate,
                          self.world.rng_service, self.world)
+
+        self._apply_shrine_persistence()
+        
         self._on_map_expanded(spec.extension_id)
 
         self.packs.assign_new() 
@@ -1019,6 +1056,16 @@ class Game:
 
         self.player.gain_xp(enemy.xp_reward)
         self.event_bus.emit("enemy_killed", name=enemy.name)
+
+        # --- kill juice ---
+        self.crit_bursts.append({
+            "x": enemy.x, "y": enemy.y, "radius": 32,
+            "life": 0.18, "max_life": 0.18,
+            "color": (255, 235, 190),
+        })
+        if enemy.is_elite:
+            self.camera.shake(magnitude=4, duration=0.12)
+
         rules = self._active_world_rules()
 
         if "explosive" in getattr(enemy, "affixes", ()):
@@ -1087,7 +1134,48 @@ class Game:
                     if not other.alive:
                         self._on_enemy_killed(other, depth + 1)
 
+    def _roll_boss_loot(self, source, level, world_rules, rng,
+                    world_boss: bool = False, loot_rules_override=None):
+        """
+        Shared loot roll for bosses AND nemesis kills.
 
+        Items and stones are probabilistic; the health orb is always dropped
+        (design decision: players should never feel a boss fight gave them
+        nothing at all, but the big rewards need to be earned by RNG).
+        """
+        # --- items ---
+        slots = list(BOSS_ITEM_DROPS)
+        if world_boss:
+            slots = [(min(1.0, c + WORLD_BOSS_ITEM_CHANCE_BONUS), a)
+                    for c, a in slots]
+            slots.append(WORLD_BOSS_EXTRA_ITEM_SLOT)
+
+        total_slots = len(slots)
+        for i, (chance, counts) in enumerate(slots):
+            if rng.random() >= chance:
+                continue
+            x_offset = (i - (total_slots - 1) / 2) * 30
+            kwargs = {"area_level": level, "world_rules": world_rules,
+                    "force_affix_counts": counts}
+            if loot_rules_override is not None:
+                kwargs["loot_rules_override"] = loot_rules_override
+            self.current_area.spawn_loot(source.x + x_offset, source.y, **kwargs)
+
+        # --- stones ---
+        stones_dropped = 0
+        for base_chance in BOSS_STONE_DROPS:
+            chance = base_chance + (WORLD_BOSS_STONE_CHANCE_BONUS if world_boss else 0.0)
+            if rng.random() < chance:
+                self.current_area.spawn_pickup(
+                    source.x + 40 + stones_dropped * 18, source.y + 30, "stone")
+                stones_dropped += 1
+
+        # --- health orb: always ---
+        self.current_area.spawn_orb(source.x, source.y + 30)
+
+       
+
+    
     def _on_boss_killed(self, boss):
 
         if getattr(boss, "_death_handled", False):
@@ -1112,16 +1200,22 @@ class Game:
                 e.take_damage(10**9)
                 self.current_area.enemies.remove(e)
 
+        #rules = self._active_world_rules()
+        #rid = getattr(boss, "region_id", "starting_area")
+        #ext = self.world.get_extension(rid)
+        #lvl = max(self.player.progression.level, ext.spec.area_level if ext else 3) + 2
+        #for i, counts in enumerate([(3, 2), (2, 2), (2, 1), (1, 2)]):
+        #    self.current_area.spawn_loot(boss.x + (i - 1.5) * 30, boss.y,
+        #                                area_level=lvl, world_rules=rules,
+        #                                force_affix_counts=counts)
+        #self.current_area.spawn_orb(boss.x, boss.y + 30)
+        #self.current_area.spawn_pickup(boss.x + 40, boss.y + 30, "stone")
         rules = self._active_world_rules()
         rid = getattr(boss, "region_id", "starting_area")
         ext = self.world.get_extension(rid)
         lvl = max(self.player.progression.level, ext.spec.area_level if ext else 3) + 2
-        for i, counts in enumerate([(3, 2), (2, 2), (2, 1), (1, 2)]):
-            self.current_area.spawn_loot(boss.x + (i - 1.5) * 30, boss.y,
-                                        area_level=lvl, world_rules=rules,
-                                        force_affix_counts=counts)
-        self.current_area.spawn_orb(boss.x, boss.y + 30)
-        self.current_area.spawn_pickup(boss.x + 40, boss.y + 30, "stone")
+        rng = self.world.rng_service.get_stream("boss_loot")
+        self._roll_boss_loot(boss, lvl, rules, rng, world_boss=False)
 
     def _pickup_loot(self):
         px, py = self.player.x, self.player.y
@@ -1162,6 +1256,7 @@ class Game:
             "event_log": self.event_log.to_dict(),
             "exploration": self.exploration.to_dict(),
              "nemesis": self.nemesis.to_dict(),
+             "used_shrines": sorted(self.world.used_shrines),
         }
         state["player"]["current_hp"] = self.player.effective_stats.hp
         self.save_manager.save(state)
@@ -1230,8 +1325,13 @@ class Game:
         self.current_area = self.starting_area
         self.current_area_id = "starting_area"
         self.current_extension_id = None
+
+        self._apply_shrine_persistence()
+
         self.exploration.register_area("starting_area", self.starting_area.tilemap)
         self._ensure_starting_gate_registered()
+        self._apply_shrine_persistence()
+        
 
         for ext in self.world.extensions:
             gate = next((g for g in self.world.gates
@@ -1284,6 +1384,20 @@ class Game:
         if (self.evolution_banner.visible or self.profile_screen.visible
         or self.gateway_menu.visible or self.inventory_ui.visible):
             return
+
+
+        # ---- safe room regeneration ----
+        if self.player.alive:
+            safe = self.starting_area.safe_room_rect
+            if safe.collidepoint(self.player.x, self.player.y):
+                stats = self.player.effective_stats
+                if stats.hp < stats.max_hp:
+                    heal = max(1, int(stats.max_hp * 0.04 * dt))
+                    stats.hp = min(stats.max_hp, stats.hp + heal)
+
+        # ---- shrines tick ----
+        for shrine in self.current_area.shrines:
+            shrine.update(dt)
 
         # Moved here from above the modal guard: DoT ticks and telegraphed
         # novas must not resolve while the player is reading a menu or the
@@ -1378,6 +1492,19 @@ class Game:
         self._draw_region_atmosphere()
 
         self.terrain.draw(self.screen, self.camera)
+
+
+        # Safe zone tint
+        if self.current_area_id == "starting_area":
+            safe_scr = self.camera.world_to_screen_rect(self.starting_area.safe_room_rect)
+            pygame.draw.rect(self.screen, (70, 160, 90), safe_scr, 2, border_radius=10)
+            label = self._info_font.render("SAFE ZONE", True, (120, 220, 150))
+            self.screen.blit(label, (safe_scr.centerx - label.get_width() // 2,
+                                    safe_scr.top + 6))
+
+        # Shrines
+        for shrine in self.current_area.shrines:
+            shrine.draw(self.screen, self.camera)
         
 
         for enemy in self.current_area.enemies:
@@ -1425,7 +1552,19 @@ class Game:
         if not self.inventory_ui.visible:
             self._draw_region_info()
 
-        pygame.display.flip()
+      
+        
+
+        for shrine in self.current_area.shrines:
+            if (shrine.area_id == self.current_area_id
+                    and shrine.usable
+                    and shrine.player_in_range(self.player)):
+                sx, sy = self.camera.world_to_screen((shrine.x, shrine.y))
+                hint = self._info_font_b.render(shrine.interaction_hint(), True, (255, 240, 170))
+                self.screen.blit(hint, (sx - hint.get_width() // 2, sy - 66))
+                break
+             
+        pygame.display.flip()  
 
 
     def _draw_swing_fx(self):

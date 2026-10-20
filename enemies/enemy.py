@@ -51,6 +51,8 @@ class Enemy:
         self._attack_timer = 0.0
         self._aggro_range = 260
 
+        self.hit_flash_timer = 0.0
+
     _affix_font = None
 
     @property
@@ -62,6 +64,7 @@ class Enemy:
         if self.pack is not None:
             self.pack.alerted = True
         self.hp -= amount
+        self.hit_flash_timer = 0.15
         if self.hp <= 0:
             self.hp = 0
             self.alive = False
@@ -82,6 +85,10 @@ class Enemy:
 
     def update(self, dt, player, tilemap, event_bus,world_rules=None):
         self._world_rules = world_rules
+
+        if self.hit_flash_timer > 0:
+            self.hit_flash_timer -= dt
+
         if not self.alive:
             return
 
@@ -137,7 +144,10 @@ class Enemy:
                 "circler": (0, 30, 40), "ranged": (40, 20, 0),
                 "brute": (0, 0, 70), "swarmer": (0, 60, 0)}.get(self.behavior, (0, 0, 0))
         color = tuple(min(255, c + t) for c, t in zip(base, tint))
+        if self.hit_flash_timer > 0:
+            color = (255, 255, 255)
         pygame.draw.rect(surface, color, rect, border_radius=4)
+
 
         if self.hp < self.max_hp:
             bar_w, bar_h = self.width, 5

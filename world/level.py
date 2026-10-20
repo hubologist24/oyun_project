@@ -105,6 +105,10 @@ class Level:
         self.region_start = {"starting_area": self.start_pos}
         self.region_loot_rules = {}
 
+        self.shrines = []
+        self._compute_safe_room_rect()
+        self._spawn_starting_shrines()
+
     def _room_center(self, room):
         x0, y0, x1, y1 = room
         ts = config.TILE_SIZE
@@ -122,6 +126,28 @@ class Level:
                 row = self.rng.randint(y0 + 1, y1 - 2)
                 x, y = col * ts + ts / 2, row * ts + ts / 2
                 self.enemies.append(spawn_basic_enemy(x, y, self.rng, area_level=area_level))
+
+    def _compute_safe_room_rect(self):
+        x0, y0, x1, y1 = self.spec["rooms"]["start"]
+        ts = config.TILE_SIZE
+        self.safe_room_rect = pygame.Rect(
+            x0 * ts, y0 * ts, (x1 - x0) * ts, (y1 - y0) * ts)
+
+    def _spawn_starting_shrines(self):
+        from world.shrine import make_shrine
+        ts = config.TILE_SIZE
+        x0, y0, x1, y1 = self.spec["rooms"]["start"]
+        cx = ((x0 + x1) / 2) * ts
+        cy = ((y0 + y1) / 2) * ts
+        self.shrines.append(make_shrine("stash_chest", cx - 90, cy + 40, "starting_area"))
+        self.shrines.append(make_shrine("rest_shrine", cx + 90, cy + 40, "starting_area"))
+
+        gx0, gy0, gx1, gy1 = self.spec["rooms"]["gate_room"]
+        gx = ((gx0 + gx1) / 2) * ts
+        gy = ((gy0 + gy1) / 2) * ts
+        self.shrines.append(make_shrine("sacrifice_altar", gx, gy - 40, "starting_area"))
+
+        
 
     def region_at_tile(self, col, row):
         rid = self.tile_region.get((col, row))
