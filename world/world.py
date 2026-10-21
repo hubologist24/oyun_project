@@ -17,6 +17,7 @@ class World:
         self.playtime_at_last_extension = 0.0
         self.gates: list[Gate] = []   # NEW: all gates across the whole world
         self.used_shrines: set = set()
+        self.region_presence: dict[str, float] = {}    # NEW
 
     # ---------------- gate management ----------------
     def register_starting_gate(self, room_index: int, tile_col: int, tile_row: int , side="e") -> Gate:

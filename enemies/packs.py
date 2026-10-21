@@ -37,6 +37,10 @@ THIEF_COOLDOWN = 1.2
 SACRIFICE_MAX = 5
 UPDATE_INTERVAL = 0.2
 
+COMMANDER_AURA_RESIST = 0.20      # +20% damage reduction for shielded packmates
+COMMANDER_GUARD_COUNT = 2         # members in-aura required for self-armor bonus
+COMMANDER_SELF_ARMOR_BONUS = 60
+
 
 def _d(a, b):
     return math.hypot(a.x - b.x, a.y - b.y)
@@ -211,6 +215,7 @@ class PackManager:
                     m.apply_stagger(1.2)
                 m.pack_speed_mult = 1.0
                 m.pack_damage_mult = 1.0
+                m.pack_commander_shield = 0.0            # NEW
                 if not getattr(m, "nemesis", None):
                     m._aggro_range = m._pack_base_aggro
 
@@ -269,6 +274,43 @@ class PackManager:
                 if not getattr(m, "nemesis", None):
                     m._aggro_range = max(m._pack_base_aggro, RALLY_AGGRO) if rally else m._pack_base_aggro
 
+        # NEW: Commander tactical aura enforcement
+        #commander = cmd[0] if cmd else None
+        #for m in pack.members:
+        #    if commander is None or m is commander:
+        #        m.pack_commander_shield = 0.0
+        #        continue
+        #    if _d(m, commander) <= RALLY_RADIUS:
+        #        m.pack_commander_shield = COMMANDER_AURA_RESIST
+        #    else:
+        #        m.pack_commander_shield = 0.0
+
+        #if commander is not None:
+        #    guarded = sum(1 for m in pack.members
+        #                if m is not commander and m.alive
+        #                and _d(m, commander) <= RALLY_RADIUS)
+        #    commander.pack_commander_armor_bonus = (
+        #        COMMANDER_SELF_ARMOR_BONUS if guarded >= COMMANDER_GUARD_COUNT else 0
+        #    )
+    
+            commander = cmd[0] if cmd else None
+            for m in pack.members:
+                if commander is None or m is commander:
+                    m.pack_commander_shield = 0.0
+                    continue
+                if _d(m, commander) <= RALLY_RADIUS:
+                    m.pack_commander_shield = COMMANDER_AURA_RESIST
+                else:
+                    m.pack_commander_shield = 0.0
+
+            if commander is not None:
+                guarded = sum(1 for m in pack.members
+                                if m is not commander and m.alive
+                                and _d(m, commander) <= RALLY_RADIUS)
+                commander.pack_commander_armor_bonus = (
+                    COMMANDER_SELF_ARMOR_BONUS if guarded >= COMMANDER_GUARD_COUNT else 0
+                )
+        
     def _announce(self, pack):
         pack.announced = True
         if self.clock < self._msg_cd or not pack.rules:
@@ -289,11 +331,31 @@ class PackManager:
                     if not h.alive or abs(h.x - p.x) > 800 or abs(h.y - p.y) > 500:
                         continue
                     sp = camera.world_to_screen((h.x, h.y))
-                    pygame.draw.circle(surface, col, sp, int(max(h.width, h.height) * 0.8), 1)
+                    pygame.draw.circle(surface, col, sp, int(max(h.width, h.height) * 0.8), 1)                    
+
+
                     if role == "commander" and pack.alerted:
                         pygame.draw.circle(surface, col, sp, RALLY_RADIUS, 1)
+                        # NEW: connector lines to shielded packmates
+                        for m in pack.members:
+                            if not m.alive or m is h:
+                                continue
+                            if _d(m, h) <= RALLY_RADIUS:
+                                mp = camera.world_to_screen((m.x, m.y))
+                                pygame.draw.line(surface, col, sp, mp, 1)
+
                     t = self._font.render(label, True, col)
                     surface.blit(t, (sp[0] - t.get_width() // 2, sp[1] - h.height // 2 - 36))
+
+                for m in pack.members:
+                    if not m.alive or m.pack_commander_shield <= 0:
+                        continue
+                    if abs(m.x - p.x) > 800 or abs(m.y - p.y) > 500:
+                        continue
+                    mp = camera.world_to_screen((m.x, m.y))
+                    pygame.draw.circle(surface, (255, 210, 90), mp,
+                                    int(max(m.width, m.height) * 0.7), 1)
+        
         for f in self.flash:
             a = camera.world_to_screen(f["a"])
             b = camera.world_to_screen(f["b"])

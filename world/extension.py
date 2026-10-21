@@ -29,6 +29,7 @@ class ExtensionSpec:
     map_rows: int = 38
     loot_rules: dict = field(default_factory=dict)              # Phase 7
     boss_personalization: dict = field(default_factory=dict)    # Phase 7
+    overcharge_level: int = 0        # NEW
 
     def to_dict(self):
         return {
@@ -44,6 +45,7 @@ class ExtensionSpec:
             "map_rows": self.map_rows,
             "loot_rules": self.loot_rules,
             "boss_personalization": self.boss_personalization,
+            "overcharge_level": self.overcharge_level,
         }
 
     @staticmethod
@@ -61,6 +63,7 @@ class ExtensionSpec:
             map_rows=d.get("map_rows", 38),
             loot_rules=d.get("loot_rules", {}),
             boss_personalization=d.get("boss_personalization", {}),
+            overcharge_level=d.get("overcharge_level", 0),
         )
 
 

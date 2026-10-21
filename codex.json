@@ -1,0 +1,20 @@
+{
+  "unlocked": [
+    "boss_phase_survivor",
+    "first_blood",
+    "flawless_guardian",
+    "guardian_10",
+    "nemesis_slayer_3"
+  ],
+  "progress": {
+    "first_blood": 1,
+    "guardian_10": 10,
+    "nemesis_slayer_3": 3
+  },
+  "techniques": [
+    "dash_strike",
+    "intercept",
+    "not_a_real_technique",
+    "reverse_slash"
+  ]
+}

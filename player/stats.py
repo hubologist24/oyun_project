@@ -80,6 +80,7 @@ def compute_effective_stats(base: Stats, equipped_items: list) -> Stats:
     )
 
     weapon = None
+    movement_speed_pct = 0.0
     for item in equipped_items:
         if item is None:
             continue
@@ -95,12 +96,17 @@ def compute_effective_stats(base: Stats, equipped_items: list) -> Stats:
         crit = item.other_bonus("critical_chance") if hasattr(item, "other_bonus") else 0
         eff.crit_chance += crit / 100.0
 
+        mv = item.other_bonus("movement_speed") if hasattr(item, "other_bonus") else 0
+        movement_speed_pct += mv
+
         if hasattr(item, "_resist_bonus"):
             for dtype, val in item._resist_bonus.items():
                 eff.resistances[dtype] = eff.resistances.get(dtype, 0.0) + val / 100.0
 
         if item.slot == "weapon":
             weapon = item
+
+    eff.speed = base.speed * (1.0 + movement_speed_pct / 100.0)     
 
     if weapon is not None and hasattr(weapon, "primary_damage_type"):
         eff.primary_damage_type = weapon.primary_damage_type()

@@ -72,7 +72,8 @@ class MockAIWorldGenerator(WorldGenerator):
                 biome=parsed.get("biome", "unknown"),
                 is_anomaly=parsed.get("is_anomaly", False),
                 world_modifiers=parsed.get("world_modifiers", []),
-                boss_template_id=None,
+                #boss_template_id=None,
+                boss_template_id="personalized",
                 room_count=parsed.get("room_count", 6),
             )
             return spec

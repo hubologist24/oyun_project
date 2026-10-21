@@ -109,7 +109,9 @@ class LLMWorldGenerator(WorldGenerator):
 
         if self.verbose:
             print(f"=== [LLMWorldGenerator:{self.provider}] Raw LLM response ===")
-            print(raw_text[:500] + ("..." if raw_text and len(raw_text) > 500 else ""))
+            #print(raw_text[:500] + ("..." if raw_text and len(raw_text) > 500 else ""))
+            txt = raw_text or ""
+            print(txt[:500] + ("..." if len(txt) > 500 else ""))
 
         parsed = self._parse_json_response(raw_text)
         if parsed is None:
@@ -131,7 +133,8 @@ class LLMWorldGenerator(WorldGenerator):
                 biome=str(parsed.get("biome", "unknown")),
                 is_anomaly=bool(parsed.get("is_anomaly", False)),
                 world_modifiers=parsed.get("world_modifiers", []),
-                boss_template_id=None,
+                #boss_template_id=None,
+                boss_template_id="personalized",
                 room_count=int(parsed.get("room_count", 6)),
             )
             return spec

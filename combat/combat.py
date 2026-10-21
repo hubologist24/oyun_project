@@ -88,9 +88,10 @@ def enemy_attack_player(enemy, player, event_bus, world_rules=None,
         target_category="player",
         source_category=_enemy_category(enemy),   # <-- FIX
     )
-    event_bus.emit("attacker_info", enemy=enemy) 
+    #event_bus.emit("attacker_info", enemy=enemy) 
     applied = player.take_damage(dmg, cause=damage_type)
     if applied:
+        event_bus.emit("attacker_info", enemy=enemy)
         event_bus.emit("player_hit", source=enemy.name, damage=dmg,
                        damage_type=damage_type)
     return dmg if applied else 0

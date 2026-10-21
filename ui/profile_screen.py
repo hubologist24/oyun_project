@@ -12,17 +12,99 @@ class ProfileScreen:
     def __init__(self):
         self.visible = False
         self.profile = None
+
+        self.codex = None
+        self.view_mode = "profile"    # "profile" | "codex"
         self.font_title = pygame.font.SysFont("consolas", 26, bold=True)
         self.font_body = pygame.font.SysFont("consolas", 18)
+        self.font_small = pygame.font.SysFont("consolas", 14)
 
-    def show(self, profile):
+    def show(self, profile, codex=None):
         self.profile = profile
+        if codex is not None:
+            self.codex = codex
         self.visible = True
 
     def hide(self):
         self.visible = False
 
+    def toggle_view(self):
+        self.view_mode = "codex" if self.view_mode == "profile" else "profile"
+
     def draw(self, surface):
+        if not self.visible or self.profile is None:
+            return
+        overlay = pygame.Surface((config.SCREEN_WIDTH, config.SCREEN_HEIGHT))
+        overlay.set_alpha(235)
+        overlay.fill((10, 10, 14))
+        surface.blit(overlay, (0, 0))
+
+        if self.view_mode == "codex" and self.codex is not None:
+            self._draw_codex(surface)
+        else:
+            self._draw_profile(surface)
+
+    def _draw_profile(self, surface):
+        # (Existing content, only the title line changes:)
+        x, y = 80, 50
+        title = self.font_title.render(
+            "PLAYER PROFILE  (TAB: Codex | F6/ESC: close)",
+            True, (255, 220, 120))
+        surface.blit(title, (x, y))
+        y += 50
+        # ... rest unchanged from original draw() ...
+
+    def _draw_codex(self, surface):
+        from history.codex import ACHIEVEMENTS
+        x, y = 80, 50
+        title = self.font_title.render(
+            "THE LIVING CODEX  (TAB: Profile | F6/ESC: close)",
+            True, (180, 220, 255))
+        surface.blit(title, (x, y))
+        y += 50
+
+        unlocked_count = len(self.codex.unlocked)
+        total = len(ACHIEVEMENTS)
+        head = self.font_body.render(
+            f"Legacy Bonuses Unlocked: {unlocked_count} / {total}",
+            True, (200, 200, 220))
+        surface.blit(head, (x, y))
+        y += 40
+
+        for aid, ach in ACHIEVEMENTS.items():
+            unlocked = aid in self.codex.unlocked
+            current, target = self.codex.progress_for(aid)
+            color = (240, 220, 120) if unlocked else (150, 150, 160)
+            marker = "[✓]" if unlocked else "[ ]"
+            line = f"{marker} {ach['name']}"
+            surf = self.font_body.render(line, True, color)
+            surface.blit(surf, (x, y))
+            y += 22
+            desc = self.font_small.render("    " + ach["description"],
+                                          True, (170, 170, 180))
+            surface.blit(desc, (x, y))
+            y += 20
+            if not unlocked and ach.get("target"):
+                prog = self.font_small.render(
+                    f"    Progress: {current}/{target}",
+                    True, (140, 140, 160))
+                surface.blit(prog, (x, y))
+                y += 18
+            if unlocked:
+                bonus_str = ", ".join(f"+{v} {k}" for k, v in ach["bonus"].items())
+                bsurf = self.font_small.render(f"    Bonus: {bonus_str}",
+                                               True, (110, 230, 110))
+                surface.blit(bsurf, (x, y))
+                y += 18
+            y += 6
+            if y > config.SCREEN_HEIGHT - 60:
+                more = self.font_small.render(
+                    "...(remaining achievements scroll off; all data is saved)",
+                    True, (140, 140, 160))
+                surface.blit(more, (x, y))
+                break
+
+    def draw_sil(self, surface):
         if not self.visible or self.profile is None:
             return
 

@@ -53,6 +53,10 @@ import textwrap
 
 from core import audio
 
+from history.codex import CodexManager
+
+
+
 import time
 
 MAX_ON_KILL_DEPTH = 3
@@ -71,6 +75,11 @@ BOSS_STONE_DROPS = [0.70, 0.30, 0.10]   # 1st stone, 2nd stone, 3rd stone
 WORLD_BOSS_ITEM_CHANCE_BONUS = 0.15     # added to each slot
 WORLD_BOSS_EXTRA_ITEM_SLOT = (0.45, (3, 3))
 WORLD_BOSS_STONE_CHANCE_BONUS = 0.10 
+
+
+PRESSURE_THRESHOLDS = [0, 90, 180, 300, 450]      # seconds → level 0..4
+PRESSURE_LABELS = ["Calm", "Uneasy", "Restless", "Hostile", "Corrupted"]
+PRESSURE_COLORS = [(150,150,150),(200,200,120),(220,140,80),(255,80,80),(200,40,200)]
 
 
 class _NullEventBus:
@@ -150,6 +159,7 @@ class Game:
 
         self.show_region_details = False
         self._roam_timer = 0.0
+        self._safe_room_heal_acc = 0.0
         self._info_font = pygame.font.SysFont("consolas", 14)
         self._info_font_b = pygame.font.SysFont("consolas", 16, bold=True)
 
@@ -168,7 +178,15 @@ class Game:
 
         self.nemesis = NemesisManager(self)
 
-        
+        # Codex: attach to the ALREADY-BUILT player (do NOT reconstruct)
+        self.codex = CodexManager()
+        self.player.codex_manager = self.codex
+        self.player.recalc_stats()          # reapply so legacy bonuses take effect
+
+        # NEW: pressure/attempt tracking
+        self._boss_deaths_this_attempt = 0
+        self._pressure_ambush_timer = 0.0
+        self._pressure_hazard_timer = 0.0
 
         self._register_events()
 
@@ -230,6 +248,40 @@ class Game:
             # (loot burst, event log, dialogue) instead of just zeroing HP.
             if not boss.alive:
                 self._on_boss_killed(boss)
+
+
+    def _apply_overcharge_to_spec(self, spec, overcharge):
+        rng = self.world.rng_service.get_stream("overcharge")
+        spec.area_level += overcharge * 3
+        spec.is_anomaly = True
+
+        chaos_dtype = rng.choice(["chaos", "lightning"])
+        if not spec.loot_rules:
+             spec.loot_rules = {}
+        spec.loot_rules["rare_chance_multiplier"] = (
+             spec.loot_rules.get("rare_chance_multiplier", 1.0) * (1 + 0.3 * overcharge))
+        spec.loot_rules["six_mod_chance_multiplier"] = (
+             spec.loot_rules.get("six_mod_chance_multiplier", 1.0) * (1 + 0.2 * overcharge))
+
+        overcharge_mod = {
+             "name": f"Overcharged Reality ({chaos_dtype.title()})",
+             "description": f"The overcharged gate spills unstable {chaos_dtype} "
+                             f"energy into this region.",
+             "rules": [
+                 {"type": "resistance_modifier", "target": "player",
+                 "damage_type": chaos_dtype, "delta": -0.20},
+                 {"type": "damage_dealt_multiplier", "target": "elite",
+                 "damage_type": None, "multiplier": 1.25},
+             ],
+         }
+         # Respect MAX_MODIFIERS = 3: replace the last modifier rather than
+         # adding a fourth.
+        if len(spec.world_modifiers) < 3:
+             spec.world_modifiers.append(overcharge_mod)
+        else:
+             spec.world_modifiers[-1] = overcharge_mod
+        spec.boss_personalization = dict(spec.boss_personalization or {})
+        spec.boss_personalization["difficulty_bias"] = "high"            
 
     def _damage_type_color(self, dtype):
         return {
@@ -328,6 +380,15 @@ class Game:
         self.event_bus.subscribe("critical_hit", self._on_critical_hit)
         self.event_bus.subscribe("attacker_info", self.nemesis.on_attacker_info)
         self.event_bus.subscribe("area_entered", self.nemesis.on_area_entered)
+        self.event_bus.subscribe("kinetic_technique", self._on_kinetic_technique)
+
+
+    def _on_kinetic_technique(self, name=None, **kw):
+         if not name:
+             return
+         newly = self.codex.record("kinetic_technique", context={"name": name})
+         if newly:
+             self._handle_codex_unlocks(newly)
     
     def _on_level_up(self, level):
             from core import audio
@@ -458,6 +519,10 @@ class Game:
                 if target:
                     self._handle_gateway_menu_select(target)
             elif key == pygame.K_e:
+                #
+                self.evolution_banner.cycle_overcharge()
+            elif key == pygame.K_o:                          # NEW
+                #self.evolution_banner.cycle_overcharge()
                 self._try_interact_shrine()
             elif key == pygame.K_ESCAPE:
                 self.gateway_menu.hide()
@@ -469,6 +534,8 @@ class Game:
         if self.profile_screen.visible:
             if key in (pygame.K_F6, pygame.K_ESCAPE):
                 self.profile_screen.hide()
+            elif key == pygame.K_TAB:                        # NEW
+                self.profile_screen.toggle_view()
             return
 
         if self.evolution_banner.visible:
@@ -476,6 +543,9 @@ class Game:
                 self._accept_pending_extension()
             elif key == pygame.K_r:
                 self._reroll_pending_extension()
+            elif key == pygame.K_o:
+                 self.evolution_banner.cycle_overcharge()
+                 self._refresh_evolution_banner()
             elif key == pygame.K_ESCAPE:
                 self._discard_pending_extension()
             return
@@ -527,6 +597,8 @@ class Game:
             self.inventory_ui.toggle()
         elif key == pygame.K_b:
             self.inventory_ui.toggle_stash()
+        elif key == pygame.K_e:
+             self._try_interact_shrine()
         elif key == pygame.K_TAB:
             self._open_gateway_menu()
         elif key == pygame.K_LSHIFT:
@@ -567,7 +639,7 @@ class Game:
         return build_player_profile(self.player, self.event_log, self.world, self.exploration)
 
     def _show_profile_screen(self):
-        self.profile_screen.show(self._current_profile())
+        self.profile_screen.show(self._current_profile(),codex=self.codex)
 
 
 
@@ -630,15 +702,32 @@ class Game:
     def _refresh_evolution_banner(self):
         spec = self._pending_extension_spec
         gate = self._pending_gate
+        debug = (self._pending_evolution_mode == config.EXTENSION_MODE_DEBUG)
+
+        if debug:
+            max_oc = WorldEvolutionBanner.MAX_OVERCHARGE
+        else:
+            max_oc = min(WorldEvolutionBanner.MAX_OVERCHARGE,
+                         max(0, self.player.extension_stones - 1))
+
+        # Clamp so the banner never advertises an overcharge the player
+        # cannot afford (non-debug) or exceeds the hard cap (debug).
+        oc = min(self.evolution_banner.overcharge_level, max_oc)
+        preview_level = spec.area_level + oc * 3
+        rule_names = [m["name"] for m in spec.world_modifiers]
+        if oc > 0:
+            rule_names.append(f"Overcharged Reality (+{oc})")
+
         self.evolution_banner.show(
             extension_name=spec.extension_name,
-            area_level=spec.area_level,
-            is_anomaly=spec.is_anomaly,
-            rule_names=[m["name"] for m in spec.world_modifiers],
+            area_level=preview_level,
+            is_anomaly=spec.is_anomaly or oc > 0,
+            rule_names=rule_names,
             gate_area_name=self._area_display_name(gate.owner_area_id) if gate else None,
             reason=self._evolution_reason(self._current_profile()),
             rerolls_left=self._pending_rerolls_left,
-        ) 
+            max_overcharge=max_oc,
+        )
 
 
     def _accept_pending_extension(self):
@@ -648,10 +737,6 @@ class Game:
             self.evolution_banner.dismiss()
             return
 
-        #extension = self.world.add_extension(spec)
-        #extension.ensure_built(self.world.rng_service, world=self.world)
-
-        #opened_gate = self.world.open_gate_to(gate, spec.extension_id)
         if gate is None:
             self._pending_extension_spec = None
             self._pending_gate = None
@@ -660,14 +745,51 @@ class Game:
             self._show_message("The world has no sealed door left to open.", duration=3.0)
             return
 
+        overcharge = self.evolution_banner.overcharge_level
+        stones_to_spend = 1 + overcharge
+        debug = (self._pending_evolution_mode == config.EXTENSION_MODE_DEBUG)
+
+        if not debug:
+            if self.player.extension_stones < stones_to_spend:
+                overcharge = max(0, self.player.extension_stones - 1)
+                stones_to_spend = 1 + overcharge
+
+        if overcharge > 0:
+            self._apply_overcharge_to_spec(spec, overcharge)
+            spec.overcharge_level = overcharge
+            
+            from ai.validators import WorldValidator, ProgressionValidator
+            existing_ids = {ext.extension_id for ext in self.world.extensions}
+            ok, errs = WorldValidator.validate(spec, existing_ids,
+                                               self.player.progression.level)
+            p_ok, p_errs = ProgressionValidator.validate(spec, self.player.progression.level)
+            if not ok or not p_ok:
+                print(f"[Game] Overcharged spec rejected: {errs} {p_errs}")
+                self._show_message("The overcharged gate collapses -- too unstable.",
+                                   duration=3.0)
+                self.evolution_banner.dismiss()
+                self._pending_extension_spec = None
+                self._pending_gate = None
+                self._pending_evolution_mode = None
+                self.evolution_banner.overcharge_level = 0
+                return
+
         extension = self.world.add_extension(spec)
 
-        if self._pending_evolution_mode != config.EXTENSION_MODE_DEBUG:
-            self.player.extension_stones -= 1
+        if not debug:
+            self.player.extension_stones -= stones_to_spend
 
         opened_gate = self.world.open_gate_to(gate, spec.extension_id)
+        if opened_gate is not None:
+            opened_gate.overcharge_level = overcharge
+
         attach_extension(self.current_area, extension, gate,
                          self.world.rng_service, self.world)
+
+        # NEW: codex hook for overcharge
+        if overcharge > 0:
+            newly = self.codex.record("overcharge_entered", amount=1)
+            self._handle_codex_unlocks(newly)
 
         self._apply_shrine_persistence()
         
@@ -684,6 +806,9 @@ class Game:
         self._pending_evolution_mode = None
         self._pending_rerolls_left = 0
         self.evolution_banner.dismiss()
+
+        self.evolution_banner.overcharge_level = 0
+        #self.evolution_banner.dismiss()
 
         if opened_gate:
             self._show_message(
@@ -724,6 +849,7 @@ class Game:
         self._pending_evolution_mode = None
         self._pending_rerolls_left = 0
         self.evolution_banner.dismiss()
+        self.evolution_banner.overcharge_level = 0
 
         if was_automatic:
             # Push-back on an automatic trigger must reset the clock, or
@@ -893,6 +1019,7 @@ class Game:
             if not self._boss_attempt_active and not getattr(target, "is_nemesis", False):
                 self._boss_attempt_active = True
                 self._boss_attempt_boss_id = target.name
+                self._boss_deaths_this_attempt = 0     
                 self.event_bus.emit("boss_attempt_started", boss_id=target.name)
                 self._boss_greeting(target)
             dmg = player_attack_enemy(self.player, target, self.event_bus,
@@ -1057,6 +1184,11 @@ class Game:
         self.player.gain_xp(enemy.xp_reward)
         self.event_bus.emit("enemy_killed", name=enemy.name)
 
+        newly = self.codex.record("enemy_killed")
+        if getattr(enemy, "pack_role", None) == "commander":
+            newly += self.codex.record("commander_killed")
+        self._handle_codex_unlocks(newly)
+
         # --- kill juice ---
         self.crit_bursts.append({
             "x": enemy.x, "y": enemy.y, "radius": 32,
@@ -1186,6 +1318,29 @@ class Game:
             return
         self._say(boss.name, boss_last_words(), 4.0)
 
+        pressure_level = self._pressure_level(rid := getattr(boss, "region_id", "starting_area"))
+        newly = self.codex.record("boss_killed")
+        
+        # Flawless = player has never died during an attempt against THIS boss.
+        prior_deaths = sum(
+            1 for e in self.event_log.events_of_type("boss_attempt_ended")
+            if e.payload.get("boss_id") == boss.name
+            and e.payload.get("result") == "death"
+        )
+        if prior_deaths == 0 and not getattr(boss, "is_nemesis", False):
+            newly += self.codex.record("flawless_boss")
+            
+        if pressure_level >= 4:
+            newly += self.codex.record("pressure_kill")
+            
+        # Survivor of a full run through every phase.
+        if boss.phase_index >= max(0, len(boss.template.phases) - 1):
+            newly += self.codex.record("survived_full_boss")
+            
+        self._handle_codex_unlocks(newly)
+        # Reset region pressure - guardian is dead
+        self.world.region_presence[rid] = 0.0
+
         self._show_message(f"{boss.name.upper()} HAS FALLEN.", duration=6.0)
         self.event_bus.emit("boss_killed", name=boss.name)
         if self._boss_attempt_active:
@@ -1206,8 +1361,8 @@ class Game:
         #lvl = max(self.player.progression.level, ext.spec.area_level if ext else 3) + 2
         #for i, counts in enumerate([(3, 2), (2, 2), (2, 1), (1, 2)]):
         #    self.current_area.spawn_loot(boss.x + (i - 1.5) * 30, boss.y,
-        #                                area_level=lvl, world_rules=rules,
-        #                                force_affix_counts=counts)
+        #                                 area_level=lvl, world_rules=rules,
+        #                                 force_affix_counts=counts)
         #self.current_area.spawn_orb(boss.x, boss.y + 30)
         #self.current_area.spawn_pickup(boss.x + 40, boss.y + 30, "stone")
         rules = self._active_world_rules()
@@ -1264,6 +1419,7 @@ class Game:
         self._show_message("Game saved.")
 
     def _load_game(self):
+        
         data = self.save_manager.load()
         if not data:
             self._show_message("No save file found.")
@@ -1291,8 +1447,13 @@ class Game:
             self.inventory_ui.toggle()
 
         # --- 2. Restore world & player --------------------------------------
-        self.world = World.from_dict(data["world"])
-        self.player = Player.from_dict(data["player"], self.event_bus)
+        self.world = World.from_dict(data["world"])        
+
+        #self.player = Player.from_dict(data["player"], self.event_bus)
+
+        self.player = Player.from_dict(data["player"], self.event_bus,
+                                        codex_manager=self.codex)
+
         self.player.stash = self.save_manager.load_stash()
 
         self.reactions.reset()
@@ -1341,6 +1502,9 @@ class Game:
             attach_extension(self.current_area, ext, gate,
                              self.world.rng_service, self.world)
             self._on_map_expanded(ext.extension_id)
+
+        self._apply_shrine_persistence()
+
 
         self.packs.reset()
         self.terrain.reset()
@@ -1392,8 +1556,13 @@ class Game:
             if safe.collidepoint(self.player.x, self.player.y):
                 stats = self.player.effective_stats
                 if stats.hp < stats.max_hp:
-                    heal = max(1, int(stats.max_hp * 0.04 * dt))
-                    stats.hp = min(stats.max_hp, stats.hp + heal)
+                    #heal = max(1, int(stats.max_hp * 0.04 * dt))
+                    #stats.hp = min(stats.max_hp, stats.hp + heal)
+                    self._safe_room_heal_acc += stats.max_hp * 0.04 * dt
+                    if self._safe_room_heal_acc >= 1.0:
+                        heal = int(self._safe_room_heal_acc)
+                        self._safe_room_heal_acc -= heal
+                        stats.hp = min(stats.max_hp, stats.hp + heal)
 
         # ---- shrines tick ----
         for shrine in self.current_area.shrines:
@@ -1411,6 +1580,7 @@ class Game:
             self.kinetic.update(dt)
             self._pickup_loot()
             self._update_current_region()
+            self._update_region_pressure(dt) 
             self._update_roaming_spawns(dt)
             self.exploration.update(dt, self.current_area_id, self.player.x, self.player.y)
             if self._attack_button_held:
@@ -1423,6 +1593,22 @@ class Game:
                 self._respawn_player()
 
         world_rules = self._active_world_rules()
+
+        
+        # If the tracked boss attempt's boss is dead or the player has
+        # wandered far away, close out the attempt so the next boss starts
+        # a fresh one.
+        if self._boss_attempt_active and self._boss_attempt_boss_id:
+            active_boss = next(
+                (b for b in self.current_area.bosses
+                 if b.name == self._boss_attempt_boss_id and b.alive), None)
+            if (active_boss is None
+                    or math.hypot(active_boss.x - self.player.x,
+                                  active_boss.y - self.player.y) > 1500):
+                self.event_bus.emit("boss_attempt_ended", result="fled",
+                                    boss_id=self._boss_attempt_boss_id)
+                self._boss_attempt_active = False
+                self._boss_attempt_boss_id = None
 
         self.packs.update(dt)
         self.terrain.update(dt)
@@ -1446,6 +1632,7 @@ class Game:
         swing_fx.tick(self.player_swings, dt)
 
         self.camera.update(self.player.x, self.player.y)
+        self.camera.tick(dt)
         self._check_automatic_extension()
 
     def _respawn_player(self):
@@ -1544,7 +1731,7 @@ class Game:
         self._draw_crit_bursts()
         self.inventory_ui.draw(self.screen, self.player, world_rules=self._active_world_rules())
         self._draw_area_label()
-        self._draw_region_info()
+        #self._draw_region_info()
         self.evolution_banner.draw(self.screen)
         self.profile_screen.draw(self.screen)
         self.gateway_menu.draw(self.screen)
@@ -1618,6 +1805,8 @@ class Game:
             s = ext.spec
             lines.append((s.extension_name, (255, 255, 255), True))
             tag = "  [ANOMALY]" if s.is_anomaly else ""
+            if s.overcharge_level > 0:                       # NEW
+                tag += f"  [OVERCHARGE +{s.overcharge_level}]"
             lines.append((f"Area Lvl {s.area_level}{tag}", (255, 120, 120) if s.is_anomaly
                           else (200, 200, 210), False))
             gate = next((g for g in self.world.gates
@@ -1631,7 +1820,7 @@ class Game:
                     lines.append((f" - {m.get('name', '?')}", (180, 255, 180), False))
                     if self.show_region_details:
                         for w in textwrap.wrap(m.get("description", ""), 40):
-                            lines.append((f"     {w}", (140, 190, 140), False))
+                            lines.append((f"    {w}", (140, 190, 140), False))
 
         alive = sum(1 for e in self.current_area.enemies
                     if e.alive and getattr(e, "region_id", "starting_area") == rid)
@@ -1648,6 +1837,15 @@ class Game:
             arch = ext.spec.boss_personalization.get("mechanic_archetype")
             if arch:
                 lines.append((f"Boss style: {arch}", (240, 220, 120), False))
+
+        # NEW: pressure
+        level = self._pressure_level(rid)
+        if level > 0:
+            label = self._pressure_label(level)
+            #color = self.PRESSURE_COLORS[level]
+            color = PRESSURE_COLORS[level]
+            lines.append((f"World Pressure: {label}", color, level >= 2))
+
         lines.append((f"Explored {self.exploration.fraction_for(rid) * 100:.0f}%   "
                       f"(F4: {'less' if self.show_region_details else 'more'})",
                       (150, 150, 160), False))
@@ -1660,7 +1858,7 @@ class Game:
         for text, color, bold in lines:
             font = self._info_font_b if bold else self._info_font
             self.screen.blit(font.render(text, True, color),
-                             (config.SCREEN_WIDTH - W - 4, y))
+                           (config.SCREEN_WIDTH - W - 4, y))
             y += 22 if bold else 18
     
     def _draw_area_label(self):
@@ -1682,6 +1880,8 @@ class Game:
             self.screen.blit(txt, (config.SCREEN_WIDTH // 2 - txt.get_width() // 2, 96))
 
     def _on_player_death(self, cause=None):
+        if self._boss_attempt_active:                    # NEW
+            self._boss_deaths_this_attempt += 1
         lost = self.player.progression.lose_xp_progress(0.10)  # tune: 0.10 = 10%
         msg = "You died. Respawning..."
         if lost > 0:
@@ -1740,3 +1940,98 @@ class Game:
         if hints.under_explored:
             return "You rush through regions. The world reshapes itself."
         return f"The world has been watching your {hints.dominant_damage_type} build."
+
+
+
+    def _pressure_level(self, rid):
+        t = self.world.region_presence.get(rid, 0.0)
+        level = 0
+        for i, thresh in enumerate(PRESSURE_THRESHOLDS):
+            if t >= thresh:
+                level = i
+        return level
+
+    def _update_region_pressure(self, dt):
+        rid = self.current_extension_id
+        if rid is None:
+            return
+        ext = self.world.get_extension(rid)
+        if ext is None:
+            return
+        boss_alive = any(b.alive and getattr(b, "region_id", None) == rid
+                        for b in self.current_area.bosses)
+        if not boss_alive:
+            return                                  # guardian dead → pressure frozen
+        self.world.region_presence[rid] = self.world.region_presence.get(rid, 0.0) + dt
+        level = self._pressure_level(rid)
+
+        if level >= 3:
+            self._pressure_ambush_timer -= dt
+            if self._pressure_ambush_timer <= 0:
+                self._pressure_ambush_timer = max(20.0, 45.0 - (level - 3) * 10.0)
+                self._spawn_pressure_ambush(rid, ext, level)
+
+        if level >= 4:
+            self._pressure_hazard_timer -= dt
+            if self._pressure_hazard_timer <= 0:
+                self._pressure_hazard_timer = 8.0
+                self._apply_pressure_hazard(rid)
+
+    def _spawn_pressure_ambush(self, rid, ext, level):
+        from enemies.enemy import spawn_basic_enemy
+        rng = self.world.rng_service.get_stream(f"pressure_ambush:{rid}")
+        count = min(4, 1 + (level - 3))
+        for _ in range(count):
+            for _try in range(20):
+                angle = rng.uniform(0, math.tau)
+                dist = rng.uniform(400, 700)
+                x = self.player.x + math.cos(angle) * dist
+                y = self.player.y + math.sin(angle) * dist
+                if self.current_area.tilemap.collides_rect(
+                        pygame.Rect(int(x - 14), int(y - 14), 28, 28)):
+                    continue
+                e = spawn_basic_enemy(x, y, rng, area_level=ext.spec.area_level)
+                e.region_id = rid
+                e.is_elite = True
+                e.max_hp = int(e.max_hp * 1.5)
+                e.hp = e.max_hp
+                e.name = "Ambushing " + e.name
+                self.current_area.enemies.append(e)
+                break
+        self._show_message(
+            f"The region's pressure draws an ambush! [{self._pressure_label(level)}]",
+            duration=2.5)
+
+    def _apply_pressure_hazard(self, rid):
+        if not self.player.alive:
+            return
+        from combat.damage import resolve_damage
+        stats = self.player.effective_stats
+        base = max(3, int(stats.max_hp * 0.03))
+        res = dict(stats.resistances)
+        res["armor_flat"] = stats.armor
+        dmg = resolve_damage(base, "chaos", None, target_resistances=res,
+                            world_rules=self._active_world_rules(),
+                            target_category="player", source_category="elite")
+        if self.player.take_damage(dmg, cause="chaos"):
+            self.damage_numbers.spawn(self.player.x, self.player.y - 30,
+                                    str(dmg), (200, 90, 255))
+            self.event_bus.emit("player_hit", source="the corrupted world",
+                                damage=dmg, damage_type="chaos")
+
+    #def _pressure_label(self, level):
+    #    return self.PRESSURE_LABELS[min(level, len(self.PRESSURE_LABELS) - 1)]  
+
+
+
+    def _handle_codex_unlocks(self, newly):
+        for aid in newly:
+            ach = self.codex.achievement_info(aid)
+            self._show_message(
+                f"CODEX UNLOCKED: {ach.get('name', aid)}!",
+                duration=4.0) 
+        if newly and self.player is not None:
+            self.player.recalc_stats()
+
+    def _pressure_label(self, level):
+        return PRESSURE_LABELS[min(level, len(PRESSURE_LABELS) - 1)]

@@ -15,7 +15,7 @@ from items.weapon_subtypes import WeaponSubtypes
 
 
 class Player:
-    def __init__(self, x: float, y: float, event_bus):
+    def __init__(self, x: float, y: float, event_bus,codex_manager=None):
         self.x = x
         self.y = y
         self.width = 32
@@ -24,7 +24,9 @@ class Player:
         self.move_target: pygame.Vector2 | None = None
         self._move_target_stop_radius = 6.0
 
-        self.extension_stones = 10
+        self.codex_manager = codex_manager      # NEW
+
+        self.extension_stones = 0
 
         self.base_stats = Stats()
         self.effective_stats = Stats()
@@ -71,7 +73,10 @@ class Player:
                     self.effective_stats.resistances.get(dt_, 0.0) + 0.03
             self.effective_stats.max_hp += 5
 
-        self.effective_stats.hp = int(self.effective_stats.max_hp * old_hp_ratio)
+        if self.codex_manager is not None:
+            self.codex_manager.apply_bonuses_to_stats(self.effective_stats)      
+
+        
         self.effective_stats.hp = int(self.effective_stats.max_hp * old_hp_ratio)
         self.effective_stats.clamp_hp()
 
@@ -163,7 +168,9 @@ class Player:
 
     def start_attack_cooldown(self, profile=None):
         mult = profile.attack_cooldown_multiplier if profile is not None else 1.0
-        self._attack_cooldown_timer = config.PLAYER_ATTACK_COOLDOWN * mult
+        #self._attack_cooldown_timer = config.PLAYER_ATTACK_COOLDOWN * mult
+        spd = getattr(self.effective_stats, "attack_speed_bonus", 0.0)
+        self._attack_cooldown_timer = config.PLAYER_ATTACK_COOLDOWN * mult / (1.0 + spd)
 
     def current_attack_profile(self):
         """Attack pattern is bound to the equipped weapon's subtype.
@@ -197,6 +204,10 @@ class Player:
 
     def take_damage(self, amount: int, cause: str = "physical") -> bool:
         """Returns True if damage was actually applied (not invulnerable)."""
+
+        if not self.alive:
+             return False
+        
         if self._invuln_timer > 0:
             if self._dash_timer > 0 or self._dash_cd > 0.65:
                 self.event_bus.emit("near_miss")
@@ -282,7 +293,7 @@ class Player:
         }
 
     @staticmethod
-    def from_dict(d, event_bus):
+    def from_dict(d, event_bus,codex_manager=None):
         from items.item import Item
         from items.inventory import Inventory as InventoryCls
 
@@ -292,7 +303,7 @@ class Player:
         if not isinstance(d, dict):
             d = {}
 
-        p = Player(d.get("x", 0), d.get("y", 0), event_bus)
+        p = Player(d.get("x", 0), d.get("y", 0), event_bus, codex_manager=codex_manager)
 
         base_stats_d = d.get("base_stats", {})
         p.base_stats = Stats.from_dict(base_stats_d) if isinstance(base_stats_d, dict) else Stats()
@@ -328,5 +339,12 @@ class Player:
         if not isinstance(hp, (int, float)):
             hp = p.effective_stats.max_hp
         p.effective_stats.hp = hp
+
+        #p = Player(d.get("x", 0), d.get("y", 0), event_bus,
+        #       codex_manager=codex_manager)
+
         p.effective_stats.clamp_hp()
+
+
+
         return p

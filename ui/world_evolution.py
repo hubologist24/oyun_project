@@ -7,7 +7,13 @@ import pygame
 import core.config as config
 
 
+
 class WorldEvolutionBanner:
+
+    MAX_OVERCHARGE = 3
+
+
+
     def __init__(self):
         self.visible = False
         self.extension_name = ""
@@ -23,8 +29,12 @@ class WorldEvolutionBanner:
         self.font_body = pygame.font.SysFont("consolas", 20)
         self.font_small = pygame.font.SysFont("consolas", 16)
 
+        self.overcharge_level = 0
+        self.max_overcharge = 0
+
     def show(self, extension_name, area_level, is_anomaly, rule_names,
-            gate_area_name=None, reason=None, rerolls_left=0):
+            gate_area_name=None, reason=None, rerolls_left=0,
+            max_overcharge=0):
         self.visible = True
         self.extension_name = extension_name
         self.area_level = area_level
@@ -33,6 +43,15 @@ class WorldEvolutionBanner:
         self.gate_area_name = gate_area_name
         self.reason = reason
         self.rerolls_left = rerolls_left
+        self.max_overcharge = max_overcharge
+        self.overcharge_level = min(self.overcharge_level, self.max_overcharge)
+
+    def cycle_overcharge(self):
+        if self.max_overcharge <= 0:
+            self.overcharge_level = 0
+            return 0
+        self.overcharge_level = (self.overcharge_level + 1) % (self.max_overcharge + 1)
+        return self.overcharge_level
 
     def dismiss(self):
         self.visible = False
@@ -95,10 +114,24 @@ class WorldEvolutionBanner:
         #hint = self.font_small.render("Press SPACE / ENTER to continue", True, (150, 150, 160))
         #surface.blit(hint, (cx - hint.get_width() // 2, y))
 
+        
         if self.rerolls_left > 0:
-            hint_text = (f"SPACE/ENTER: Accept    R: Reroll ({self.rerolls_left} left)    "
-                        f"ESC: Push Back")
+            hint_text = (f"SPACE: Accept    O: Overcharge "
+                        f"(+{self.overcharge_level})    "
+                        f"R: Reroll ({self.rerolls_left})    ESC: Push Back")
         else:
-            hint_text = "SPACE/ENTER: Accept    ESC: Push Back    (no rerolls left)"
+            hint_text = (f"SPACE: Accept    O: Overcharge (+{self.overcharge_level})    "
+                        f"ESC: Push Back")
+        
+
         hint = self.font_small.render(hint_text, True, (150, 150, 160))
+
+        if self.max_overcharge > 0:
+            cost = 1 + self.overcharge_level
+            msg = (f"Cost: {cost} Extension Stone{'s' if cost != 1 else ''}"
+                f"   [O cycles 0..{self.max_overcharge}]")
+            color = (200, 120, 255) if self.overcharge_level > 0 else (150, 150, 160)
+            surf = self.font_small.render(msg, True, color)
+            surface.blit(surf, (cx - surf.get_width() // 2, y + 22))
+
         surface.blit(hint, (cx - hint.get_width() // 2, y))

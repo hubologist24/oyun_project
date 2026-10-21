@@ -30,6 +30,8 @@ ESCAPE_BASE_CHANCE = 0.15            # 15% base flee
 ESCAPE_PER_GEN = 0.05                # +5% per generation
 
 
+
+
 class NemesisManager:
     def __init__(self, game):
         self.game = game
@@ -243,6 +245,9 @@ class NemesisManager:
         g._say(nem.short(), "This... is not... the end.", 4.0)
         g.event_bus.emit("nemesis_slain", name=nem.name, generation=gen_at_kill)
 
+        newly = g.codex.record("nemesis_slain")
+        g._handle_codex_unlocks(newly)
+
     # ---------------- per-frame ----------------
     def _in_play(self):
         a = self.game.current_area
@@ -393,3 +398,7 @@ class NemesisManager:
                 n.status = "pending"
                 n.respawn_at = self._now() + 5.0
         self.reset_transient()
+
+
+
+    

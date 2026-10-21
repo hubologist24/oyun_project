@@ -155,7 +155,8 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
                     num_prefixes, num_suffixes = p2, s2
 
     # --- implicit (weapons/armor only) ---
-    used_modifiers = set()
+    #used_modifiers = set()
+    used_affix_ids = set()
     implicit_affix = None
     if has_implicit:
         implicit_tier = resolve_tier_for_roll(implicit_modifier, item_level, rng, world_rules)
@@ -173,12 +174,28 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
             value=implicit_value,
             creation_tier_range=list(table[implicit_modifier][implicit_tier]),
         )
-        used_modifiers.add(implicit_modifier)
+        #used_modifiers.add(implicit_modifier)
 
     # --- roll the actual prefixes/suffixes ---
-    pool_slot = "armor" if slot_category in ("ring", "amulet") else slot_category
-    prefix_pool = ModifierPools.prefixes_for_slot(pool_slot)
-    suffix_pool = ModifierPools.suffixes_for_slot(pool_slot)
+    #pool_slot = "armor" if slot_category in ("ring", "amulet") else slot_category
+    #prefix_pool = ModifierPools.prefixes_for_slot(pool_slot)
+    #suffix_pool = ModifierPools.suffixes_for_slot(pool_slot)
+
+    if slot_category in ("ring", "amulet"):
+        prefix_pool = (ModifierPools.prefixes_for_slot("armor")
+                       + ModifierPools.prefixes_for_slot("weapon"))
+        suffix_pool = (ModifierPools.suffixes_for_slot("armor")
+                       + ModifierPools.suffixes_for_slot("weapon"))
+        # de-dupe by id
+        seen = set()
+        prefix_pool = [a for a in prefix_pool if not (a["id"] in seen or seen.add(a["id"]))]
+        seen = set()
+        suffix_pool = [a for a in suffix_pool if not (a["id"] in seen or seen.add(a["id"]))]
+    else:
+        prefix_pool = ModifierPools.prefixes_for_slot(slot_category)
+        suffix_pool = ModifierPools.suffixes_for_slot(slot_category)
+
+
     prefixes, suffixes = [], []
 
     # guarantee_enabling_affix: occasionally seed one affix with this
@@ -186,13 +203,14 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
     # implicit (e.g. "armor" on armor pieces) so the guarantee can
     # actually fire across slots.
     guaranteed = getattr(loot_rules, "guarantee_enabling_affix", None) if loot_rules else None
-    if guaranteed and guaranteed not in used_modifiers and rng.random() < GUARANTEE_CHANCE:
+    #if guaranteed and guaranteed not in used_modifiers and rng.random() < GUARANTEE_CHANCE:
+    if guaranteed and rng.random() < GUARANTEE_CHANCE:
         for kind, pool in (("prefix", prefix_pool), ("suffix", suffix_pool)):
             matching = [a for a in pool if a["modifier"] == guaranteed]
             if not matching:
                 continue
             a = _roll_affix_from_pool_biased(matching, rng, item_level, world_rules,
-                                             used_modifiers, kind, loot_rules)
+                                             used_affix_ids, kind, loot_rules)
             if a:
                 if kind == "prefix":
                     prefixes.append(a)
@@ -204,13 +222,13 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
 
     for _ in range(num_prefixes):
         a = _roll_affix_from_pool_biased(prefix_pool, rng, item_level, world_rules,
-                                          used_modifiers, "prefix", loot_rules)
+                                          used_affix_ids, "prefix", loot_rules)
         if a:
             prefixes.append(a)
 
     for _ in range(num_suffixes):
         a = _roll_affix_from_pool_biased(suffix_pool, rng, item_level, world_rules,
-                                          used_modifiers, "suffix", loot_rules)
+                                          used_affix_ids, "suffix", loot_rules)
         if a:
             suffixes.append(a)
 
@@ -282,8 +300,10 @@ def _pick_base_biased(slot, rng, loot_rules):
     name, dmg_mod = rng.choices(bases, weights=weights, k=1)[0]
     return name, dmg_mod, subtype
 
-def _roll_affix_from_pool_biased(pool, rng, item_level, world_rules, used_modifiers, kind, loot_rules):
-    candidates = [a for a in pool if a["modifier"] not in used_modifiers]
+#def _roll_affix_from_pool_biased(pool, rng, item_level, world_rules, used_modifiers, kind, loot_rules):
+#    candidates = [a for a in pool if a["modifier"] not in used_modifiers]
+def _roll_affix_from_pool_biased(pool, rng, item_level, world_rules, used_affix_ids, kind, loot_rules):
+    candidates = [a for a in pool if a["id"] not in used_affix_ids]
     if not candidates:
         return None
 
@@ -304,7 +324,8 @@ def _roll_affix_from_pool_biased(pool, rng, item_level, world_rules, used_modifi
     value = roll_value_for_tier(modifier_id, tier, rng, world_rules)
     table = get_tier_table(world_rules)
     creation_range = list(table[modifier_id][tier])
-    used_modifiers.add(modifier_id)
+    #used_modifiers.add(modifier_id)
+    used_affix_ids.add(chosen["id"])
     return RolledAffix(
         kind=kind,
         affix_id=chosen["id"],

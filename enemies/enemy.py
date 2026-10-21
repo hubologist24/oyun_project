@@ -53,6 +53,9 @@ class Enemy:
 
         self.hit_flash_timer = 0.0
 
+        self.pack_commander_shield = 0.0    # NEW
+        self.pack_commander_armor_bonus = 0
+
     _affix_font = None
 
     @property
@@ -63,6 +66,14 @@ class Enemy:
     def take_damage(self, amount: int):
         if self.pack is not None:
             self.pack.alerted = True
+
+        # NEW: commander aura damage reduction
+        if self.pack_commander_shield > 0 and amount > 0:
+            amount = max(1, int(amount * (1.0 - self.pack_commander_shield)))
+
+        if self.pack_commander_armor_bonus > 0 and amount > 0:
+             amount = max(1, amount - self.pack_commander_armor_bonus)
+
         self.hp -= amount
         self.hit_flash_timer = 0.15
         if self.hp <= 0:
@@ -284,8 +295,9 @@ class Enemy:
                 dmg = resolve_damage(proj["damage"], self.damage_type, None,
                                     target_resistances=target_res,
                                     target_category="player", world_rules=self._world_rules)
-                event_bus.emit("attacker_info", enemy=self)
+                #event_bus.emit("attacker_info", enemy=self)
                 if player.take_damage(dmg, cause=self.damage_type):
+                    event_bus.emit("attacker_info", enemy=self)
                     event_bus.emit("player_hit", source=self.name,
                                 damage=dmg, damage_type=self.damage_type)
                 self.projectiles.remove(proj)
@@ -310,7 +322,9 @@ NAME_POOL = {
 
 ELITE_AFFIXES = ["swift", "armored", "explosive", "regenerating"]
 AFFIX_COLORS = {"swift": (90, 220, 255), "armored": (190, 190, 200),
-                "explosive": (255, 140, 40), "regenerating": (110, 255, 130)}
+                "explosive": (255, 140, 40), "regenerating": (110, 255, 130),
+                  "overcharged": (200, 100, 255),     # NEW
+                  }
 
 def spawn_basic_enemy(x, y, rng, area_level=1, force_behavior=None):
     is_elite = rng.random() < 0.12 and force_behavior is None

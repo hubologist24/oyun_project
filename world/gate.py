@@ -35,6 +35,7 @@ class Gate:
     is_starting_gate: bool = False  # True only for gates present in the starting area
     opened_at: Optional[float] = None   # wall-clock timestamp when opened
     side: str = "e" 
+    overcharge_level: int = 0        # NEW
 
     def open_to(self, extension_id: str):
         import time
@@ -57,6 +58,7 @@ class Gate:
             "is_starting_gate": self.is_starting_gate,
             "opened_at": self.opened_at,
             "side": self.side,
+            "overcharge_level": self.overcharge_level,
         }
 
     @staticmethod
@@ -72,6 +74,7 @@ class Gate:
             is_starting_gate=d.get("is_starting_gate", False),
             opened_at=d.get("opened_at"),
             side=d.get("side", "e"),
+            overcharge_level=d.get("overcharge_level", 0),
         )
 
 

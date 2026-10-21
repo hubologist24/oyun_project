@@ -115,12 +115,13 @@ def attach_extension(level, extension, gate, rng_service, world=None):
 
     # --- shrines in this extension ---
     from world.shrine import make_shrine
+    shrine_rng = rng_service.derive_child("world", f"extension:{rid}:shrine") 
     if not any(s.area_id == rid for s in level.shrines):
         rooms = area["rooms"]
         occupied = {0, len(rooms) - 1, area.get("gate_room_index", -1)}
         candidates = [i for i in range(len(rooms)) if i not in occupied]
         if candidates:
-            idx = spawn_rng.choice(candidates)
+            idx = shrine_rng.choice(candidates)
             rx0, ry0, rx1, ry1 = rooms[idx]
             ax = ((rx0 + rx1) / 2 + ox) * ts
             ay = ((ry0 + ry1) / 2 + oy) * ts
@@ -128,8 +129,8 @@ def attach_extension(level, extension, gate, rng_service, world=None):
 
         for enemy_room in area["enemy_rooms"][:2]:
             x0, y0, x1, y1 = enemy_room
-            cx = (spawn_rng.uniform(x0 + 1, x1 - 1) + ox) * ts
-            cy = (spawn_rng.uniform(y0 + 1, y1 - 1) + oy) * ts
+            cx = (shrine_rng.uniform(x0 + 1, x1 - 1) + ox) * ts
+            cy = (shrine_rng.uniform(y0 + 1, y1 - 1) + oy) * ts
             level.shrines.append(make_shrine("loot_chest", cx, cy, rid)) 
 
 
@@ -150,6 +151,25 @@ def attach_extension(level, extension, gate, rng_service, world=None):
                 e.damage_type = elem
                 e.resistances[elem] = 0.25
             level.enemies.append(e)
+
+    # NEW: overcharged gate ambush pack
+    overcharge = getattr(spec, "overcharge_level", 0)
+    if overcharge > 0:
+        ambush_rng = rng_service.derive_child("world", f"extension:{rid}:ambush")
+        region_enemies = [e for e in level.enemies
+                       # if e.region_id == rid and not e.is_elite
+                       if getattr(e, "region_id", "starting_area") == rid and not e.is_elite
+                        ]
+        ambush_rng.shuffle(region_enemies)
+        ambush_count = min(6, overcharge * 2)
+        for e in region_enemies[:ambush_count]:
+            e.is_elite = True
+            e.max_hp = int(e.max_hp * 1.6)
+            e.hp = e.max_hp
+            e.damage = int(e.damage * 1.3)
+            e.xp_reward *= 2
+            e.affixes = list(e.affixes) + ["overcharged"]
+            e._pack_checked = False          # allow them to form a pack
 
     # --- boss (still validated) ---
     if area.get("boss_room") and spec.boss_template_id:

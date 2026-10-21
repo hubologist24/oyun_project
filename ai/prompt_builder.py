@@ -58,11 +58,12 @@ resistance_modifier:
   "delta": number between -0.5 and 0.5
 
 on_kill_effect:
-  "effect": string (e.g. "explosion", "chain_lightning", "corpse_burst", "life_leech")
+  "effect": "explode" | "heal_player"
   "target": "minion" | "elite" | "boss" | "player" | "all"
-  "radius": number (in world units, >= 0)
-  "damage_ratio": number between 0.0 and 4.0
-  "percent": number between 0.0 and 1.0  (chance for the effect to trigger on kill)
+  "radius": number (in world units, between 20 and 200; only used when effect == "explode")
+  "damage_ratio": number between 0.0 and 1.0 (only used when effect == "explode")
+  "percent": number between 0.0 and 0.2 (only used when effect == "heal_player")
+ 
 
 Do not include any field not listed above. Do not wrap the JSON in
 code fences. Do not include comments.
