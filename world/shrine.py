@@ -297,10 +297,18 @@ class LootChest(Shrine):
         rules = game._active_world_rules()
         got = []
         for i in range(rng.randint(1, 3)):
+            from core.difficulty import D
+            quality = D.get("loot_quality_mult")
+            loot_rules = LootRules(rare_chance_multiplier=quality,
+                                   six_mod_chance_multiplier=quality)
+            
             loot = generate_random_item(
                 rng, area_level=player.progression.level,
-                world_context={"world_rules": rules,
-                               "extension_id": self.area_id},
+                world_context={
+                    "world_rules": rules,
+                    "loot_rules": loot_rules,
+                    "extension_id": self.area_id
+                },
             )
             if player.inventory.add_item(loot):
                 got.append(loot.display_name)

@@ -22,6 +22,10 @@ def player_attack_enemy(player, enemy, event_bus, world_rules=None,
 
     base_amount = stats.base_damage * damage_multiplier
 
+
+    from core.difficulty import D
+    base_amount *= D.get("player_damage_mult")
+
     is_crit = stats.crit_chance > 0.0 and rng.random() < stats.crit_chance
     if is_crit:
         base_amount *= CRIT_MULTIPLIER
@@ -44,7 +48,7 @@ def player_attack_enemy(player, enemy, event_bus, world_rules=None,
         target_category=_enemy_category(enemy),
         source_category="player",
     )
-    enemy.take_damage(dmg)
+    enemy.take_damage(dmg,source=player)
 
     if is_crit:
         event_bus.emit("critical_hit",

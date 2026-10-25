@@ -55,6 +55,8 @@ from core import audio
 
 from history.codex import CodexManager
 
+from core.difficulty import D
+
 
 
 import time
@@ -64,17 +66,10 @@ CRIT_BURST_RADIUS = 70.0
 CRIT_BURST_RATIO = 0.50
 
 
-BOSS_ITEM_DROPS = [
-    (0.90, (3, 2)),   # near-guaranteed best roll
-    (0.75, (2, 2)),
-    (0.60, (2, 1)),
-    (0.40, (1, 2)),   # bonus slot
-]
-BOSS_STONE_DROPS = [0.70, 0.30, 0.10]   # 1st stone, 2nd stone, 3rd stone
 
-WORLD_BOSS_ITEM_CHANCE_BONUS = 0.15     # added to each slot
-WORLD_BOSS_EXTRA_ITEM_SLOT = (0.45, (3, 3))
-WORLD_BOSS_STONE_CHANCE_BONUS = 0.10 
+
+
+
 
 
 PRESSURE_THRESHOLDS = [0, 90, 180, 300, 450]      # seconds → level 0..4
@@ -188,7 +183,11 @@ class Game:
         self._pressure_ambush_timer = 0.0
         self._pressure_hazard_timer = 0.0
 
+        self._deaths_since_boss_kill = 0
+
         self._register_events()
+
+        self._grant_starting_gear()
 
 
 
@@ -257,29 +256,29 @@ class Game:
 
         chaos_dtype = rng.choice(["chaos", "lightning"])
         if not spec.loot_rules:
-             spec.loot_rules = {}
+            spec.loot_rules = {}
         spec.loot_rules["rare_chance_multiplier"] = (
-             spec.loot_rules.get("rare_chance_multiplier", 1.0) * (1 + 0.3 * overcharge))
+            spec.loot_rules.get("rare_chance_multiplier", 1.0) * (1 + 0.3 * overcharge))
         spec.loot_rules["six_mod_chance_multiplier"] = (
-             spec.loot_rules.get("six_mod_chance_multiplier", 1.0) * (1 + 0.2 * overcharge))
+            spec.loot_rules.get("six_mod_chance_multiplier", 1.0) * (1 + 0.2 * overcharge))
 
         overcharge_mod = {
-             "name": f"Overcharged Reality ({chaos_dtype.title()})",
-             "description": f"The overcharged gate spills unstable {chaos_dtype} "
+            "name": f"Overcharged Reality ({chaos_dtype.title()})",
+            "description": f"The overcharged gate spills unstable {chaos_dtype} "
                              f"energy into this region.",
-             "rules": [
+            "rules": [
                  {"type": "resistance_modifier", "target": "player",
                  "damage_type": chaos_dtype, "delta": -0.20},
                  {"type": "damage_dealt_multiplier", "target": "elite",
                  "damage_type": None, "multiplier": 1.25},
-             ],
+            ],
          }
          # Respect MAX_MODIFIERS = 3: replace the last modifier rather than
          # adding a fourth.
         if len(spec.world_modifiers) < 3:
-             spec.world_modifiers.append(overcharge_mod)
+            spec.world_modifiers.append(overcharge_mod)
         else:
-             spec.world_modifiers[-1] = overcharge_mod
+            spec.world_modifiers[-1] = overcharge_mod
         spec.boss_personalization = dict(spec.boss_personalization or {})
         spec.boss_personalization["difficulty_bias"] = "high"            
 
@@ -298,11 +297,13 @@ class Game:
         self._roam_timer -= dt
         if self._roam_timer > 0:
             return
-        self._roam_timer = 2.5
+        #self._roam_timer = 2.5
+        self._roam_timer = D.get("roam_interval")
         px, py = self.player.x, self.player.y
         near = sum(1 for e in self.current_area.enemies
                 if abs(e.x - px) < 1000 and abs(e.y - py) < 1000)
-        if near >= 45:
+        #if near >= 45:
+        if near >= D.get_int("roam_cap"):
             return
         ts = config.TILE_SIZE
         grid = self.current_area.tilemap.grid
@@ -428,6 +429,16 @@ class Game:
         from core import audio
         audio.play("hit_player")
 
+         # --- status effect application ---
+        if not self.player.alive:
+            return
+        if damage_type in ("fire", "chaos", "poison"):
+            self.player.apply_burn(damage_type, damage)
+        elif damage_type == "cold":
+            self.player.apply_slow(2.0, 0.6)
+        elif damage_type == "lightning":
+            self.player.apply_stagger(0.35)
+
 
 
 
@@ -509,6 +520,16 @@ class Game:
         mods = pygame.key.get_mods()
         shift_held = mods & pygame.KMOD_SHIFT
 
+        # --- live difficulty tuning (works everywhere) ---
+        if key in (pygame.K_MINUS, pygame.K_KP_MINUS):
+            D.adjust(-5)
+            self._show_message(f"Difficulty: {D.label()}")
+            return
+        if key in (pygame.K_EQUALS, pygame.K_PLUS, pygame.K_KP_PLUS):
+            D.adjust(+5)
+            self._show_message(f"Difficulty: {D.label()}")
+            return
+
         if self.gateway_menu.visible:
             if key == pygame.K_UP:
                 self.gateway_menu.move_selection(-1)
@@ -528,7 +549,7 @@ class Game:
                 self.gateway_menu.hide()
             elif key == pygame.K_LSHIFT:
                 self.player.face_toward(*self.camera.screen_to_world(pygame.mouse.get_pos()))
-                self.player.try_dash()
+                self.player.try_dash()            
             return
 
         if self.profile_screen.visible:
@@ -1216,22 +1237,40 @@ class Game:
         if getattr(enemy, "is_add", False):      # boss minions drop nothing
             return
 
-        rng = self.world.rng_service.get_stream("loot")
-        
         # --- UPDATED DROP LOGIC START ---
-        # Stone (world-extension currency) drop
-        if rng.random() < (0.02 if enemy.is_elite else 0.003):
+        # All baselines live in config.LOOT_CONFIG. global_mult is the
+        # single lazy knob that scales EVERY kill drop. Difficulty
+        # multipliers (D.get(...)) compose on top, unchanged semantics:
+        #   final = LOOT_CONFIG_base * elite_mult * D.get(...) * global_mult
+        rng = self.world.rng_service.get_stream("loot")
+        cfg = config.LOOT_CONFIG
+        g = cfg.get("global_mult", 1.0)
+        elite = bool(enemy.is_elite)
+
+        # --- stone (world-extension currency) ---
+        stone_chance = (cfg["enemy_stone_chance"]
+                        * (cfg["elite_stone_mult"] if elite else 1.0)
+                        * D.get("stone_drop_mult") * g)
+        if rng.random() < stone_chance:
             self.current_area.spawn_pickup(enemy.x + 12, enemy.y, "stone")
-            
-        # Item / orb drop
-        drop_chance = 0.05 if not enemy.is_elite else 0.28
-        if rng.random() < drop_chance:
-            self.current_area.spawn_loot(enemy.x, enemy.y, area_level=enemy.area_level,
-                                        world_rules=rules)
-        elif rng.random() < 0.06:
-            self.current_area.spawn_orb(enemy.x, enemy.y)
+
+        # --- item first; orb only if the item roll failed ---
+        item_chance = (cfg["enemy_item_chance"]
+                       * (cfg["elite_item_mult"] if elite else 1.0)
+                       * D.get("loot_drop_mult") * g)
+        if rng.random() < item_chance:
+            self.current_area.spawn_loot(
+                enemy.x, enemy.y, area_level=enemy.area_level,
+                world_rules=rules,
+            )
+        else:
+            orb_chance = (cfg["enemy_orb_chance"]
+                          * (cfg["elite_orb_mult"] if elite else 1.0)
+                          * D.get("orb_drop_mult") * g)
+            if rng.random() < orb_chance:
+                self.current_area.spawn_orb(enemy.x, enemy.y)
         # --- UPDATED DROP LOGIC END ---
-        
+
         self._resolve_on_kill_effects(enemy, rules, _depth)
 
     def _resolve_on_kill_effects(self, victim, rules, depth):
@@ -1267,43 +1306,52 @@ class Game:
                         self._on_enemy_killed(other, depth + 1)
 
     def _roll_boss_loot(self, source, level, world_rules, rng,
-                    world_boss: bool = False, loot_rules_override=None):
+                        world_boss: bool = False, loot_rules_override=None):
         """
-        Shared loot roll for bosses AND nemesis kills.
+        Shared loot roll for bosses AND nemesis kills. All quantities
+        come from config.LOOT_CONFIG; global_mult scales items + stones
+        but NOT the always-orb (design rule: a boss kill must award
+        at least one heal).
+        """
+        cfg = config.LOOT_CONFIG
+        g = cfg.get("global_mult", 1.0)
 
-        Items and stones are probabilistic; the health orb is always dropped
-        (design decision: players should never feel a boss fight gave them
-        nothing at all, but the big rewards need to be earned by RNG).
-        """
         # --- items ---
-        slots = list(BOSS_ITEM_DROPS)
+        slots = list(cfg["boss_item_slots"])
         if world_boss:
-            slots = [(min(1.0, c + WORLD_BOSS_ITEM_CHANCE_BONUS), a)
-                    for c, a in slots]
-            slots.append(WORLD_BOSS_EXTRA_ITEM_SLOT)
+            bonus = cfg["world_boss_item_bonus"]
+            slots = [(min(1.0, c + bonus), a) for c, a in slots]
+            extra = cfg.get("world_boss_extra_slot")
+            if extra:
+                slots.append(extra)
 
         total_slots = len(slots)
+        boss_mult = D.get("boss_loot_mult") * g
         for i, (chance, counts) in enumerate(slots):
-            if rng.random() >= chance:
+            if rng.random() >= min(1.0, chance * boss_mult):
                 continue
             x_offset = (i - (total_slots - 1) / 2) * 30
             kwargs = {"area_level": level, "world_rules": world_rules,
-                    "force_affix_counts": counts}
+                      "force_affix_counts": counts}
             if loot_rules_override is not None:
                 kwargs["loot_rules_override"] = loot_rules_override
             self.current_area.spawn_loot(source.x + x_offset, source.y, **kwargs)
 
         # --- stones ---
         stones_dropped = 0
-        for base_chance in BOSS_STONE_DROPS:
-            chance = base_chance + (WORLD_BOSS_STONE_CHANCE_BONUS if world_boss else 0.0)
+        stone_mult = D.get("boss_stone_mult") * g
+        for base_chance in cfg["boss_stone_chances"]:
+            chance = (base_chance
+                      + (cfg["world_boss_stone_bonus"] if world_boss else 0.0)) \
+                     * stone_mult
             if rng.random() < chance:
                 self.current_area.spawn_pickup(
                     source.x + 40 + stones_dropped * 18, source.y + 30, "stone")
                 stones_dropped += 1
 
-        # --- health orb: always ---
-        self.current_area.spawn_orb(source.x, source.y + 30)
+        # --- health orb (always; NOT scaled by global_mult) ---
+        if cfg.get("boss_orb_always", True):
+            self.current_area.spawn_orb(source.x, source.y + 30)
 
        
 
@@ -1329,6 +1377,14 @@ class Game:
         )
         if prior_deaths == 0 and not getattr(boss, "is_nemesis", False):
             newly += self.codex.record("flawless_boss")
+
+        if (not getattr(boss, "is_nemesis", False)
+                and getattr(config, "DIFFICULTY_ADAPTIVE", False)
+                and prior_deaths == 0):
+            #from core.difficulty import D
+            D.adjust(getattr(config, "DIFFICULTY_ADAPTIVE_UP", 2))
+            self._show_message(f"Difficulty adjusts: {D.label()}", duration=2.0)
+        self._deaths_since_boss_kill = 0
             
         if pressure_level >= 4:
             newly += self.codex.record("pressure_kill")
@@ -1381,7 +1437,8 @@ class Game:
             if drop.get("kind") == "heal":
                 s = self.player.effective_stats
                 if s.hp < s.max_hp:
-                    amt = max(1, int(s.max_hp * 0.25))
+                    #amt = max(1, int(s.max_hp * 0.25))
+                    amt = max(1, int(s.max_hp * D.get("orb_heal_frac")))
                     s.hp = min(s.max_hp, s.hp + amt)
                     self.current_area.loot_drops.remove(drop)
                     self.damage_numbers.spawn(px, py - 30, f"+{amt}", (90, 255, 120))
@@ -1456,6 +1513,11 @@ class Game:
 
         self.player.stash = self.save_manager.load_stash()
 
+        self.player = Player(*self.starting_area.start_pos, self.event_bus)
+        self.player.stash = self.save_manager.load_stash()
+        self._grant_starting_gear()          # NEW
+        self.camera = Camera(*self.starting_area.tilemap.pixel_size())
+
         self.reactions.reset()
         self.dialogue = None
         self.nemesis.load(data.get("nemesis"))
@@ -1514,11 +1576,53 @@ class Game:
         self._update_current_region()
         self._show_message("Game loaded.")
 
+
+    def _grant_starting_gear(self):
+        """Grant a 1-affix sword + 1-affix armor on a genuine fresh start.
+        Idempotent: does nothing if the player already has a weapon.
+        Force-slot/force-affix-counts keep both items minimal; forcing the
+        sword subtype guarantees the level-1 player can actually equip it
+        (greatsword/bow/wands have stat requirements they don't meet yet)."""
+        if self.player.equipped.get("weapon") is not None:
+            return   # already geared (e.g. retroactive call on load) -> no double grant
+
+        from items.item_generator import generate_random_item
+        rng = self.world.rng_service.get_stream("starting_gear")
+        try:
+            weapon = generate_random_item(
+                rng, area_level=1, force_slot="weapon",
+                force_weapon_subtype="sword", force_affix_counts=(1, 0))
+            armor = generate_random_item(
+                rng, area_level=1, force_slot="armor", force_affix_counts=(0, 1))
+        except Exception as e:
+            print(f"[Game] _grant_starting_gear generation failed: {e}")
+            return
+
+        for label, item in (("weapon", weapon), ("armor", armor)):
+            if item is None:
+                continue
+            if self.player.equip(item):
+                print(f"[Game] starter {label} equipped: "
+                      f"{item.display_name} [{item.affix_count_label()}]")
+            elif self.player.inventory.add_item(item):
+                print(f"[Game] starter {label} granted to inventory: "
+                      f"{item.display_name} (equip failed)")
+            else:
+                print(f"[Game] starter {label} LOST (inventory full)")
+
+        self._show_message(
+            f"Starter gear: {weapon.display_name} + {armor.display_name}",
+            duration=4.0)
+
     def _update(self, dt):
+        
         if self.dialogue:
             self.dialogue["t"] -= dt
             if self.dialogue["t"] <= 0:
                 self.dialogue = None
+
+        self.player.tick_status(dt)
+        
 
         if self._hitstop_timer > 0:
             self._hitstop_timer -= dt
@@ -1558,7 +1662,8 @@ class Game:
                 if stats.hp < stats.max_hp:
                     #heal = max(1, int(stats.max_hp * 0.04 * dt))
                     #stats.hp = min(stats.max_hp, stats.hp + heal)
-                    self._safe_room_heal_acc += stats.max_hp * 0.04 * dt
+                    #self._safe_room_heal_acc += stats.max_hp * 0.04 * dt
+                    self._safe_room_heal_acc += stats.max_hp * D.get("safe_room_regen") * dt
                     if self._safe_room_heal_acc >= 1.0:
                         heal = int(self._safe_room_heal_acc)
                         self._safe_room_heal_acc -= heal
@@ -1882,11 +1987,14 @@ class Game:
     def _on_player_death(self, cause=None):
         if self._boss_attempt_active:                    # NEW
             self._boss_deaths_this_attempt += 1
-        lost = self.player.progression.lose_xp_progress(0.10)  # tune: 0.10 = 10%
+            
+        #lost = self.player.progression.lose_xp_progress(0.10)  # tune: 0.10 = 10%
+        lost = self.player.progression.lose_xp_progress(D.get("death_xp_penalty"))
         msg = "You died. Respawning..."
         if lost > 0:
             msg = f"You died (-{lost} XP progress). Respawning..."
         self._show_message(msg)
+        
         if self._boss_attempt_active:
             b = self._nearest_boss(1500)
             if b:
@@ -1894,7 +2002,17 @@ class Game:
             self.event_bus.emit("boss_attempt_ended", result="death", boss_id=self._boss_attempt_boss_id)
             self._boss_attempt_active = False
             self._boss_attempt_boss_id = None
-        self.nemesis.on_player_death(cause) 
+
+        # --- NEW: Adaptive Difficulty Tracking ---
+        self._deaths_since_boss_kill = getattr(self, "_deaths_since_boss_kill", 0) + 1
+        if (getattr(config, "DIFFICULTY_ADAPTIVE", False)
+                and self._deaths_since_boss_kill >= 3):
+            #from core.difficulty import D
+            D.adjust(-getattr(config, "DIFFICULTY_ADAPTIVE_DOWN", 3))
+            self._deaths_since_boss_kill = 0
+            self._show_message(f"Difficulty adjusts: {D.label()}", duration=2.0)
+
+        self.nemesis.on_player_death(cause)
     
     def _draw_region_atmosphere(self):
         """Translucent color wash so each extension feels visually distinct."""
@@ -1946,8 +2064,9 @@ class Game:
     def _pressure_level(self, rid):
         t = self.world.region_presence.get(rid, 0.0)
         level = 0
+        mult = D.get("pressure_time_mult")
         for i, thresh in enumerate(PRESSURE_THRESHOLDS):
-            if t >= thresh:
+            if t >= thresh *mult:
                 level = i
         return level
 

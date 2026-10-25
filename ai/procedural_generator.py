@@ -77,10 +77,24 @@ class ProceduralWorldGenerator(WorldGenerator):
         spec.boss_personalization = self._build_boss_hints(player_profile, hints, rng)
         return spec
 
+    def _build_enemy_bias(self, hints, rng):
+        bias = {}
+        if hints.kites:
+            bias["chaser"]  = 1.8   # gap-closers chase down kiting players
+            bias["swarmer"] = 1.5
+            bias["ambusher"] = 1.4
+        if hints.melee_spams:
+            bias["ranged"]  = 2.0   # punish melee-spam with ranged/circlers
+            bias["circler"] = 1.7
+        if hints.stands_still:
+            bias["ranged"]  = max(bias.get("ranged", 1.0), 1.8)
+        return bias
+
     # ---------------- normal extension ----------------
     def _build_normal(self, profile: PlayerProfile, hints: PersonalizationHints,
                        index: int, rng) -> ExtensionSpec:
-        area_level = max(1, profile.level + rng.randint(0, 3))
+        from core.difficulty import D
+        area_level = max(1, profile.level + rng.randint(0, 3) + D.get_int("area_level_bonus"))
         biome = self._choose_biome(hints, rng)
 
         modifiers = self._select_modifiers_with_pairing(hints, rng)
@@ -95,6 +109,7 @@ class ProceduralWorldGenerator(WorldGenerator):
             world_modifiers=modifiers,
             boss_template_id="personalized",
             room_count=rng.randint(6, 9),
+            enemy_behavior_bias=self._build_enemy_bias(hints, rng),
         )
 
     # ---------------- anomaly extension ----------------
@@ -104,6 +119,7 @@ class ProceduralWorldGenerator(WorldGenerator):
         area_level = profile.level + jump
         biome = self._choose_biome(hints, rng)
         modifiers = self._select_modifiers_with_pairing(hints, rng, force_count=1)
+        #spec.enemy_behavior_bias = self._build_enemy_bias(hints, rng)
 
         return ExtensionSpec(
             extension_id=f"anomaly_{index}",

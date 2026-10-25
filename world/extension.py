@@ -30,6 +30,7 @@ class ExtensionSpec:
     loot_rules: dict = field(default_factory=dict)              # Phase 7
     boss_personalization: dict = field(default_factory=dict)    # Phase 7
     overcharge_level: int = 0        # NEW
+    enemy_behavior_bias: dict = field(default_factory=dict)   # NEW
 
     def to_dict(self):
         return {
@@ -46,6 +47,7 @@ class ExtensionSpec:
             "loot_rules": self.loot_rules,
             "boss_personalization": self.boss_personalization,
             "overcharge_level": self.overcharge_level,
+            "enemy_behavior_bias": self.enemy_behavior_bias,
         }
 
     @staticmethod
@@ -64,6 +66,7 @@ class ExtensionSpec:
             loot_rules=d.get("loot_rules", {}),
             boss_personalization=d.get("boss_personalization", {}),
             overcharge_level=d.get("overcharge_level", 0),
+            enemy_behavior_bias=d.get("enemy_behavior_bias", {}),
         )
 
 

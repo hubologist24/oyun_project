@@ -15,6 +15,10 @@ from dataclasses import dataclass, field
 from typing import List, Dict
 from combat.damage import resolve_damage
 
+from dataclasses import replace
+
+from core.difficulty import D
+
 
 @dataclass
 class BossPhaseConfig:
@@ -66,11 +70,15 @@ class BossTemplate:
             ],
         )
 
+    
+
 
 class Boss:
     """Runtime boss instance driven by a BossTemplate."""
 
     def __init__(self, x, y, template: BossTemplate):
+
+        template = Boss._scaled(template)
         self.x = x
         self.y = y
         self.width = 64
@@ -104,6 +112,23 @@ class Boss:
         self._facing = pygame.Vector2(0, 1)
         self.projectiles = []
 
+
+    @staticmethod
+    def _scaled(t):
+        dm, cd, tg = D.get("boss_damage_mult"), D.get("boss_cooldown_mult"), D.get("boss_telegraph_mult")
+        phases = [replace(p,
+                            attack_cooldown=max(0.2, p.attack_cooldown * cd),          # validator floors
+                            telegraph_time_melee=max(0.15, p.telegraph_time_melee * tg),
+                            telegraph_time_dash=max(0.15, p.telegraph_time_dash * tg),
+                            telegraph_time_blink=max(0.15, p.telegraph_time_blink * tg))
+                    for p in t.phases]
+        return replace(t,
+                        max_hp=int(t.max_hp * D.get("boss_hp_mult")),
+                        melee_damage=int(t.melee_damage * dm),
+                        ranged_damage=int(t.ranged_damage * dm),
+                        dash_damage=int(t.dash_damage * dm),
+                        phases=phases)
+
     @property
     def rect(self) -> pygame.Rect:
         return pygame.Rect(int(self.x - self.width / 2), int(self.y - self.height / 2),
@@ -113,7 +138,7 @@ class Boss:
     def current_phase(self) -> BossPhaseConfig:
         return self.template.phases[self.phase_index]
 
-    def take_damage(self, amount: int):
+    def take_damage(self, amount: int, source=None):
         multiplier = 2.0 if self.enraged_vulnerable_timer > 0 else 1.0
         self.hp -= int(amount * multiplier)
         if self.hp <= 0:
@@ -133,14 +158,15 @@ class Boss:
                         damage_type=self.damage_type)
 
     def _update_phase(self):
+        if not self.alive:
+            return
+
         ratio = self.hp / self.max_hp if self.max_hp else 0
         best_index = 0
         for i, phase in enumerate(self.template.phases):
             if ratio <= phase.hp_threshold:
                 best_index = i
-        #self.phase_index = best_index
-        #if best_index > self.phase_index and self.template.summoner:
-        #    self.summon_requests += 3          # burst on phase change
+                
         if best_index > self.phase_index:
             self.summon_requests += (5 if self.template.summoner else 2)
             self.phase_just_changed = True
@@ -246,7 +272,7 @@ class Boss:
             if dist < 90:
                 dmg = resolve_damage(self.template.melee_damage, self.damage_type, None,
                                       target_resistances=target_resist, world_rules=world_rules,
-                                      target_category="player")
+                                      target_category="player",source_category="boss")
                 self._hit_player(player, dmg, event_bus)
                 #player.take_damage(dmg,cause=self.damage_type)
         elif action == "ranged":
@@ -262,7 +288,7 @@ class Boss:
             if dist < 100:
                 dmg = resolve_damage(self.template.dash_damage, self.damage_type, None,
                                       target_resistances=target_resist, world_rules=world_rules,
-                                      target_category="player")
+                                      target_category="player",source_category="boss")
                 self._hit_player(player, dmg, event_bus)
                 #player.take_damage(dmg,cause=self.damage_type)
             if phase.enrage_vulnerability_after_dash > 0:
@@ -295,7 +321,7 @@ class Boss:
                 dmg = resolve_damage(burst, self.damage_type, None,
                                     target_resistances=target_resist,
                                     world_rules=world_rules,
-                                    target_category="player")
+                                    target_category="player",source_category="boss")
                 self._hit_player(player, dmg, event_bus)
 
             self._state = "recover"

@@ -100,7 +100,8 @@ def _roll_slot_category(rng, force_slot=None):
 
 def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
                           force_slot: str = None, force_rarity: str = None,
-                          force_affix_counts: tuple = None) -> Item:
+                          force_affix_counts: tuple = None,
+                          force_weapon_subtype: str = None) -> Item:
     ctx = dict(DEFAULT_WORLD_CONTEXT)
     if world_context:
         ctx.update(world_context)
@@ -113,7 +114,8 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
     has_implicit = slot_category in ("weapon", "armor")
 
     if slot_category == "weapon":
-        base_name, implicit_modifier, weapon_subtype = _pick_base_biased("weapon", rng, loot_rules)
+        base_name, implicit_modifier, weapon_subtype = _pick_base_biased("weapon", rng, loot_rules,
+                                                                         force_subtype=force_weapon_subtype)
         actual_slot = "weapon"
     elif slot_category == "armor":
         base_name, actual_slot = rng.choice(ARMOR_BASES)
@@ -279,14 +281,15 @@ def _roll_weapon_subtype(rng) -> str:
     return rng.choices(ids, weights=weights, k=1)[0]
 
 
-def _pick_base_biased(slot, rng, loot_rules):
+def _pick_base_biased(slot, rng, loot_rules, force_subtype=None):
     """
     Returns (base_name, implicit_modifier, weapon_subtype).
     Subtype is rolled first (attack pattern); base name / implicit
     damage type is then chosen within that subtype, biased by the
     extension's LootRules if present.
     """
-    subtype = _roll_weapon_subtype(rng)
+    #subtype = _roll_weapon_subtype(rng)
+    subtype = force_subtype or _roll_weapon_subtype(rng)
     bases = WEAPON_BASES_BY_SUBTYPE[subtype]
 
     if not loot_rules or not loot_rules.favored_damage_types:

@@ -31,6 +31,9 @@ class PersonalizationHints:
     discarded_a_lot: bool = False
     suggested_challenge_damage_type: Optional[str] = None
     suggested_enabling_damage_type: Optional[str] = None
+    kites: bool = False
+    melee_spams: bool = False
+    stands_still: bool = False
 
     def to_dict(self):
         return {
@@ -45,6 +48,9 @@ class PersonalizationHints:
             "discarded_a_lot": self.discarded_a_lot,
             "suggested_challenge_damage_type": self.suggested_challenge_damage_type,
             "suggested_enabling_damage_type": self.suggested_enabling_damage_type,
+            "kites": self.kites,
+            "melee_spams": self.melee_spams,
+            "stands_still": self.stands_still,
         }
 
 
@@ -71,6 +77,12 @@ def derive_hints(profile: PlayerProfile) -> PersonalizationHints:
         success_ratio = profile.boss_successes / profile.boss_attempts
         hints.boss_struggling = success_ratio < 0.2
         hints.boss_dominant = success_ratio > 0.7
+
+    # --- NEW: combat-habit detection for enemy composition bias ---
+    tech = profile.favorite_technique or ""
+    hints.kites = (tech in ("retreat_shot", "perfect_range") or profile.melee_ranged_preference == "ranged")
+    hints.melee_spams = (tech in ("reverse_slash", "dash_strike", "heavy_reversal") or (profile.melee_ranged_preference == "melee" and not hints.kites))
+    hints.stands_still = (0 < profile.average_combat_distance < 40)
 
     hints.has_notable_legacy_items = profile.six_mod_items_found > 0
     hints.discarded_a_lot = profile.items_discarded > max(3, profile.items_kept * 0.5)

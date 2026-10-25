@@ -41,9 +41,21 @@ class Player:
         self._invuln_timer = 0.0
         self._last_hit_flash = 0.0
         
+        # --- DASH SYSTEM (UPDATED) ---
         self._dash_timer = 0.0
-        self._dash_cd = 0.0
         self._dash_vec = pygame.Vector2(0, 0)
+        self._dash_charges = 2
+        self._dash_max_charges = 2
+        self._dash_recharge_timer = 0.0
+        self._dash_recharge_rate = 1.5      # seconds per charge
+        self._dash_glance_timer = 0.0       # for near_miss near-dash window
+
+        # --- STATUS EFFECTS (NEW) ---
+        self._burns = []                    # [{dtype, dps, left, acc}]
+        self.slow_timer = 0.0
+        self.slow_factor = 1.0
+        self.stagger_timer = 0.0
+        self._stagger_icd = 0.0
 
         self.combo_count = 0
         self.combo_timer = 0.0
@@ -112,8 +124,20 @@ class Player:
 
         # Calculate default speed & update dash state
         speed = self.effective_stats.speed
-        if self._dash_cd > 0:
-            self._dash_cd -= dt
+        if self.slow_timer > 0:
+            speed *= self.slow_factor
+        if self.stagger_timer > 0:
+            speed = 0.0
+
+        # Dash recharge
+        if self._dash_charges < self._dash_max_charges:
+            self._dash_recharge_timer += dt
+            if self._dash_recharge_timer >= self._dash_recharge_rate:
+                self._dash_recharge_timer -= self._dash_recharge_rate
+                self._dash_charges += 1
+        if self._dash_glance_timer > 0:
+            self._dash_glance_timer -= dt
+
         if self._dash_timer > 0:
             self._dash_timer -= dt
             vec = self._dash_vec
@@ -150,11 +174,14 @@ class Player:
             self.facing = vec.normalize()
 
     def try_dash(self):
-        if self._dash_cd > 0 or self._dash_timer > 0 or self.facing.length_squared() == 0:
+        if (self._dash_charges <= 0 or self._dash_timer > 0
+                or self.facing.length_squared() == 0 or self.stagger_timer > 0):
             return False
+        self._dash_charges -= 1
         self._dash_vec = pygame.Vector2(self.facing).normalize()
-        self._dash_timer, self._dash_cd = 0.16, 0.9
-        self._invuln_timer = max(self._invuln_timer, 0.22)   # i-frames
+        self._dash_timer = 0.16
+        self._dash_glance_timer = 0.35
+        self._invuln_timer = max(self._invuln_timer, 0.22)
         return True
 
     def _rect_at(self, x, y) -> pygame.Rect:
@@ -163,6 +190,8 @@ class Player:
 
     # ---------- combat ----------
     def can_attack(self) -> bool:
+        if self.stagger_timer > 0:
+            return False
         return self._attack_cooldown_timer <= 0
     
 
@@ -209,12 +238,15 @@ class Player:
              return False
         
         if self._invuln_timer > 0:
-            if self._dash_timer > 0 or self._dash_cd > 0.65:
+            if self._dash_timer > 0 or self._dash_glance_timer > 0:
                 self.event_bus.emit("near_miss")
             return False
         self.effective_stats.hp -= amount
         self.effective_stats.clamp_hp()
-        self._invuln_timer = config.PLAYER_INVULN_ON_HIT
+        
+        from core.difficulty import D
+        self._invuln_timer = D.get("invuln_on_hit")
+        #self._invuln_timer = config.PLAYER_INVULN_ON_HIT
         self._last_hit_flash = 0.15
         if self.effective_stats.hp <= 0:
             self.alive = False
@@ -292,6 +324,64 @@ class Player:
             },
         }
 
+
+        # ---------- status effects ----------
+    def apply_burn(self, dtype, hit_damage):
+        dps = max(1.0, hit_damage * 0.25)
+        for b in self._burns:
+            if b["dtype"] == dtype:
+                b["dps"] = max(b["dps"], dps)
+                b["left"] = max(b["left"], 3.0)
+                return
+        self._burns.append({"dtype": dtype, "dps": dps, "left": 3.0, "acc": 0.0})
+
+    def apply_slow(self, duration=2.0, factor=0.6):
+        self.slow_timer = max(self.slow_timer, duration)
+        self.slow_factor = min(self.slow_factor, factor) if self.slow_timer > 0 else factor
+
+    def apply_stagger(self, duration=0.35):
+        if self._stagger_icd > 0:
+            return
+        self.stagger_timer = max(self.stagger_timer, duration)
+        self._stagger_icd = 0.9          # internal cooldown so per-frame hits can't lock us
+
+    def take_dot_damage(self, amount, cause="physical") -> bool:
+        if not self.alive:
+            return False
+        self.effective_stats.hp -= amount
+        self.effective_stats.clamp_hp()
+        if self.effective_stats.hp <= 0:
+            self.alive = False
+            self.event_bus.emit("player_death", cause=cause)
+        return True
+
+    def tick_status(self, dt):
+        if self.slow_timer > 0:
+            self.slow_timer -= dt
+        if self.stagger_timer > 0:
+            self.stagger_timer -= dt
+        if self._stagger_icd > 0:
+            self._stagger_icd -= dt
+        for b in list(self._burns):
+            b["left"] -= dt
+            b["acc"] += dt
+            if b["left"] <= 0:
+                self._burns.remove(b); continue
+            if b["acc"] >= 0.5:
+                b["acc"] -= 0.5
+                # NOTE: no player_hit emit -> no feedback loop
+                self.take_dot_damage(max(1, int(b["dps"] * 0.5)), cause=b["dtype"])
+
+    def reset_status(self):
+        self._burns.clear()
+        self.slow_timer = 0.0
+        self.stagger_timer = 0.0
+        self._stagger_icd = 0.0
+
+    def heal_to_full(self):
+        self.effective_stats.hp = self.effective_stats.max_hp
+        self.reset_status()
+
     @staticmethod
     def from_dict(d, event_bus,codex_manager=None):
         from items.item import Item
@@ -330,7 +420,7 @@ class Player:
                 if slot in p.equipped and isinstance(item_dict, dict):
                     p.equipped[slot] = Item.from_dict(item_dict)
 
-        p.extension_stones = int(d.get("extension_stones", 10))
+        p.extension_stones = int(d.get("extension_stones", 0))
 
         p.trophies = list(d.get("trophies", [])) if isinstance(d.get("trophies", []), list) else []
         

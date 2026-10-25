@@ -274,24 +274,7 @@ class PackManager:
                 if not getattr(m, "nemesis", None):
                     m._aggro_range = max(m._pack_base_aggro, RALLY_AGGRO) if rally else m._pack_base_aggro
 
-        # NEW: Commander tactical aura enforcement
-        #commander = cmd[0] if cmd else None
-        #for m in pack.members:
-        #    if commander is None or m is commander:
-        #        m.pack_commander_shield = 0.0
-        #        continue
-        #    if _d(m, commander) <= RALLY_RADIUS:
-        #        m.pack_commander_shield = COMMANDER_AURA_RESIST
-        #    else:
-        #        m.pack_commander_shield = 0.0
-
-        #if commander is not None:
-        #    guarded = sum(1 for m in pack.members
-        #                if m is not commander and m.alive
-        #                and _d(m, commander) <= RALLY_RADIUS)
-        #    commander.pack_commander_armor_bonus = (
-        #        COMMANDER_SELF_ARMOR_BONUS if guarded >= COMMANDER_GUARD_COUNT else 0
-        #    )
+     
     
             commander = cmd[0] if cmd else None
             for m in pack.members:

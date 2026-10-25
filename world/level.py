@@ -170,17 +170,34 @@ class Level:
                            for c in range(rect.left, rect.right) if g[r][c] == 0)
         return 0
 
-    def spawn_loot(self, x, y, area_level=1, world_rules=None,loot_rules_override=None, **item_kwargs):
+    def spawn_loot(self, x, y, area_level=1, world_rules=None,
+                   loot_rules_override=None, **item_kwargs):
+        from core.difficulty import D
+        from world.loot_rules import LootRules
+
         rid = self.region_at_pixel(x, y)
         ctx = {}
         if world_rules:
             ctx["world_rules"] = world_rules
-        #loot_rules = self.region_loot_rules.get(rid)
+
         loot_rules = loot_rules_override or self.region_loot_rules.get(rid)
+
+        # Difficulty now REWARDS with quality, not just punishes with quantity.
+        quality = D.get("loot_quality_mult")
+        if quality > 1.0:
+            base = loot_rules if loot_rules else LootRules.default()
+            loot_rules = LootRules(
+                favored_damage_types=dict(base.favored_damage_types),
+                rare_chance_multiplier=base.rare_chance_multiplier * quality,
+                six_mod_chance_multiplier=base.six_mod_chance_multiplier * quality,
+                guarantee_enabling_affix=base.guarantee_enabling_affix,
+            )
+
         if loot_rules:
             ctx["loot_rules"] = loot_rules
         if rid != "starting_area":
             ctx["extension_id"] = rid
+
         item = generate_random_item(self.rng, area_level=area_level,
                                     world_context=ctx or None, **item_kwargs)
         self.loot_drops.append({"x": x, "y": y, "item": item})

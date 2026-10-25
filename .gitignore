@@ -50,6 +50,8 @@ venv.bak/
 
 savegame*
 
+codex.json
+
 # Unit test / coverage reports
 .coverage
 .coverage.*

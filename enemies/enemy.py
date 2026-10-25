@@ -8,6 +8,23 @@ import random
 import core.config as config
 import math
 
+from core.difficulty import D
+
+ELITE_AFFIXES = ["swift", "armored", "explosive", "regenerating",
+                 "thorns", "vampiric", "shielded", "teleporting", "frost_nova"]
+
+AFFIX_COLORS = {
+    "swift":        (90, 220, 255),
+    "armored":      (190, 190, 200),
+    "explosive":    (255, 140, 40),
+    "regenerating": (110, 255, 130),
+    "thorns":       (255, 100, 100),
+    "vampiric":     (200, 60, 120),
+    "shielded":     (110, 180, 255),
+    "teleporting":  (200, 100, 255),
+    "frost_nova":   (150, 220, 255),
+    "overcharged":  (200, 100, 255),
+}
 
 class Enemy:
     def __init__(self, x, y, name="Enemy", hp=30, damage=8, armor=0,
@@ -56,6 +73,16 @@ class Enemy:
         self.pack_commander_shield = 0.0    # NEW
         self.pack_commander_armor_bonus = 0
 
+        # Affix runtime state
+        self.shield_hp = 0
+        self._teleport_cd = random.uniform(3.0, 6.0)
+        self._frost_nova_cd = random.uniform(4.0, 8.0)
+
+        # Telegraph state (brute slam / frost nova)
+        self._telegraph_timer = 0.0
+        self._telegraph_pos = None
+        self._telegraph_action = None
+
     _affix_font = None
 
     @property
@@ -63,9 +90,15 @@ class Enemy:
         return pygame.Rect(int(self.x - self.width / 2), int(self.y - self.height / 2),
                             self.width, self.height)
 
-    def take_damage(self, amount: int):
+    def take_damage(self, amount: int,source=None):
         if self.pack is not None:
             self.pack.alerted = True
+
+        # Shield absorbs first
+        if self.shield_hp > 0 and amount > 0:
+            absorbed = min(self.shield_hp, amount)
+            self.shield_hp -= absorbed
+            amount -= absorbed
 
         # NEW: commander aura damage reduction
         if self.pack_commander_shield > 0 and amount > 0:
@@ -73,6 +106,15 @@ class Enemy:
 
         if self.pack_commander_armor_bonus > 0 and amount > 0:
              amount = max(1, amount - self.pack_commander_armor_bonus)
+
+         # Thorns: reflect a fraction of melee damage back to the attacker
+        if amount > 0 and "thorns" in self.affixes and source is not None:
+            reflect = max(1, int(amount * 0.25))
+            try:
+                if source.take_damage(reflect, cause=self.damage_type):
+                    self.game_ref_damage_numbers(source.x, source.y, reflect) if False else None
+            except Exception:
+                pass
 
         self.hp -= amount
         self.hit_flash_timer = 0.15
@@ -94,7 +136,7 @@ class Enemy:
         self._ranged_timer = max(self._ranged_timer, 1.5)
         self.apply_stagger(0.3)        
 
-    def update(self, dt, player, tilemap, event_bus,world_rules=None):
+    def update(self, dt, player, tilemap, event_bus, world_rules=None):
         self._world_rules = world_rules
 
         if self.hit_flash_timer > 0:
@@ -106,6 +148,41 @@ class Enemy:
         if "regenerating" in self.affixes and self.hp < self.max_hp:
             self.hp = min(self.max_hp, self.hp + self.max_hp * 0.04 * dt)
 
+        # --- Compute distance vectors early for affixes ---
+        dx = player.x - self.x
+        dy = player.y - self.y
+        dist = math.hypot(dx, dy)
+
+        # --- telegraph executes when the timer expires ---
+        if self._telegraph_timer > 0:
+            self._telegraph_timer -= dt
+            if self._telegraph_timer <= 0:
+                self._execute_telegraph(player, event_bus)
+                return
+
+        # --- teleporting affix ---
+        if "teleporting" in self.affixes:
+            self._teleport_cd -= dt
+            if self._teleport_cd <= 0 and dist < 500:
+                self._teleport_cd = random.uniform(4.0, 7.0)
+                angle = random.uniform(0, 2 * math.pi)
+                nx = player.x + math.cos(angle) * 110
+                ny = player.y + math.sin(angle) * 110
+                if not tilemap.collides_rect(self._rect_at(nx, ny)):
+                    self.x, self.y = nx, ny
+                    self._attack_timer = max(self._attack_timer, 0.4)
+                    # Recalculate distance after teleporting so subsequent checks use valid data
+                    dx = player.x - self.x
+                    dy = player.y - self.y
+                    dist = math.hypot(dx, dy)
+
+        # --- frost nova affix ---
+        if "frost_nova" in self.affixes and self._telegraph_timer <= 0:
+            self._frost_nova_cd -= dt
+            if self._frost_nova_cd <= 0 and dist < 260:
+                self._frost_nova_cd = random.uniform(5.0, 8.0)
+                self._start_telegraph("frost_nova", player)    
+
         if self.slow_timer > 0:
             self.slow_timer -= dt
         if self.stagger_timer > 0:
@@ -113,7 +190,6 @@ class Enemy:
             self._tick_projectiles(dt, player, event_bus)
             return
 
-        
         if self._attack_timer > 0:
             self._attack_timer -= dt
         if self._ranged_timer > 0:
@@ -123,6 +199,7 @@ class Enemy:
             self._strafe_dir *= -1
             self._strafe_timer = random.uniform(0.8, 2.2)
 
+        # Recalculate in case timers/movement shifted positions further before behaviors run
         dx = player.x - self.x
         dy = player.y - self.y
         dist = math.hypot(dx, dy)
@@ -137,16 +214,66 @@ class Enemy:
             "ambusher": self._tick_ambusher,
             "circler":  self._tick_circler,
             "ranged":   self._tick_ranged,
-            "brute": self._tick_chaser,
-            "swarmer": self._tick_chaser,
+            "brute":    self._tick_chaser,
+            "swarmer":  self._tick_chaser,
         }.get(self.behavior, self._tick_chaser)
+        
         handler(dt, player, tilemap, dist, dx, dy, event_bus)
-
         self._tick_projectiles(dt, player, event_bus)
 
     def _rect_at(self, x, y):
         return pygame.Rect(int(x - self.width / 2), int(y - self.height / 2),
                             self.width, self.height)
+
+
+    def _contact_attack(self, player, event_bus):
+        if self._attack_timer > 0 or self._telegraph_timer > 0:
+            return
+        if self.behavior == "brute":
+            self._start_telegraph("slam", player)
+            return
+        from combat.combat import enemy_attack_player
+        enemy_attack_player(self, player, event_bus, world_rules=self._world_rules)
+        self._attack_timer = config.ENEMY_CONTACT_DAMAGE_COOLDOWN * D.get("enemy_attack_cooldown_mult")
+        # vampiric heals on hit
+        if "vampiric" in self.affixes:
+            self.hp = min(self.max_hp, self.hp + int(self.damage * 0.5))
+
+    def _start_telegraph(self, action, player):
+        self._telegraph_action = action
+        self._telegraph_timer = 0.6 if action == "slam" else 0.75
+        self._telegraph_pos = (player.x, player.y)
+
+    def _execute_telegraph(self, player, event_bus):
+        action = self._telegraph_action
+        pos = self._telegraph_pos
+        self._telegraph_action = None
+        self._telegraph_pos = None
+        if pos is None:
+            return
+        from combat.combat import enemy_attack_player
+        if action == "slam":
+            radius = 70
+            if math.hypot(player.x - pos[0], player.y - pos[1]) <= radius:
+                enemy_attack_player(self, player, event_bus,
+                                    world_rules=self._world_rules,
+                                    damage_multiplier=1.4)
+        elif action == "frost_nova":
+            radius = 85
+            for target in list(self.game_current_targets_of_opportunity()):
+                if math.hypot(target.x - pos[0], target.y - pos[1]) <= radius:
+                    target.take_damage(max(1, int(self.damage * 0.8)))
+            if math.hypot(player.x - pos[0], player.y - pos[1]) <= radius:
+                enemy_attack_player(self, player, event_bus,
+                                    world_rules=self._world_rules)
+        self._attack_timer = config.ENEMY_CONTACT_DAMAGE_COOLDOWN * D.get("enemy_attack_cooldown_mult")
+
+    def game_current_targets_of_opportunity(self):
+        # No direct game ref — return an empty iterable. Enemies in a pack
+        # still take the player-facing nova; the enemy-vs-enemy AoE is
+        # intentionally avoided (design choice: keep elites threatening
+        # to the player, not each other).
+        return ()
 
     def draw(self, surface, camera):
         rect = camera.world_to_screen_rect(self.rect)
@@ -186,6 +313,15 @@ class Enemy:
         elif self.slow_timer > 0:
             pygame.draw.rect(surface, (120, 220, 255), rect.inflate(6, 6), 1, border_radius=5)
 
+        if self._telegraph_timer > 0 and self._telegraph_pos is not None:
+            color = (255, 100, 40) if self._telegraph_action == "slam" else (150, 220, 255)
+            radius = 70 if self._telegraph_action == "slam" else 85
+            p = camera.world_to_screen(self._telegraph_pos)
+            total = 0.6 if self._telegraph_action == "slam" else 0.75
+            frac = 1.0 - max(0.0, self._telegraph_timer) / total
+            pygame.draw.circle(surface, color, p, radius, 2)
+            pygame.draw.circle(surface, color, p, max(2, int(radius * frac)), 1)
+
     def _step_toward(self, dt, tilemap, dir_x, dir_y, speed_scale=1.0):
         v = pygame.Vector2(dir_x, dir_y)
         if v.length_squared() == 0:
@@ -204,12 +340,7 @@ class Enemy:
             self.y = ny
 
 
-    def _contact_attack(self, player, event_bus):
-        if self._attack_timer > 0:
-            return
-        from combat.combat import enemy_attack_player
-        enemy_attack_player(self, player, event_bus,world_rules=self._world_rules)
-        self._attack_timer = config.ENEMY_CONTACT_DAMAGE_COOLDOWN
+    
 
 
     def _tick_chaser(self, dt, player, tilemap, dist, dx, dy, event_bus):
@@ -261,7 +392,8 @@ class Enemy:
                             perp_y * self._strafe_dir, 0.9)
         if dist <= 380 and self._ranged_timer <= 0:
             self._fire_bolt(dx, dy, dist)
-            self._ranged_timer = 1.6
+            #self._ranged_timer = 1.6
+            self._ranged_timer = 1.6 * D.get("enemy_attack_cooldown_mult")
 
 
     def _fire_bolt(self, dx, dy, dist):
@@ -320,24 +452,30 @@ NAME_POOL = {
 }
 
 
-ELITE_AFFIXES = ["swift", "armored", "explosive", "regenerating"]
-AFFIX_COLORS = {"swift": (90, 220, 255), "armored": (190, 190, 200),
-                "explosive": (255, 140, 40), "regenerating": (110, 255, 130),
-                  "overcharged": (200, 100, 255),     # NEW
-                  }
+#ELITE_AFFIXES = ["swift", "armored", "explosive", "regenerating"]
+#AFFIX_COLORS = {"swift": (90, 220, 255), "armored": (190, 190, 200),
+#                "explosive": (255, 140, 40), "regenerating": (110, 255, 130),
+#                  "overcharged": (200, 100, 255),     # NEW
+#                  }
 
-def spawn_basic_enemy(x, y, rng, area_level=1, force_behavior=None):
-    is_elite = rng.random() < 0.12 and force_behavior is None
+def spawn_basic_enemy(x, y, rng, area_level=1, force_behavior=None,behavior_bias=None):
+    is_elite = rng.random() < D.get("elite_chance") and force_behavior is None
     if force_behavior:
         row = next(r for r in BEHAVIOR_TABLE if r[0] == force_behavior)
     else:
-        row = rng.choices(BEHAVIOR_TABLE, weights=[r[1] for r in BEHAVIOR_TABLE], k=1)[0]
+        weights = [r[1] * (behavior_bias or {}).get(r[0], 1.0)
+                   for r in BEHAVIOR_TABLE]
+        #row = rng.choices(BEHAVIOR_TABLE, weights=[r[1] for r in BEHAVIOR_TABLE], k=1)[0]
+        row = rng.choices(BEHAVIOR_TABLE, weights=weights, k=1)[0]
     behavior, _, hp_mult, dmg_mult, speed = row
 
     #hp = int((24 + area_level * 6) * hp_mult * (1.8 if is_elite else 1.0))
     #dmg = int((6 + area_level * 1.6) * dmg_mult * (1.6 if is_elite else 1.0))
-    hp  = int((32 + area_level * 9)  * hp_mult * (2.1 if is_elite else 1.0))
-    dmg = int((9  + area_level * 2.2) * dmg_mult * (1.7 if is_elite else 1.0))
+    #hp  = int((32 + area_level * 9)  * hp_mult * (2.1 if is_elite else 1.0))
+    #dmg = int((9  + area_level * 2.2) * dmg_mult * (1.7 if is_elite else 1.0))
+    hp  = int((32 + area_level * 9)  * hp_mult * (2.1 if is_elite else 1.0) * D.get("enemy_hp_mult"))
+    dmg = int((9  + area_level * 2.2) * dmg_mult * (1.7 if is_elite else 1.0) * D.get("enemy_damage_mult"))
+    speed = speed * D.get("enemy_speed_mult")
     
     base_name = rng.choice(NAME_POOL[behavior])
 
@@ -350,6 +488,7 @@ def spawn_basic_enemy(x, y, rng, area_level=1, force_behavior=None):
     en = Enemy(x, y, name=name, hp=hp, damage=dmg, armor=area_level,
                speed=speed, xp_reward=18 if is_elite else 10,
                is_elite=is_elite, area_level=area_level, behavior=behavior)
+    en._aggro_range = int(en._aggro_range * D.get("enemy_aggro_mult"))
     if behavior == "brute":
         en.width = en.height = 40
     elif behavior == "swarmer":
@@ -361,5 +500,7 @@ def spawn_basic_enemy(x, y, rng, area_level=1, force_behavior=None):
         en.armor = 20 + area_level * 6
         en.resistances["armor_flat"] = en.armor
         en.max_hp = en.hp = int(en.max_hp * 1.3)
+    if "shielded" in affixes:
+        en.shield_hp = int(en.max_hp * 0.4)
     en.affixes = affixes
     return en

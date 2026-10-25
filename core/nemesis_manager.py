@@ -12,6 +12,8 @@ from combat.damage import resolve_damage
 from history.nemesis import (Nemesis, NemesisRegistry, make_name, taunt_for,
                              pick_personality, personality_taunt, PERSONALITIES)
 
+from core.difficulty import D
+
 RESPAWN_DELAY = 180.0        # playtime seconds before a slain nemesis returns stronger
 MAX_GENERATION = 5
 WORLD_BOSS_KILLS = 3
@@ -66,7 +68,8 @@ class NemesisManager:
     def _should_evolve(self, nem, rng) -> bool:
         if nem.grudge >= NEMESIS_FORCED_EVOLUTION_GRUDGE:
             return True   # guarantees progress eventually
-        return rng.random() < NEMESIS_EVOLUTION_CHANCE
+        #return rng.random() < NEMESIS_EVOLUTION_CHANCE
+        return rng.random() < D.get("nemesis_evolve_chance") 
 
     def _evolve(self, enemy, nem):
         nem.generation += 1
@@ -91,7 +94,8 @@ class NemesisManager:
 
         if nem is None:
             # 60% chance the death is "memorable" enough to mark a new rival
-            if rng.random() > NEMESIS_CREATION_CHANCE:
+            #if rng.random() > NEMESIS_CREATION_CHANCE:
+            if rng.random() > D.get("nemesis_create_chance"):
                 g._show_message("You fell to a common foe...", duration=2.5)
                 return
             nem = Nemesis(
@@ -126,7 +130,27 @@ class NemesisManager:
                 g._show_message(
                     f"{nem.short()} gloats, but has not evolved yet.", duration=3.0)
 
+            # --- NEW: Steal a trophy (once per nemesis) — a real objective ---
+            if not nem.stolen_item:
+                stolen = self._steal_from_player()
+                if stolen:
+                    nem.stolen_item = stolen
+                    g._show_message(f"{nem.short()} stole {stolen['name']}!", duration=4.0)
+
         g._say(nem.short(), nem.taunt, 5.0)
+
+    def _steal_from_player(self):
+        p = self.game.player
+        rng = self._rng()
+        if p.extension_stones > 0 and rng.random() < 0.4:
+            p.extension_stones -= 1
+            return {"kind": "stone", "name": "Extension Stone"}
+        items = list(p.inventory.items)
+        if items:
+            item = items[rng.randint(0, len(items) - 1)]
+            p.inventory.remove_item(item)
+            return {"kind": "item", "name": item.display_name, "item": item.to_dict()}
+        return {}
     
     def on_area_entered(self, area_id=None, **kw):
         g = self.game
@@ -219,6 +243,22 @@ class NemesisManager:
             nem.respawn_at = self._now() + RESPAWN_DELAY
         p.trophies.append({"name": nem.name, "damage_type": nem.damage_type,
                            "generation": gen_at_kill})
+
+        # Return any stolen trophy
+        if nem.stolen_item:
+            d = nem.stolen_item
+            if d.get("kind") == "stone":
+                p.extension_stones += 1
+                g._show_message(f"You reclaimed your Extension Stone!", duration=3.0)
+            elif d.get("kind") == "item" and d.get("item"):
+                from items.item import Item
+                item = Item.from_dict(d["item"])
+                if not p.inventory.add_item(item):
+                    g.current_area.loot_drops.append(
+                        {"x": victim.x, "y": victim.y, "item": item})
+                g._show_message(f"You reclaimed {d['name']}!", duration=3.0)
+            nem.stolen_item = {}
+        
         p.recalc_stats()
 
         #rules = LootRules(favored_damage_types={nem.damage_type: 3.0},
