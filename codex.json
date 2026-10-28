@@ -2,6 +2,7 @@
   "unlocked": [
     "boss_phase_survivor",
     "commander_slayer_1",
+    "commander_slayer_10",
     "first_blood",
     "flawless_guardian",
     "guardian_10",
@@ -12,7 +13,8 @@
     "guardian_10": 10,
     "nemesis_slayer_3": 3,
     "commander_slayer_1": 1,
-    "commander_slayer_10": 3
+    "commander_slayer_10": 10,
+    "overcharge_veteran": 1
   },
   "techniques": [
     "dash_strike",

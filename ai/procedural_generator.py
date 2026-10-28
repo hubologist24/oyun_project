@@ -94,7 +94,10 @@ class ProceduralWorldGenerator(WorldGenerator):
     def _build_normal(self, profile: PlayerProfile, hints: PersonalizationHints,
                        index: int, rng) -> ExtensionSpec:
         from core.difficulty import D
-        area_level = max(1, profile.level + rng.randint(0, 3) + D.get_int("area_level_bonus"))
+        #area_level = max(1, profile.level + rng.randint(0, 3) + D.get_int("area_level_bonus"))
+        area_level = max(1, profile.level + rng.randint(0, 3)
+                 + D.get_int("area_level_bonus")
+                 + min(3, len(profile.trophies)))  
         biome = self._choose_biome(hints, rng)
 
         modifiers = self._select_modifiers_with_pairing(hints, rng)

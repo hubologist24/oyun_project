@@ -412,7 +412,7 @@ class Enemy:
 
 
     def _tick_projectiles(self, dt, player, event_bus):
-        from combat.damage import resolve_damage
+        from combat.damage import resolve_damage , level_damage_mult
         for proj in list(self.projectiles):
             proj["x"] += proj["vx"] * dt
             proj["y"] += proj["vy"] * dt
@@ -424,7 +424,8 @@ class Enemy:
                 stats = player.effective_stats
                 target_res = dict(stats.resistances)
                 target_res["armor_flat"] = stats.armor
-                dmg = resolve_damage(proj["damage"], self.damage_type, None,
+                amount = proj["damage"] * level_damage_mult(player.progression.level, self.area_level)
+                dmg = resolve_damage(amount, self.damage_type, None,
                                     target_resistances=target_res,
                                     target_category="player", world_rules=self._world_rules)
                 #event_bus.emit("attacker_info", enemy=self)
@@ -473,8 +474,10 @@ def spawn_basic_enemy(x, y, rng, area_level=1, force_behavior=None,behavior_bias
     #dmg = int((6 + area_level * 1.6) * dmg_mult * (1.6 if is_elite else 1.0))
     #hp  = int((32 + area_level * 9)  * hp_mult * (2.1 if is_elite else 1.0))
     #dmg = int((9  + area_level * 2.2) * dmg_mult * (1.7 if is_elite else 1.0))
+    dmg = int((6 + area_level * 1.6) * dmg_mult * (1.7 if is_elite else 1.0)
+          * D.get("enemy_damage_mult") * config.ENEMY_DAMAGE_GLOBAL_SCALE)
     hp  = int((32 + area_level * 9)  * hp_mult * (2.1 if is_elite else 1.0) * D.get("enemy_hp_mult"))
-    dmg = int((9  + area_level * 2.2) * dmg_mult * (1.7 if is_elite else 1.0) * D.get("enemy_damage_mult"))
+    #dmg = int((9  + area_level * 2.2) * dmg_mult * (1.7 if is_elite else 1.0) * D.get("enemy_damage_mult"))
     speed = speed * D.get("enemy_speed_mult")
     
     base_name = rng.choice(NAME_POOL[behavior])
@@ -485,8 +488,10 @@ def spawn_basic_enemy(x, y, rng, area_level=1, force_behavior=None,behavior_bias
         affixes = rng.sample(ELITE_AFFIXES, k)
     name = f"{affixes[0].title()} {base_name}" if affixes else base_name
 
+    base_xp = 18 if is_elite else 10
+    xp = int(base_xp * (1.18 ** (area_level - 1)))
     en = Enemy(x, y, name=name, hp=hp, damage=dmg, armor=area_level,
-               speed=speed, xp_reward=18 if is_elite else 10,
+               speed=speed, xp_reward=xp if is_elite else 10,
                is_elite=is_elite, area_level=area_level, behavior=behavior)
     en._aggro_range = int(en._aggro_range * D.get("enemy_aggro_mult"))
     if behavior == "brute":

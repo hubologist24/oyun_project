@@ -77,6 +77,10 @@ def enemy_attack_player(enemy, player, event_bus, world_rules=None,
 
     base_amount = (getattr(enemy, "damage", 0) * damage_multiplier
                    * getattr(enemy, "pack_damage_mult", 1.0))
+    
+    from combat.damage import level_damage_mult
+    base_amount *= level_damage_mult(player.progression.level,
+                                 getattr(enemy, "area_level", player.progression.level))
 
     player_stats = player.effective_stats
     target_resistances = dict(player_stats.resistances)

@@ -293,16 +293,21 @@ class Game:
             "bleed":     (220, 60, 60),
         }.get(dtype, (255, 255, 255))
 
+
+    def _region_has_living_boss(self, rid):
+        """A region is 'pacified' once its guardian is dead.
+        Pacified regions never receive roamer spawns."""
+        return any(b.alive and getattr(b, "region_id", None) == rid
+                for b in self.current_area.bosses)
+
     def _update_roaming_spawns(self, dt):
         self._roam_timer -= dt
         if self._roam_timer > 0:
             return
-        #self._roam_timer = 2.5
         self._roam_timer = D.get("roam_interval")
         px, py = self.player.x, self.player.y
         near = sum(1 for e in self.current_area.enemies
                 if abs(e.x - px) < 1000 and abs(e.y - py) < 1000)
-        #if near >= 45:
         if near >= D.get_int("roam_cap"):
             return
         ts = config.TILE_SIZE
@@ -314,16 +319,19 @@ class Game:
             if not (0 <= r < len(grid) and 0 <= c < len(grid[0])) or grid[r][c] != 0:
                 continue
             x, y = c * ts + ts / 2, r * ts + ts / 2
-            if math.hypot(x - px, y - py) < 520:      # off-screen
+            if math.hypot(x - px, y - py) < 520:
                 continue
             rid = self.current_area.region_at_tile(c, r)
+
+            # ── NEW: don't feed roamers into a region whose guardian is dead.
+            if not self._region_has_living_boss(rid):
+                continue
+
             ext = self.world.get_extension(rid)
             lvl = ext.spec.area_level if ext else max(2, self.player.progression.level)
             e = spawn_basic_enemy(x, y, rng, area_level=lvl)
             e.region_id = rid
-
-            e._pack_checked = True      # roamers never join packs
-
+            e._pack_checked = True
             self.current_area.enemies.append(e)
             break
 
@@ -392,9 +400,13 @@ class Game:
              self._handle_codex_unlocks(newly)
     
     def _on_level_up(self, level):
-            from core import audio
-            audio.play("level_up")
-            #self._show_message(f"Level Up! Now level {level}")
+        audio.play("level_up")
+        self.crit_bursts.append({"x": self.player.x, "y": self.player.y, "radius": 120,
+                                "life": 0.6, "max_life": 0.6, "color": (120, 220, 255)})
+        self.camera.shake(magnitude=3, duration=0.15)
+        if level % 5 == 0:
+            self.player.extension_stones += 1
+            self._show_message(f"Level {level}! Milestone: +1 Extension Stone", duration=4.0)
 
     def _say(self, speaker, text, duration=4.5):
         self.dialogue = {"speaker": speaker, "text": text, "t": duration}
@@ -1202,7 +1214,17 @@ class Game:
         self.packs.on_member_killed(enemy)
         self.terrain.on_enemy_killed(enemy)
 
-        self.player.gain_xp(enemy.xp_reward)
+        #self.player.gain_xp(enemy.xp_reward)
+
+        diff = self.player.progression.level - enemy.area_level
+        if diff <= 2:
+            xp_mult = min(1.3, 1.0 + 0.05 * max(0, -diff))   # slight bonus for punching up
+        else:
+            xp_mult = max(0.1, 1.0 - 0.15 * (diff - 2))      # grey-out farming
+        gained = max(1, int(enemy.xp_reward * xp_mult))
+        self.player.gain_xp(gained)
+        self.damage_numbers.spawn(enemy.x, enemy.y - 45, f"+{gained} XP", (110, 180, 255))
+
         self.event_bus.emit("enemy_killed", name=enemy.name)
 
         newly = self.codex.record("enemy_killed")
@@ -1397,7 +1419,10 @@ class Game:
         # Reset region pressure - guardian is dead
         self.world.region_presence[rid] = 0.0
 
-        self._show_message(f"{boss.name.upper()} HAS FALLEN.", duration=6.0)
+        #self._show_message(f"{boss.name.upper()} HAS FALLEN.", duration=6.0)
+        self._show_message(
+        f"{boss.name.upper()} HAS FALLEN.  {self._area_display_name(rid)} is pacified.",
+        duration=6.0)
         self.event_bus.emit("boss_killed", name=boss.name)
         if self._boss_attempt_active:
             self.event_bus.emit("boss_attempt_ended", result="victory",
@@ -1427,6 +1452,7 @@ class Game:
         lvl = max(self.player.progression.level, ext.spec.area_level if ext else 3) + 2
         rng = self.world.rng_service.get_stream("boss_loot")
         self._roll_boss_loot(boss, lvl, rules, rng, world_boss=False)
+        self.world.cleared_regions.add(rid)
 
     def _pickup_loot(self):
         px, py = self.player.x, self.player.y
@@ -1493,6 +1519,9 @@ class Game:
         self._boss_attempt_active = False
         self._boss_attempt_boss_id = None
 
+        self._deaths_since_boss_kill = 0
+        self._boss_deaths_this_attempt = 0
+
         # Close any modal UI that happened to be open at save time.
         if self.evolution_banner.visible:
             self.evolution_banner.dismiss()
@@ -1513,9 +1542,14 @@ class Game:
 
         self.player.stash = self.save_manager.load_stash()
 
-        self.player = Player(*self.starting_area.start_pos, self.event_bus)
+        #self.player = Player(*self.starting_area.start_pos, self.event_bus)
+        #self.player.stash = self.save_manager.load_stash()
+        #self._grant_starting_gear()          # NEW
+        self.player = Player.from_dict(data["player"], self.event_bus,
+                               codex_manager=self.codex)
         self.player.stash = self.save_manager.load_stash()
-        self._grant_starting_gear()          # NEW
+        self.player.clear_move_target()
+
         self.camera = Camera(*self.starting_area.tilemap.pixel_size())
 
         self.reactions.reset()
@@ -1574,6 +1608,7 @@ class Game:
         
         self.camera = Camera(*self.current_area.tilemap.pixel_size())
         self._update_current_region()
+        self.camera.update(self.player.x, self.player.y)
         self._show_message("Game loaded.")
 
 

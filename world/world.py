@@ -18,6 +18,7 @@ class World:
         self.gates: list[Gate] = []   # NEW: all gates across the whole world
         self.used_shrines: set = set()
         self.region_presence: dict[str, float] = {}    # NEW
+        self.cleared_regions: set[str] = set()
 
     # ---------------- gate management ----------------
     def register_starting_gate(self, room_index: int, tile_col: int, tile_row: int , side="e") -> Gate:

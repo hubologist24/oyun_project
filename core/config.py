@@ -224,7 +224,7 @@ DIFFICULTY_PRESET = None
 DIFFICULTY_GROUP_PERCENT = {
      "loot": 70,
       "boss": 70,
-      "enemy": 60,
+      "enemy": 40,
        "world": 70,
 }
 # Per-knob percent (beats group):
@@ -242,3 +242,5 @@ DIFFICULTY_ADAPTIVE_MIN = 0
 DIFFICULTY_ADAPTIVE_MAX = 100
 DIFFICULTY_ADAPTIVE_UP = 2           # % gained per flawless boss
 DIFFICULTY_ADAPTIVE_DOWN = 3         # % lost after 3 consecutive deaths
+
+ENEMY_DAMAGE_GLOBAL_SCALE = 0.65

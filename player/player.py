@@ -26,7 +26,7 @@ class Player:
 
         self.codex_manager = codex_manager      # NEW
 
-        self.extension_stones = 0
+        self.extension_stones = 3
 
         self.base_stats = Stats()
         self.effective_stats = Stats()

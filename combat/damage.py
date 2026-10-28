@@ -57,6 +57,7 @@ def apply_resistance(instances, target_resistances: Dict[str, float]):
         amount = instance.amount
         if instance.damage_type == "physical" and armor_flat > 0:
             reduction = armor_flat / (armor_flat + 100.0)
+            #reduction = armor_flat / (armor_flat + 40.0 + 6.0 * level) later maybe
             amount *= (1.0 - reduction)
         resist_pct = target_resistances.get(instance.damage_type, 0.0)
         resist_pct = max(-1.0, min(0.75, resist_pct))
@@ -88,6 +89,16 @@ def _apply_resistance_modifiers(resistances: Dict[str, float], world_rules,
     for dtype, delta in res_mods.items():
         merged[dtype] = merged.get(dtype, 0.0) + delta
     return merged
+
+
+def level_damage_mult(player_level: int, enemy_level: int) -> float:
+    """Damage an ENEMY deals to the player, scaled by level gap.
+    Player higher  -> 6% less per level, floor 35%  (lvl 15 vs 10 = 0.70)
+    Player lower   -> 3% more per level, cap 125%."""
+    diff = player_level - enemy_level
+    if diff > 0:
+        return max(0.35, 1.0 - 0.06 * diff)
+    return min(1.25, 1.0 + 0.03 * (-diff))
 
 
 def resolve_damage_sil(base_amount: float, damage_type: str, source_stats,
