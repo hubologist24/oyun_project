@@ -105,6 +105,8 @@ Design the NEXT region extension for this specific player. Guidance:
 - area_level should normally be close to the player's level ({profile.level}),
   occasionally (rarely) much higher if is_anomaly is true.
 - Keep world_modifiers to 1-3 entries with 1-3 rules each.
+- The profile's "feedback" field holds the player's push-back reasons. If too_hard > too_easy,
+  ease off; if too_easy > too_hard, escalate; never reuse a biome listed in avoid_biomes.
 
 {EXTENSION_JSON_SCHEMA_DESCRIPTION}
 """

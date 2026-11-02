@@ -13,6 +13,9 @@ from items.stash import Stash
 
 from items.weapon_subtypes import WeaponSubtypes
 
+from player.perks import apply_perks_to_stats, KEYSTONES
+from combat.damage import ConversionRule
+
 
 class Player:
     def __init__(self, x: float, y: float, event_bus,codex_manager=None):
@@ -60,6 +63,9 @@ class Player:
         self.combo_count = 0
         self.combo_timer = 0.0
 
+        self.perks = {}          # perk_id -> stack count
+        self.keystones = []      # chosen keystone ids
+
         self.alive = True
         self.trophies = []
         self.recalc_stats()
@@ -78,19 +84,48 @@ class Player:
             old_hp_ratio = self.effective_stats.hp / self.effective_stats.max_hp
         self.effective_stats = compute_effective_stats(self.base_stats, equipped_items)
 
-        for t in self.trophies[:10]:                      # NEW: capped at 10
-            dt_ = t.get("damage_type")
+        for t in self.trophies[:10]:
+            dt_ = t.get("damage_type") if isinstance(t, dict) else None
             if dt_:
                 self.effective_stats.resistances[dt_] = \
                     self.effective_stats.resistances.get(dt_, 0.0) + 0.03
             self.effective_stats.max_hp += 5
 
         if self.codex_manager is not None:
-            self.codex_manager.apply_bonuses_to_stats(self.effective_stats)      
+            self.codex_manager.apply_bonuses_to_stats(self.effective_stats)
 
-        
+        apply_perks_to_stats(self, self.effective_stats)
+
+        ks = self.active_keystones()
+        self._dash_max_charges = 3 if "phantom_dash" in ks else 2
+        self._dash_recharge_rate = 1.125 if "phantom_dash" in ks else 1.5
+        self._dash_charges = min(self._dash_charges, self._dash_max_charges)
+
         self.effective_stats.hp = int(self.effective_stats.max_hp * old_hp_ratio)
         self.effective_stats.clamp_hp()
+
+    # ---------- keystones / item effects ----------
+    def active_keystones(self):
+        ks = set(self.keystones)
+        for it in self.equipped.values():
+            g = getattr(it, "grants_keystone", None) if it is not None else None
+            if g:
+                ks.add(g)
+        return ks
+
+    def has_keystone(self, k) -> bool:
+        return k in self.active_keystones()
+
+    def item_conversion_rules(self):
+        rules = []
+        for it in self.equipped.values():
+            if it is None:
+                continue
+            for eff in getattr(it, "effects", []):
+                if eff.get("type") == "conversion":
+                    rules.append(ConversionRule(eff["from_type"], eff["to_type"],
+                                                float(eff["percent"])))
+        return rules
 
     # ---------- movement ----------
     def handle_input(self, dt: float, keys, tilemap):
@@ -260,8 +295,10 @@ class Player:
         levels = self.progression.add_xp(amount)
         for lvl in levels:
             # Simple growth per level; Phase 2 will tie this to a build system
-            self.base_stats.max_hp += 12
-            self.base_stats.base_damage += 2
+            #self.base_stats.max_hp += 12
+            #self.base_stats.base_damage += 2
+            self.base_stats.max_hp += 10
+            self.base_stats.base_damage += 1
             self.base_stats.armor += 1
             self.base_stats.strength += 1
             self.base_stats.dexterity += 1
@@ -322,6 +359,8 @@ class Player:
                 slot: (item.to_dict() if item else None)
                 for slot, item in self.equipped.items()
             },
+            "perks": dict(self.perks),
+            "keystones": list(self.keystones),
         }
 
 
@@ -423,6 +462,11 @@ class Player:
         p.extension_stones = int(d.get("extension_stones", 0))
 
         p.trophies = list(d.get("trophies", [])) if isinstance(d.get("trophies", []), list) else []
+
+        perks_d = d.get("perks", {})
+        p.perks = {str(k): int(v) for k, v in perks_d.items()} if isinstance(perks_d, dict) else {}
+        ks_d = d.get("keystones", [])
+        p.keystones = [k for k in ks_d if k in KEYSTONES] if isinstance(ks_d, list) else []
         
         p.recalc_stats()
         hp = d.get("current_hp", p.effective_stats.max_hp)

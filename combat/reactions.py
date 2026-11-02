@@ -13,6 +13,10 @@ import math
 import pygame
 from combat.damage import resolve_damage
 
+CHAIN_WINDOW = 4.0
+CHAIN_BONUS = 0.25
+CHAIN_MAX = 4
+
 REACTION_WINDOW = 3.0
 REACTION_ICD = 0.8
 
@@ -67,6 +71,8 @@ class ReactionSystem:
         self._delayed = []
         self._frozen = {}
         self._zones = []
+        self._chain = {}
+        self._echo_queue = []
 
     # ---------------- aura plumbing ----------------
     def _entry(self, target):
@@ -83,10 +89,11 @@ class ReactionSystem:
             for a in weapon.all_affixes():
                 if a.damage_type and a.damage_type not in types:
                     types.append(a.damage_type)
-        if world_rules:
-            for r in world_rules.conversion_rules_for("player"):
-                if r.from_type in types and r.to_type not in types:
-                    types.append(r.to_type)
+        rules = (list(world_rules.conversion_rules_for("player")) if world_rules else [])
+        rules += player.item_conversion_rules()
+        for r in rules:
+            if r.from_type in types and r.to_type not in types:
+                types.append(r.to_type)
         return types
 
     def _pick(self, player, target, world_rules):
@@ -251,6 +258,7 @@ class ReactionSystem:
         if hasattr(target, "stagger_timer"):
             target.stagger_timer = 0.0
         base = max(4, hit)
+        
         color = COLORS["crimson_ice"]
 
         self.game.terrain.add_surface(target.x, target.y, 80, "ice", 5.0, power=base)
@@ -262,12 +270,23 @@ class ReactionSystem:
         self._hurt(target, base * 1.5, "bleed", color)
 
     # ---------------- reaction effects ----------------
-    def _fire(self, name, target, hit):
+    def _fire(self, name, target, hit, echo=False):
         g = self.game
         color = COLORS[name]
-        g.damage_numbers.spawn(target.x, target.y - 48, LABELS[name], color)
-        self._ring(target.x, target.y, 70, color)
-        base = max(4, hit)
+        depth = 0
+        if not echo:
+            c = self._chain.get(id(target))
+            depth = c["depth"] + 1 if (c and c["until"] > self.clock) else 0
+            self._chain[id(target)] = {"depth": depth, "until": self.clock + CHAIN_WINDOW,
+                                       "target": target}
+        label = LABELS[name]
+        if echo:
+            label = "ECHO " + label
+        elif depth:
+            label += f" x{depth + 1}"
+        g.damage_numbers.spawn(target.x, target.y - 48, label, color)
+        self._ring(target.x, target.y, 70 + 10 * depth, color)
+        base = int(max(4, hit) * (1.0 + CHAIN_BONUS * min(depth, CHAIN_MAX)))
         if name == "thermal_shock":
             self._hurt(target, base * 2.5, "fire", color)
         elif name == "superconduct":
@@ -311,9 +330,24 @@ class ReactionSystem:
             kind, radius, duration = surf
             g.terrain.add_surface(target.x, target.y, radius, kind, duration, power=base)
 
+        if not echo and g.player.has_keystone("resonance"):
+            self._echo_queue.append({"t": 0.5, "name": name, "target": target, "hit": hit * 0.5})
+
     # ---------------- per-frame ----------------
     def tick(self, dt):
         self.clock += dt
+
+        for q in list(self._echo_queue):
+            q["t"] -= dt
+            if q["t"] > 0:
+                continue
+            self._echo_queue.remove(q)
+            if q["target"].alive:
+                self._fire(q["name"], q["target"], q["hit"], echo=True)
+        for k, c in list(self._chain.items()):
+            if c["until"] <= self.clock or not c["target"].alive:
+                del self._chain[k]
+
         for d in list(self._dots):
             t = d["target"]
             d["left"] -= dt

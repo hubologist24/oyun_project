@@ -30,6 +30,15 @@ TECHNIQUES = {
     "heavy_reversal": ("HEAVY REVERSAL", (255, 160, 80)),
 }
 
+MASTERY_EFFECTS = {
+    "reverse_slash":  [{"stagger": 0.8}, {"stagger": 1.0, "expose": 2.0}, {"stagger": 1.3, "expose": 3.0}],
+    "dash_strike":    [{"slow": (1.5, 0.6)}, {"stagger": 0.4}, {"expose": 2.5}],
+    "intercept":      [{"stagger": 0.6}, {"slow": (2.0, 0.5)}, {"expose": 2.5}],
+    "retreat_shot":   [{"slow": (3.0, 0.4)}, {"slow": (3.5, 0.3)}, {"expose": 2.0}],
+    "perfect_range":  [{"expose": 1.5}, {"expose": 2.5}, {"expose": 3.5, "slow": (2.0, 0.5)}],
+    "heavy_reversal": [{"stagger": 0.4}, {"expose": 6.0}, {"stagger": 0.8}],
+}
+
 
 class KineticTracker:
     def __init__(self, game):
@@ -201,5 +210,22 @@ class KineticTracker:
             target.apply_slow(2.5, 0.5)
         elif t == "heavy_reversal":
             self.game.reactions.expose(target, 4.0)
+
+
+        m = self._mastery(t)
+        if "stagger" in m and hasattr(target, "apply_stagger"):
+            target.apply_stagger(m["stagger"])
+        if "slow" in m and hasattr(target, "apply_slow"):
+            target.apply_slow(*m["slow"])
+        if "expose" in m:
+            self.game.reactions.expose(target, m["expose"])
         # dash_strike (pierce) and perfect_range (bonus pierce) are
         # resolved in the damage call / projectile loop respectively.
+
+
+    def _mastery(self, t):
+        tiers = MASTERY_EFFECTS.get(t, [])
+        out = {}
+        for i in range(min(self.game.codex.mastery_tier(t), len(tiers))):
+            out.update(tiers[i])
+        return out

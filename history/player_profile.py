@@ -43,6 +43,8 @@ class PlayerProfile:
 
     favorite_technique: Optional[str] = None
 
+    feedback: dict = field(default_factory=dict)   # player push-back reasons
+
     def to_dict(self):
         return {
             "level": self.level,
@@ -68,6 +70,7 @@ class PlayerProfile:
             "items_discarded": self.items_discarded,
             "trophies": self.trophies,
             "favorite_technique": self.favorite_technique,
+            "feedback": self.feedback,
         
         }
 

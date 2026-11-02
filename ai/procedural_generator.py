@@ -95,9 +95,15 @@ class ProceduralWorldGenerator(WorldGenerator):
                        index: int, rng) -> ExtensionSpec:
         from core.difficulty import D
         #area_level = max(1, profile.level + rng.randint(0, 3) + D.get_int("area_level_bonus"))
+        #area_level = max(1, profile.level + rng.randint(0, 3)
+        #         + D.get_int("area_level_bonus")
+        #         + min(3, len(profile.trophies)))  
+
         area_level = max(1, profile.level + rng.randint(0, 3)
                  + D.get_int("area_level_bonus")
-                 + min(3, len(profile.trophies)))  
+                 + min(3, len(profile.trophies))
+                 + hints.difficulty_nudge)
+
         biome = self._choose_biome(hints, rng)
 
         modifiers = self._select_modifiers_with_pairing(hints, rng)
@@ -154,15 +160,19 @@ class ProceduralWorldGenerator(WorldGenerator):
         }.get(hints.dominant_damage_type, [])
 
         pool = list(BIOME_POOL)
-        weights = [3 if b in thematic else 1 for b in pool]
+        #weights = [3 if b in thematic else 1 for b in pool]
+        weights = [(3 if b in thematic else 1) * (0.2 if b in hints.avoid_biomes else 1.0)
+                   for b in pool]
         return rng.choices(pool, weights=weights, k=1)[0]
 
     # ---------------- challenge + solution pairing ----------------
     def _select_modifiers_with_pairing(self, hints, rng, force_count=None):
         affinity_pool = DAMAGE_AFFINITY_MODIFIERS.get(hints.dominant_damage_type, [])
         combined_pool = list(dict.fromkeys(affinity_pool + DEFAULT_MODIFIER_POOL))
+        
 
-        struggling = hints.weak_defense or hints.boss_struggling
+        #struggling = hints.weak_defense or hints.boss_struggling
+        struggling = hints.weak_defense or hints.boss_struggling or hints.difficulty_nudge < 0
         add_challenge = (bool(hints.suggested_challenge_damage_type)
                         and rng.random() < (0.35 if struggling else 0.6))
 
@@ -257,11 +267,18 @@ class ProceduralWorldGenerator(WorldGenerator):
         else:
             mechanic = rng.choice(BOSS_MECHANIC_POOL)
 
+        bias = "high" if hints.boss_dominant else ("low" if hints.boss_struggling else "normal")
+        if hints.difficulty_nudge < 0:
+            bias = "low"
+        elif hints.difficulty_nudge > 0 and bias == "normal":
+            bias = "high"
+
         return {
             "mechanic_archetype": mechanic,
             "punishes_damage_type": hints.dominant_damage_type if hints.frequent_death_causes else None,
             "rewards_on_defeat_damage_type": hints.suggested_enabling_damage_type,
-            "difficulty_bias": "high" if hints.boss_dominant else ("low" if hints.boss_struggling else "normal"),
+          #  "difficulty_bias": "high" if hints.boss_dominant else ("low" if hints.boss_struggling else "normal"),
+             "difficulty_bias": bias,
         }
 
     def _name_for_biome(self, biome: str, index: int) -> str:

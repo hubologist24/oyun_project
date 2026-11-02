@@ -6,7 +6,8 @@
     "first_blood",
     "flawless_guardian",
     "guardian_10",
-    "nemesis_slayer_3"
+    "nemesis_slayer_3",
+    "technique_master"
   ],
   "progress": {
     "first_blood": 1,
@@ -18,10 +19,16 @@
   },
   "techniques": [
     "dash_strike",
+    "heavy_reversal",
     "intercept",
-    "not_a_real_technique",
     "perfect_range",
     "retreat_shot",
     "reverse_slash"
-  ]
+  ],
+  "technique_uses": {
+    "intercept": 617,
+    "reverse_slash": 224,
+    "heavy_reversal": 25,
+    "dash_strike": 7
+  }
 }

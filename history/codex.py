@@ -66,6 +66,8 @@ KINETIC_TECHNIQUES_ALL = {
     "retreat_shot", "perfect_range", "heavy_reversal",
 }
 
+MASTERY_THRESHOLDS = (25, 100, 250)
+
 
 class CodexManager:
     def __init__(self, path=CODEX_FILE):
@@ -73,6 +75,8 @@ class CodexManager:
         self.unlocked = set()
         self.progress = defaultdict(int)
         self.techniques_discovered = set()
+        self.technique_uses = defaultdict(int)
+        self._writes = 0
         self._load()
 
     # ---------- persistence ----------
@@ -89,13 +93,16 @@ class CodexManager:
             return
         self.unlocked = set(data.get("unlocked", []))
         self.progress = defaultdict(int, data.get("progress", {}))
-        self.techniques_discovered = set(data.get("techniques", []))
+        #self.techniques_discovered = set(data.get("techniques", []))
+        self.techniques_discovered = set(data.get("techniques", [])) & KINETIC_TECHNIQUES_ALL
+        self.technique_uses = defaultdict(int, data.get("technique_uses", {}))
 
     def save(self):
         data = {
             "unlocked": sorted(self.unlocked),
             "progress": dict(self.progress),
             "techniques": sorted(self.techniques_discovered),
+            "technique_uses": dict(self.technique_uses),
         }
         try:
             with open(self.path, "w") as f:
@@ -120,6 +127,10 @@ class CodexManager:
 
         if event_type == "kinetic_technique":
             name = context.get("name")
+
+            if name in KINETIC_TECHNIQUES_ALL:
+                self.technique_uses[name] += 1
+
             if name:
                 self.techniques_discovered.add(name)
                 if (self.techniques_discovered >= KINETIC_TECHNIQUES_ALL
@@ -141,11 +152,19 @@ class CodexManager:
 
         #if newly:
         #    self.save()
-        self.save()
+        #self.save()
+        #return newly
+        self._writes += 1
+        if newly or self._writes % 10 == 0:
+            self.save()
         return newly
 
     def achievement_info(self, aid):
         return ACHIEVEMENTS.get(aid, {})
+
+    def mastery_tier(self, name):
+        n = self.technique_uses.get(name, 0)
+        return sum(1 for t in MASTERY_THRESHOLDS if n >= t)
 
     def progress_for(self, aid):
         ach = ACHIEVEMENTS.get(aid, {})

@@ -26,6 +26,15 @@ class _Difficulty:
         else:
             self.percent = getattr(config, "DIFFICULTY_PERCENT", 0)
         self.percent = max(0, min(100, self.percent))
+        self.player_level = 1                                  # NEW
+
+    def set_player_level(self, level):                         # NEW
+        self.player_level = max(1, int(level))
+
+    def level_bonus(self):                                     # NEW
+        per10 = getattr(config, "LEVEL_DIFFICULTY_PERCENT_PER_10", 0)
+        cap   = getattr(config, "LEVEL_DIFFICULTY_BONUS_CAP", 100)
+        return min(cap, (self.player_level // 10) * per10)
 
     def set_percent(self, p):
         self.percent = max(0, min(100, p))
@@ -38,10 +47,12 @@ class _Difficulty:
         kp = getattr(config, "DIFFICULTY_KNOB_PERCENT", {})
         gp = getattr(config, "DIFFICULTY_GROUP_PERCENT", {})
         if name in kp:
-            return kp[name]
-        if group in gp:
-            return gp[group]
-        return self.percent
+            base = kp[name]
+        elif group in gp:
+            base = gp[group]
+        else:
+            base = self.percent
+        return min(100, base + self.level_bonus())   # ← additive everywhere
 
     def get(self, name):
         ov = getattr(config, "DIFFICULTY_OVERRIDES", {})
@@ -56,6 +67,9 @@ class _Difficulty:
 
     def label(self):
         best = min(PRESETS.items(), key=lambda kv: abs(kv[1] - self.percent))
+        bonus = self.level_bonus()
+        if bonus:
+            return f"{self.percent}% (~{best[0]}) +{bonus}% (level)"
         return f"{self.percent}% (~{best[0]})"
 
 

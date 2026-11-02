@@ -1,0 +1,345 @@
+"""Combat: hits, crits, attacks, projectiles, phase transitions, death."""
+import math
+
+import core.config as config
+from core import audio
+from core.difficulty import D
+from combat.combat import player_attack_enemy
+from enemies.dialogue import boss_phase_line, boss_death_taunt
+from world import swing_fx
+from core.game_parts.constants import CRIT_BURST_RADIUS, CRIT_BURST_RATIO
+
+
+class CombatMixin:
+
+    def _damage_type_color(self, dtype):
+        return {
+            "fire":      (255, 130, 40),
+            "cold":      (120, 200, 255),
+            "lightning": (255, 240, 120),
+            "chaos":     (200, 90, 255),
+            "physical":  (220, 220, 220),
+            "poison":    (140, 230, 120),
+            "bleed":     (220, 60, 60),
+        }.get(dtype, (255, 255, 255))
+
+    def _on_critical_hit(self, x, y, damage_type, crit_damage, enemy=None, **kwargs):
+        """Elemental crit detonation: splash a small AoE of the same damage
+        type around the struck enemy."""
+        from combat.combat import _enemy_category
+        from combat.damage import resolve_damage
+        if enemy is not None and self.player.has_keystone("crit_echo"):
+            self._echoes.append({"t": 0.4, "enemy": enemy, "dtype": damage_type,
+                                 "dmg": max(1, int(crit_damage * 0.4))})
+
+        rules = self._active_world_rules()
+        explosion_damage = max(1, int(crit_damage * CRIT_BURST_RATIO))
+        radius = CRIT_BURST_RADIUS
+
+        # Splash to nearby enemies (not the original target).
+        for other in list(self.current_area.enemies):
+            if not other.alive:
+                continue
+            d = math.hypot(other.x - x, other.y - y)
+            if d < 1.0 or d > radius:
+                continue
+            dmg = resolve_damage(explosion_damage, damage_type, None,
+                                 target_resistances=other.resistances,
+                                 world_rules=rules,
+                                 target_category=_enemy_category(other),
+                                 source_category="player")
+            other.take_damage(dmg)
+            self.damage_numbers.spawn(other.x, other.y - 25, str(dmg),
+                                      self._damage_type_color(damage_type))
+            if not other.alive:
+                self._on_enemy_killed(other)
+
+        # Also splash onto bosses if they're in range.
+        for boss in self.current_area.bosses:
+            if not boss.alive:
+                continue
+            if math.hypot(boss.x - x, boss.y - y) > radius:
+                continue
+            dmg = resolve_damage(explosion_damage, damage_type, None,
+                                 target_resistances=boss.resistances,
+                                 world_rules=rules,
+                                 target_category="boss",
+                                 source_category="player")
+            boss.take_damage(dmg)
+            self.damage_numbers.spawn(boss.x, boss.y - 40, str(dmg),
+                                      self._damage_type_color(damage_type))
+
+            if getattr(boss, "phase_just_changed", False):
+                boss.phase_just_changed = False
+                self._trigger_phase_transition(boss)
+
+            if not boss.alive:
+                self._on_boss_killed(boss)
+
+    def _tick_echoes(self, dt):
+        for e in list(self._echoes):
+            e["t"] -= dt
+            if e["t"] > 0:
+                continue
+            self._echoes.remove(e)
+            t = e["enemy"]
+            if not t.alive:
+                continue
+            t.take_damage(e["dmg"])
+            self.damage_numbers.spawn(t.x, t.y - 35, f"{e['dmg']} echo",
+                                      self._damage_type_color(e["dtype"]))
+            if getattr(t, "phase_just_changed", False):
+                t.phase_just_changed = False
+                self._trigger_phase_transition(t)
+            if not t.alive:
+                if getattr(t, "is_boss", False):
+                    self._on_boss_killed(t)
+                else:
+                    self._on_enemy_killed(t)
+
+    def _on_player_hit_feedback(self, source=None, damage=0, damage_type=None):
+        self.damage_numbers.spawn(self.player.x, self.player.y - 30, str(damage), (255, 90, 90))
+        self.camera.shake(magnitude=6, duration=0.20)
+        self._trigger_hitstop(0.04)
+        self.player.combo_count = 0
+        self.player.combo_timer = 0.0
+        audio.play("hit_player")
+
+        # --- status effect application ---
+        if not self.player.alive:
+            return
+        if damage_type in ("fire", "chaos", "poison"):
+            self.player.apply_burn(damage_type, damage)
+        elif damage_type == "cold":
+            self.player.apply_slow(2.0, 0.6)
+        elif damage_type == "lightning":
+            self.player.apply_stagger(0.35)
+
+    def _trigger_hitstop(self, duration: float):
+        # Cap so a burst of hits can't lock the game.
+        self._hitstop_timer = min(0.12, max(self._hitstop_timer, duration))
+
+    def _nearest_boss(self, max_dist=700):
+        best, best_d = None, max_dist
+        for b in self.current_area.bosses:
+            if not b.alive:
+                continue
+            d = math.hypot(b.x - self.player.x, b.y - self.player.y)
+            if d < best_d:
+                best, best_d = b, d
+        return best
+
+    def _live_attack_targets_sil(self):
+        targets = [e for e in self.current_area.enemies if e.alive]
+        boss = self.current_area.boss
+        if boss is not None and boss.alive:
+            targets.append(boss)
+        return targets
+
+    def _live_attack_targets(self):
+        targets = [e for e in self.current_area.enemies if e.alive]
+        targets.extend(b for b in self.current_area.bosses if b.alive)
+        return targets
+
+    def _apply_player_hit(self, target, world_rules, damage_multiplier=1.0, techniques=None):
+        if (self.player.has_keystone("executioner") and getattr(target, "max_hp", 0)
+                and target.hp < target.max_hp * 0.3):
+            damage_multiplier *= 1.5
+
+        techniques = list(techniques or [])
+        pierce = "dash_strike" in techniques
+        is_boss = getattr(target, "is_boss", False)
+        if is_boss:
+            if not self._boss_attempt_active and not getattr(target, "is_nemesis", False):
+                self._boss_attempt_active = True
+                self._boss_attempt_boss_id = target.name
+                self._boss_deaths_this_attempt = 0
+                self.event_bus.emit("boss_attempt_started", boss_id=target.name)
+                self._boss_greeting(target)
+            dmg = player_attack_enemy(self.player, target, self.event_bus,
+                                      world_rules=world_rules,
+                                      damage_multiplier=damage_multiplier, pierce=pierce)
+            if dmg > 0:
+                self._trigger_hitstop(0.06)
+            self.camera.shake(magnitude=4, duration=0.12)
+            audio.play("hit_boss")
+            self.damage_numbers.spawn(target.x, target.y - 40, str(dmg), (255, 215, 90))
+            if techniques:
+                self.kinetic.trigger(techniques, target)
+            if target.alive:
+                self.reactions.on_hit(target, dmg, self.player, world_rules)
+            if getattr(target, "phase_just_changed", False):
+                target.phase_just_changed = False
+                self._trigger_phase_transition(target)
+            self.event_bus.emit("boss_attempt_damage")
+            if not target.alive:
+                self._on_boss_killed(target)
+        else:
+            dmg = player_attack_enemy(self.player, target, self.event_bus,
+                                      world_rules=world_rules,
+                                      damage_multiplier=damage_multiplier, pierce=pierce)
+            self.damage_numbers.spawn(target.x, target.y - 25, str(dmg), (255, 255, 255))
+            if techniques:
+                self.kinetic.trigger(techniques, target)
+            if target.alive:
+                self.reactions.on_hit(target, dmg, self.player, world_rules)
+            if not target.alive:
+                self._on_enemy_killed(target)
+
+    def _trigger_phase_transition(self, boss):
+        """Hitstop + shake + audio cue + screen ring. Pure feel."""
+        self._trigger_hitstop(0.18)
+        self.camera.shake(magnitude=10, duration=0.35)
+        audio.play("evolution")
+        self._show_message(
+            f"{boss.name} enters Phase {boss.phase_index + 1}!",
+            duration=1.6,
+        )
+        self.crit_bursts.append({
+            "x": boss.x, "y": boss.y,
+            "radius": 140,
+            "life": 0.55, "max_life": 0.55,
+            "color": (255, 90, 200),
+        })
+        if not getattr(boss, "is_nemesis", False):
+            self._say(boss.name, boss_phase_line(boss.phase_index), 3.0)
+
+    def _try_attack(self):
+        if not self.player.alive or not self.player.can_attack():
+            return
+
+        from combat.attack_patterns import find_arc_targets, spawn_projectile
+
+        profile = self.player.current_attack_profile()
+        self.player.start_attack_cooldown(profile)
+        world_rules = self._active_world_rules()
+
+        if profile.kind == "projectile":
+            proj = spawn_projectile(
+                self.player, profile,
+                damage_type=self.player.effective_stats.primary_damage_type,
+                world_rules=world_rules,
+            )
+            proj.technique = self.kinetic.classify_ranged(self.player)
+            self.player_projectiles.append(proj)
+            weapon = self.player.equipped.get("weapon")
+            self.event_bus.emit("skill_used", skill="basic_attack", damage=0, target=None,
+                                damage_type=self.player.effective_stats.primary_damage_type,
+                                weapon_name=weapon.display_name if weapon else None)
+            return
+
+        swing_tech = self.kinetic.classify_melee(self.player, profile)
+        if swing_tech == "reverse_slash":
+            profile = self.kinetic.widen(profile)
+
+        # Spawn the arc/cone FX before checking hits so a whiffed swing still shows.
+        swing_fx.spawn_swing(self.player_swings, self.player.x, self.player.y,
+                             self.player.facing, profile)
+
+        targets = self._live_attack_targets()
+        hits = find_arc_targets(self.player, targets, profile)
+        if not profile.hits_all:
+            hits = hits[:1]
+
+        if hits:
+            self.player.combo_count += 1
+            self.player.combo_timer = 2.0
+        combo_mult = 1.0 + min(self.player.combo_count, 10) * 0.06
+
+        if hits and self.player.combo_count % 5 == 0 and self.player.has_keystone("rhythm"):
+            for t in hits:
+                self.reactions.expose(t, 3.0)
+            self._show_message("RHYTHM!", duration=0.8)
+
+        for target in hits:
+            techs = [swing_tech] if swing_tech else []
+            if self.kinetic.is_intercept(target):
+                techs.append("intercept")
+            self._apply_player_hit(target, world_rules,
+                                   profile.damage_multiplier * combo_mult, techs)
+
+    def _update_player_projectiles(self, dt):
+        area = self.current_area
+        for proj in list(self.player_projectiles):
+            proj.update(dt)
+
+            if not proj.alive:
+                self.player_projectiles.remove(proj)
+                continue
+            if area.tilemap.collides_rect(proj.rect):
+                self.player_projectiles.remove(proj)
+                continue
+
+            consumed = False
+            for enemy in list(area.enemies):
+                if not enemy.alive or id(enemy) in proj.hit_ids:
+                    continue
+                if proj.rect.colliderect(enemy.rect):
+                    proj.hit_ids.add(id(enemy))
+                    techs = self.kinetic.projectile_techniques(proj)
+                    self._apply_player_hit(enemy, proj.world_rules, proj.damage_multiplier, techs)
+                    if not proj.piercing:
+                        if "perfect_range" in techs and not proj.bonus_used:
+                            proj.bonus_used = True      # Perfect Range: pierce one extra
+                            continue
+                        consumed = True
+                        break
+
+            if not consumed:
+                for boss in list(area.bosses):
+                    if not boss.alive or id(boss) in proj.hit_ids:
+                        continue
+                    if proj.rect.colliderect(boss.rect):
+                        proj.hit_ids.add(id(boss))
+                        techs = self.kinetic.projectile_techniques(proj)
+                        self._apply_player_hit(boss, proj.world_rules, proj.damage_multiplier, techs)
+                        if not proj.piercing:
+                            if "perfect_range" in techs and not proj.bonus_used:
+                                proj.bonus_used = True
+                                continue
+                            consumed = True
+                            break
+
+            if consumed and proj in self.player_projectiles:
+                self.player_projectiles.remove(proj)
+
+    def _clear_player_projectiles(self):
+        self.player_projectiles.clear()
+
+    def _on_player_death(self, cause=None):
+        if self._boss_attempt_active:
+            self._boss_deaths_this_attempt += 1
+
+        lost = self.player.progression.lose_xp_progress(D.get("death_xp_penalty"))
+        msg = "You died. Respawning..."
+        if lost > 0:
+            msg = f"You died (-{lost} XP progress). Respawning..."
+        self._show_message(msg)
+
+        if self._boss_attempt_active:
+            b = self._nearest_boss(1500)
+            if b:
+                self._say(b.name, boss_death_taunt(self._current_profile().main_damage))
+            self.event_bus.emit("boss_attempt_ended", result="death",
+                                boss_id=self._boss_attempt_boss_id)
+            self._boss_attempt_active = False
+            self._boss_attempt_boss_id = None
+
+        # --- Adaptive Difficulty Tracking ---
+        self._deaths_since_boss_kill = getattr(self, "_deaths_since_boss_kill", 0) + 1
+        if (getattr(config, "DIFFICULTY_ADAPTIVE", False)
+                and self._deaths_since_boss_kill >= 3):
+            D.adjust(-getattr(config, "DIFFICULTY_ADAPTIVE_DOWN", 3))
+            self._deaths_since_boss_kill = 0
+            self._show_message(f"Difficulty adjusts: {D.label()}", duration=2.0)
+
+        self.nemesis.on_player_death(cause)
+
+    def _respawn_player(self):
+        self.player.x, self.player.y = self.current_area.region_start.get(
+            self.current_area_id, self.current_area.start_pos)
+        self.player.alive = True
+        self.player.heal_to_full()
+        self.terrain.clear_hostile()
+        self._respawn_timer = 1.5
+        self._show_message("Respawned.")

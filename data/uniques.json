@@ -1,0 +1,65 @@
+{
+  "uniques": [
+    {
+      "id": "emberheart", "name": "Emberheart", "base_name": "Emberheart Blade",
+      "slot": "weapon", "weapon_subtype": "sword", "min_level": 5,
+      "implicit": {"modifier": "fire_damage", "damage_type": "fire", "value": 75},
+      "affixes": [
+        {"kind": "prefix", "modifier": "life", "value": 60},
+        {"kind": "suffix", "modifier": "critical_chance", "value": 6}
+      ],
+      "effects": [{"type": "conversion", "from_type": "fire", "to_type": "chaos", "percent": 0.30}],
+      "grants_keystone": null
+    },
+    {
+      "id": "voidglass", "name": "Voidglass", "base_name": "Voidglass Staff",
+      "slot": "weapon", "weapon_subtype": "long_wand", "min_level": 8,
+      "implicit": {"modifier": "chaos_damage", "damage_type": "chaos", "value": 55},
+      "affixes": [{"kind": "suffix", "modifier": "attack_speed", "value": 10}],
+      "effects": [{"type": "conversion", "from_type": "chaos", "to_type": "cold", "percent": 0.35}],
+      "grants_keystone": null
+    },
+    {
+      "id": "cinderveil", "name": "Cinderveil", "base_name": "Cinderveil Vestments",
+      "slot": "chest", "min_level": 6,
+      "implicit": {"modifier": "armor", "damage_type": null, "value": 45},
+      "affixes": [
+        {"kind": "prefix", "modifier": "life", "value": 70},
+        {"kind": "suffix", "modifier": "resist_fire", "value": 25},
+        {"kind": "suffix", "modifier": "resist_cold", "value": 25}
+      ],
+      "effects": [],
+      "grants_keystone": "phantom_dash"
+    },
+    {
+      "id": "stormthread", "name": "Stormthread", "base_name": "Stormthread Band",
+      "slot": "ring", "min_level": 10,
+      "affixes": [
+        {"kind": "prefix", "modifier": "lightning_damage", "damage_type": "lightning", "value": 25},
+        {"kind": "suffix", "modifier": "critical_chance", "value": 8}
+      ],
+      "effects": [],
+      "grants_keystone": "crit_echo"
+    },
+    {
+      "id": "reapers_tithe", "name": "Reaper's Tithe", "base_name": "Reaper's Tithe",
+      "slot": "amulet", "min_level": 12,
+      "affixes": [
+        {"kind": "prefix", "modifier": "life", "value": 50},
+        {"kind": "suffix", "modifier": "critical_chance", "value": 5}
+      ],
+      "effects": [],
+      "grants_keystone": "executioner"
+    },
+    {
+      "id": "twinned_signet", "name": "Twinned Signet", "base_name": "Twinned Signet",
+      "slot": "ring", "min_level": 15,
+      "affixes": [
+        {"kind": "prefix", "modifier": "life", "value": 40},
+        {"kind": "suffix", "modifier": "attack_speed", "value": 8}
+      ],
+      "effects": [],
+      "grants_keystone": "resonance"
+    }
+  ]
+}

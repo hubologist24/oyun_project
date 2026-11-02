@@ -17,7 +17,10 @@ def player_attack_enemy(player, enemy, event_bus, world_rules=None,
                         damage_multiplier: float = 1.0,
                         rng: random.Random | None = None,pierce: bool = False) -> int:
     rng = rng or random
-    conversion_rules = world_rules.conversion_rules_for("player") if world_rules else None
+    #conversion_rules = world_rules.conversion_rules_for("player") if world_rules else None
+    conversion_rules = list(world_rules.conversion_rules_for("player")) if world_rules else []
+    conversion_rules += player.item_conversion_rules()
+    conversion_rules = conversion_rules or None
     stats = player.effective_stats
 
     base_amount = stats.base_damage * damage_multiplier
@@ -52,7 +55,7 @@ def player_attack_enemy(player, enemy, event_bus, world_rules=None,
 
     if is_crit:
         event_bus.emit("critical_hit",
-                    x=enemy.x, y=enemy.y,
+                    x=enemy.x, y=enemy.y, enemy=enemy,
                     damage_type=stats.primary_damage_type,
                     crit_damage=dmg)
 

@@ -20,6 +20,9 @@ from items.tiers import resolve_tier_for_roll, roll_value_for_tier, get_tier_tab
 
 GUARANTEE_CHANCE = 0.25
 
+UNIQUE_CHANCE = 0.02         # regular drops
+UNIQUE_CHANCE_BOSS = 0.12    # boss slots (those pass force_affix_counts)
+
 WEAPON_BASES_BY_SUBTYPE = {
     "sword": [
         ("Rusty Sword", "physical_damage"),
@@ -107,6 +110,13 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
         ctx.update(world_context)
     world_rules = ctx.get("world_rules")
     loot_rules = ctx.get("loot_rules")
+
+    if force_slot is None and force_rarity is None and force_weapon_subtype is None:
+        chance = UNIQUE_CHANCE_BOSS if force_affix_counts else UNIQUE_CHANCE
+        if rng.random() < chance:
+            uniq = generate_unique_item(rng, area_level, ctx)
+            if uniq is not None:
+                return uniq
 
     slot_category = _roll_slot_category(rng, force_slot)
     item_level = max(1, area_level + rng.randint(-1, 2))
@@ -339,3 +349,35 @@ def _roll_affix_from_pool_biased(pool, rng, item_level, world_rules, used_affix_
         value=round(value, 1),
         creation_tier_range=creation_range,
     )
+
+def generate_unique_item(rng, area_level, ctx=None):
+    from items.uniques import eligible_uniques
+    pool = eligible_uniques(area_level)
+    if not pool:
+        return None
+    u = rng.choice(pool)
+    ctx = ctx or DEFAULT_WORLD_CONTEXT
+
+    def mk(kind, spec, idx):
+        v = spec["value"]
+        return RolledAffix(kind=kind,
+                           affix_id="implicit_base" if kind == "implicit" else f"unique_{idx}_{spec['modifier']}",
+                           display_name="", modifier=spec["modifier"],
+                           damage_type=spec.get("damage_type"), tier="U",
+                           value=v, creation_tier_range=[v, v])
+
+    item = Item(base_name=u["base_name"], slot=u["slot"], rarity=Item.RARITY_UNIQUE,
+                item_id=None, weapon_subtype=u.get("weapon_subtype"))
+    item.unique_id = u["id"]
+    item.display_name_override = u["name"]
+    item.item_level = max(1, area_level)
+    item.implicit = mk("implicit", u["implicit"], 0) if u.get("implicit") else None
+    item.prefixes = [mk("prefix", a, i) for i, a in enumerate(u.get("affixes", []))
+                     if a.get("kind", "prefix") == "prefix"]
+    item.suffixes = [mk("suffix", a, i) for i, a in enumerate(u.get("affixes", []))
+                     if a.get("kind") == "suffix"]
+    item.creation_context = {"world_id": ctx.get("world_id", "world_0"),
+                             "extension_id": ctx.get("extension_id", "starting_world"),
+                             "item_level": item.item_level, "area_level": area_level}
+    item.recompute_flat_bonuses()
+    return item

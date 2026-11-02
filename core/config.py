@@ -244,3 +244,22 @@ DIFFICULTY_ADAPTIVE_UP = 2           # % gained per flawless boss
 DIFFICULTY_ADAPTIVE_DOWN = 3         # % lost after 3 consecutive deaths
 
 ENEMY_DAMAGE_GLOBAL_SCALE = 0.65
+
+# =========================================================================
+# LEVEL-SCALED DIFFICULTY
+# Every N levels, the master difficulty gets +X% on top of DIFFICULTY_PERCENT.
+# Per-knob and per-group percentages still win over this (explicit overrides
+# never get scaled) — so if you ever set DIFFICULTY_KNOB_PERCENT["enemy_hp_mult"]=30
+# that stays 30 forever, only the "default" curve scales.
+# =========================================================================
+LEVEL_DIFFICULTY_PERCENT_PER_10 = 5
+LEVEL_DIFFICULTY_BONUS_CAP = 50
+
+
+# =========================================================================
+# AMBIENT WORLD EVENTS (random "things that happen" during play)
+# =========================================================================
+AMBIENT_EVENTS_ENABLED = True
+AMBIENT_EVENT_MIN_INTERVAL = 90.0     # seconds between events (min)
+AMBIENT_EVENT_MAX_INTERVAL = 180.0    # seconds between events (max)
+AMBIENT_EVENT_SAFE_ROOM_PROTECTION = True   # don't fire while in safe room

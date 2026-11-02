@@ -72,6 +72,10 @@ def attach_extension(level, extension, gate, rng_service, world=None):
     tm = level.tilemap
 
     stream = rng_service.derive_child("world", f"extension:{rid}:area")
+
+    region_cleared = (world is not None
+                      and rid in getattr(world, "cleared_regions", set()))
+
     area = build_procedural_area(
         stream, area_level=spec.area_level, cols=spec.map_cols,
         rows=spec.map_rows, room_count=spec.room_count,
@@ -140,24 +144,25 @@ def attach_extension(level, extension, gate, rng_service, world=None):
     # --- enemies ---
     spawn_rng = rng_service.derive_child("world", f"extension:{rid}:runtime")
     bias = getattr(spec, "enemy_behavior_bias", None) or {}
-    for (x0, y0, x1, y1) in area["enemy_rooms"]:
-        for _ in range(spawn_rng.randint(9, 15)):
-            col = spawn_rng.randint(x0 + 1, max(x0 + 1, x1 - 2)) + ox
-            row = spawn_rng.randint(y0 + 1, max(y0 + 1, y1 - 2)) + oy
-            e = spawn_basic_enemy(col * ts + ts / 2, row * ts + ts / 2,
-                                  spawn_rng, area_level=spec.area_level,
-                                  behavior_bias=bias)
+    if not region_cleared:
+        for (x0, y0, x1, y1) in area["enemy_rooms"]:
+            for _ in range(spawn_rng.randint(9, 15)):
+                col = spawn_rng.randint(x0 + 1, max(x0 + 1, x1 - 2)) + ox
+                row = spawn_rng.randint(y0 + 1, max(y0 + 1, y1 - 2)) + oy
+                e = spawn_basic_enemy(col * ts + ts / 2, row * ts + ts / 2,
+                                    spawn_rng, area_level=spec.area_level,
+                                    behavior_bias=bias)
 
-            e.region_id = rid
-            elem = BIOME_ELEMENT.get(spec.biome)
-            if elem:                              # biome enemies hit with and resist that element
-                e.damage_type = elem
-                e.resistances[elem] = 0.25
-            level.enemies.append(e)
+                e.region_id = rid
+                elem = BIOME_ELEMENT.get(spec.biome)
+                if elem:                              # biome enemies hit with and resist that element
+                    e.damage_type = elem
+                    e.resistances[elem] = 0.25
+                level.enemies.append(e)
 
     # NEW: overcharged gate ambush pack
     overcharge = getattr(spec, "overcharge_level", 0)
-    if overcharge > 0:
+    if not region_cleared and overcharge > 0:
         ambush_rng = rng_service.derive_child("world", f"extension:{rid}:ambush")
         region_enemies = [e for e in level.enemies
                        # if e.region_id == rid and not e.is_elite
@@ -175,7 +180,7 @@ def attach_extension(level, extension, gate, rng_service, world=None):
             e._pack_checked = False          # allow them to form a pack
 
     # --- boss (still validated) ---
-    if area.get("boss_room") and spec.boss_template_id:
+    if not region_cleared and area.get("boss_room") and spec.boss_template_id:
         from enemies.boss_factory import build_personalized_boss_template
         from ai.validators import BossValidator
         bx0, by0, bx1, by1 = area["boss_room"]

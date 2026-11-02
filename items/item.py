@@ -49,6 +49,7 @@ class Item:
         self.rarity = rarity
         self.item_level = item_level
         self.weapon_subtype = weapon_subtype
+        self.unique_id = None
 
         # Phase 2 affix data (may be empty for legacy/migrated items)
         self.implicit = None          # RolledAffix or None
@@ -82,6 +83,22 @@ class Item:
     @property
     def armor_bonus(self):
         return self._armor_bonus
+
+    @property
+    def effects(self):
+        if not self.unique_id:
+            return []
+        from items.uniques import get_unique
+        u = get_unique(self.unique_id)
+        return list(u.get("effects", [])) if u else []
+
+    @property
+    def grants_keystone(self):
+        if not self.unique_id:
+            return None
+        from items.uniques import get_unique
+        u = get_unique(self.unique_id)
+        return u.get("grants_keystone") if u else None
 
     @property
     def display_name(self) -> str:
@@ -177,6 +194,7 @@ class Item:
             "creation_context": self.creation_context,
             "damage_bonus": self._damage_bonus,
             "armor_bonus": self._armor_bonus,
+            "unique_id": self.unique_id,
         }
 
     @staticmethod
@@ -192,6 +210,7 @@ class Item:
             weapon_subtype=d.get("weapon_subtype"),
         )
         item.display_name_override = d.get("display_name_override")
+        item.unique_id = d.get("unique_id")
         item.creation_context = d.get("creation_context", item.creation_context)
 
         implicit_d = d.get("implicit")

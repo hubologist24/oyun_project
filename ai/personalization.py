@@ -35,6 +35,9 @@ class PersonalizationHints:
     melee_spams: bool = False
     stands_still: bool = False
 
+    difficulty_nudge: int = 0                       # -2 (ease off) .. +2 (push harder)
+    avoid_biomes: List[str] = field(default_factory=list)
+
     def to_dict(self):
         return {
             "dominant_damage_type": self.dominant_damage_type,
@@ -51,6 +54,8 @@ class PersonalizationHints:
             "kites": self.kites,
             "melee_spams": self.melee_spams,
             "stands_still": self.stands_still,
+            "difficulty_nudge": self.difficulty_nudge,
+            "avoid_biomes": self.avoid_biomes,
         }
 
 
@@ -92,6 +97,10 @@ def derive_hints(profile: PlayerProfile) -> PersonalizationHints:
     hints.suggested_challenge_damage_type = profile.main_damage
     hints.suggested_enabling_damage_type = profile.secondary_damage or _fallback_enabler(profile.main_damage)
 
+    fb = getattr(profile, "feedback", None) or {}
+    hints.difficulty_nudge = max(-2, min(2, fb.get("too_easy", 0) - fb.get("too_hard", 0)))
+    hints.avoid_biomes = list(fb.get("avoid_biomes", []))
+    
     return hints
 
 

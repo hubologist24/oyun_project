@@ -126,6 +126,7 @@ class World:
             "extensions": [ext.to_dict() for ext in self.extensions],
             "gates": [g.to_dict() for g in self.gates],
             "used_shrines": sorted(self.used_shrines),
+             "cleared_regions": sorted(self.cleared_regions),  
         }
 
     @staticmethod
@@ -141,4 +142,5 @@ class World:
         if world.gates:
             reset_gate_id_counter(max(g.gate_id for g in world.gates) + 1)
         world.used_shrines = set(d.get("used_shrines", []))
+        world.cleared_regions = set(d.get("cleared_regions", []))   # NEW
         return world
