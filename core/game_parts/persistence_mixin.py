@@ -70,7 +70,7 @@ class PersistenceMixin:
         self.player.stash = self.save_manager.load_stash()
         self.player.clear_move_target()
 
-        self.camera = Camera(*self.starting_area.tilemap.pixel_size())
+        #self.camera = Camera(*self.starting_area.tilemap.pixel_size())
 
         self.reactions.reset()
         self.dialogue = None
@@ -107,6 +107,9 @@ class PersistenceMixin:
 
         self.exploration.register_area("starting_area", self.starting_area.tilemap)
         self._ensure_starting_gate_registered()
+
+        self.camera = Camera(*self.current_area.tilemap.pixel_size())
+
         self._apply_shrine_persistence()
 
         for ext in self.world.extensions:
@@ -124,7 +127,7 @@ class PersistenceMixin:
         self.terrain.reset()
         self.packs.assign_new()
 
-        self.camera = Camera(*self.current_area.tilemap.pixel_size())
+        #self.camera = Camera(*self.current_area.tilemap.pixel_size())
         self._update_current_region()
         self.camera.update(self.player.x, self.player.y)
         D.set_player_level(self.player.progression.level)

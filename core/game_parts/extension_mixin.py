@@ -47,8 +47,9 @@ class ExtensionMixin:
             for g in existing:
                 stamp_door(self.starting_area, g)
             return
-        site = find_door_site(self.starting_area.tilemap.grid,
-                              [self.starting_area.gate_room])
+        #site = find_door_site(self.starting_area.tilemap.grid,
+        #                      [self.starting_area.gate_room])
+        site = find_door_site(self.starting_area, self.starting_area.gate_room)
         if site:
             c, r, side, _ = site
             gate = self.world.register_starting_gate(0, c, r, side)

@@ -263,3 +263,6 @@ AMBIENT_EVENTS_ENABLED = True
 AMBIENT_EVENT_MIN_INTERVAL = 90.0     # seconds between events (min)
 AMBIENT_EVENT_MAX_INTERVAL = 180.0    # seconds between events (max)
 AMBIENT_EVENT_SAFE_ROOM_PROTECTION = True   # don't fire while in safe room
+
+SAVES_DIR = "saves"
+SHARED_STASH_FILE = "shared_stash.json"

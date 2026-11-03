@@ -74,3 +74,28 @@ class _Difficulty:
 
 
 D = _Difficulty()
+
+
+# --- area-level scaling helpers -------------------------------------------
+# Tuned against the user's anchors: level 3 = 1x, level 23 = 5x density.
+
+def area_density_mult(area_level: int) -> float:
+    """Enemies-per-room multiplier. 1x at level 3, 5x at level 23, floor 0.8x."""
+    return min(5.0, max(0.8, 1.0 + (area_level - 3) * 0.20))
+
+
+def area_difficulty_mult(area_level: int) -> float:
+    """Extra HP+damage multiplier stacked on top of the existing linear scaling.
+    +2.5% per level past 5, capped at 2.5x."""
+    return min(2.5, 1.0 + max(0, area_level - 5) * 0.025)
+
+
+def area_loot_mult(area_level: int) -> float:
+    """Drop-chance multiplier for items/orbs/stones. +5% per level past 5,
+    capped at 4x."""
+    return min(4.0, 1.0 + max(0, area_level - 5) * 0.05)
+
+
+def area_quality_mult(area_level: int) -> float:
+    """Rarity/affix-count bias multiplier. +3% per level past 5, capped at 3x."""
+    return min(3.0, 1.0 + max(0, area_level - 5) * 0.03)

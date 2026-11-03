@@ -154,6 +154,10 @@ class Item:
                 resist[dtype] = resist.get(dtype, 0) + val
             elif mod in ("attack_speed", "movement_speed", "critical_chance"):
                 other[mod] = other.get(mod, 0) + val
+            elif mod in ("attack_speed", "movement_speed", "critical_chance",
+                         "fork_count", "pierce_count", "chain_count",
+                         "proc_chain_lightning", "proc_siphon", "proc_shatter"):
+                other[mod] = other.get(mod, 0) + val
 
         self._damage_bonus = int(round(dmg))
         self._armor_bonus = int(round(armor))

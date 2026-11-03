@@ -9,6 +9,15 @@ from enemies.dialogue import boss_phase_line, boss_death_taunt
 from world import swing_fx
 from core.game_parts.constants import CRIT_BURST_RADIUS, CRIT_BURST_RATIO
 
+from combat.attack_patterns import PlayerProjectile
+
+
+CHAIN_RADIUS          = 220.0
+CHAIN_DAMAGE_MULT     = 0.70
+FORK_CHILD_DMG_MULT   = 0.60
+FORK_CHILD_RANGE_MULT = 0.50
+FORK_MAX_GENERATIONS  = 2
+
 
 class CombatMixin:
 
@@ -129,19 +138,14 @@ class CombatMixin:
                 best, best_d = b, d
         return best
 
-    def _live_attack_targets_sil(self):
-        targets = [e for e in self.current_area.enemies if e.alive]
-        boss = self.current_area.boss
-        if boss is not None and boss.alive:
-            targets.append(boss)
-        return targets
+  
 
     def _live_attack_targets(self):
         targets = [e for e in self.current_area.enemies if e.alive]
         targets.extend(b for b in self.current_area.bosses if b.alive)
         return targets
 
-    def _apply_player_hit(self, target, world_rules, damage_multiplier=1.0, techniques=None):
+    def _apply_player_hit(self, target, world_rules, damage_multiplier=1.0, techniques=None,is_melee=False):
         if (self.player.has_keystone("executioner") and getattr(target, "max_hp", 0)
                 and target.hp < target.max_hp * 0.3):
             damage_multiplier *= 1.5
@@ -172,6 +176,10 @@ class CombatMixin:
                 target.phase_just_changed = False
                 self._trigger_phase_transition(target)
             self.event_bus.emit("boss_attempt_damage")
+
+            if is_melee and dmg > 0:
+                self._try_melee_procs(target, dmg, world_rules)
+
             if not target.alive:
                 self._on_boss_killed(target)
         else:
@@ -183,6 +191,10 @@ class CombatMixin:
                 self.kinetic.trigger(techniques, target)
             if target.alive:
                 self.reactions.on_hit(target, dmg, self.player, world_rules)
+
+            if is_melee and dmg > 0:
+                self._try_melee_procs(target, dmg, world_rules)
+            
             if not target.alive:
                 self._on_enemy_killed(target)
 
@@ -256,7 +268,7 @@ class CombatMixin:
             if self.kinetic.is_intercept(target):
                 techs.append("intercept")
             self._apply_player_hit(target, world_rules,
-                                   profile.damage_multiplier * combo_mult, techs)
+                                   profile.damage_multiplier * combo_mult, techs,is_melee=True)
 
     def _update_player_projectiles(self, dt):
         area = self.current_area
@@ -270,38 +282,167 @@ class CombatMixin:
                 self.player_projectiles.remove(proj)
                 continue
 
+            all_targets = list(area.enemies) + list(area.bosses)
             consumed = False
-            for enemy in list(area.enemies):
-                if not enemy.alive or id(enemy) in proj.hit_ids:
-                    continue
-                if proj.rect.colliderect(enemy.rect):
-                    proj.hit_ids.add(id(enemy))
-                    techs = self.kinetic.projectile_techniques(proj)
-                    self._apply_player_hit(enemy, proj.world_rules, proj.damage_multiplier, techs)
-                    if not proj.piercing:
-                        if "perfect_range" in techs and not proj.bonus_used:
-                            proj.bonus_used = True      # Perfect Range: pierce one extra
-                            continue
-                        consumed = True
-                        break
 
-            if not consumed:
-                for boss in list(area.bosses):
-                    if not boss.alive or id(boss) in proj.hit_ids:
-                        continue
-                    if proj.rect.colliderect(boss.rect):
-                        proj.hit_ids.add(id(boss))
-                        techs = self.kinetic.projectile_techniques(proj)
-                        self._apply_player_hit(boss, proj.world_rules, proj.damage_multiplier, techs)
-                        if not proj.piercing:
-                            if "perfect_range" in techs and not proj.bonus_used:
-                                proj.bonus_used = True
-                                continue
-                            consumed = True
-                            break
+            for target in all_targets:
+                if not target.alive or id(target) in proj.hit_ids:
+                    continue
+                if not proj.rect.colliderect(target.rect):
+                    continue
+
+                proj.hit_ids.add(id(target))
+                techs = self.kinetic.projectile_techniques(proj)
+                self._apply_player_hit(target, proj.world_rules,
+                                       proj.damage_multiplier, techs)
+                self._projectile_on_hit_effects(proj, target)
+
+                # Chain — redirect the projectile toward nearest unhit target
+                if self._try_projectile_chain(proj, all_targets):
+                    continue
+                # Pierce — walk through to next enemy
+                if proj.pierce_remaining > 0:
+                    proj.pierce_remaining -= 1
+                    continue
+                # Perfect-range free pierce
+                if "perfect_range" in techs and not proj.bonus_used:
+                    proj.bonus_used = True
+                    continue
+                consumed = True
+                break
 
             if consumed and proj in self.player_projectiles:
                 self.player_projectiles.remove(proj)
+
+
+    def _projectile_on_hit_effects(self, proj, hit_target):
+        if proj.fork_count > 0 and proj.fork_generation < FORK_MAX_GENERATIONS:
+            self._spawn_forks(proj, hit_target)
+
+    def _spawn_forks(self, proj, hit_target):
+        base_angle = math.atan2(proj.vy, proj.vx)
+        speed = math.hypot(proj.vx, proj.vy) or 500.0
+        spread = math.radians(25)
+        n = proj.fork_count
+        for i in range(n):
+            offset = (i - (n - 1) / 2.0) * spread
+            angle = base_angle + offset
+            child = PlayerProjectile(
+                x=hit_target.x, y=hit_target.y,
+                vx=math.cos(angle) * speed * 0.85,
+                vy=math.sin(angle) * speed * 0.85,
+                damage_type=proj.damage_type,
+                damage_multiplier=proj.damage_multiplier * FORK_CHILD_DMG_MULT,
+                world_rules=proj.world_rules,
+                piercing=False,
+                max_range=proj.max_range * FORK_CHILD_RANGE_MULT,
+            )
+            child.pierce_remaining = 0
+            child.fork_count       = 0
+            child.chain_count      = 1          # children can chain once
+            child.fork_generation  = proj.fork_generation + 1
+            child.hit_ids          = set(proj.hit_ids)
+            child.technique        = None
+            self.player_projectiles.append(child)
+
+        self.damage_numbers.spawn(hit_target.x, hit_target.y - 60, "FORK", (200, 240, 255))
+        self.crit_bursts.append({"x": hit_target.x, "y": hit_target.y,
+                                 "radius": 40, "life": 0.18, "max_life": 0.18,
+                                 "color": (200, 240, 255)})
+
+    def _try_projectile_chain(self, proj, all_targets):
+        if proj.chain_count <= 0:
+            return False
+        candidates = []
+        for t in all_targets:
+            if not t.alive or id(t) in proj.hit_ids:
+                continue
+            d = math.hypot(t.x - proj.x, t.y - proj.y)
+            if d <= CHAIN_RADIUS:
+                candidates.append((d, t))
+        if not candidates:
+            return False
+        candidates.sort(key=lambda p: p[0])
+        next_t = candidates[0][1]
+        dx, dy = next_t.x - proj.x, next_t.y - proj.y
+        d = math.hypot(dx, dy) or 1.0
+        speed = math.hypot(proj.vx, proj.vy) or 520.0
+        proj.vx = dx / d * speed
+        proj.vy = dy / d * speed
+        proj.remaining_range = max(proj.remaining_range, CHAIN_RADIUS * 1.5)
+        proj.chain_count -= 1
+        proj.damage_multiplier *= CHAIN_DAMAGE_MULT
+
+        self.damage_numbers.spawn(proj.x, proj.y - 20, "CHAIN", (140, 220, 255))
+        self.crit_bursts.append({"x": proj.x, "y": proj.y, "radius": 35,
+                                 "life": 0.15, "max_life": 0.15,
+                                 "color": (140, 220, 255)})
+        return True
+
+    # --- melee-small procs ---------------------------------------------------
+
+    def _try_melee_procs(self, target, damage, world_rules):
+        rng = self.world.rng_service.get_stream("melee_procs")
+        procs = (
+            ("proc_chain_lightning", self._proc_chain_lightning),
+            ("proc_siphon",          self._proc_siphon),
+            ("proc_shatter",         self._proc_shatter),
+        )
+        for proc_id, handler in procs:
+            chance = self.player.melee_proc_chance(proc_id)
+            if chance <= 0:
+                continue
+            if rng.random() < chance:
+                handler(target, damage, world_rules)
+                break   # at most one proc per hit
+
+    def _proc_chain_lightning(self, target, damage, world_rules):
+        from combat.combat import _enemy_category
+        from combat.damage import resolve_damage
+        radius = 200.0
+        zapped = 0
+        for other in list(self.current_area.enemies) + list(self.current_area.bosses):
+            if other is target or not other.alive:
+                continue
+            if math.hypot(other.x - target.x, other.y - target.y) > radius:
+                continue
+            dmg = resolve_damage(max(1, int(damage * 0.4)), "lightning", None,
+                                 target_resistances=other.resistances,
+                                 world_rules=world_rules,
+                                 target_category=_enemy_category(other),
+                                 source_category="player")
+            other.take_damage(dmg)
+            self.damage_numbers.spawn(other.x, other.y - 30, str(dmg),
+                                      (140, 200, 255))
+            self.crit_bursts.append({"x": other.x, "y": other.y, "radius": 50,
+                                     "life": 0.20, "max_life": 0.20,
+                                     "color": (140, 200, 255)})
+            if getattr(other, "phase_just_changed", False):
+                other.phase_just_changed = False
+                self._trigger_phase_transition(other)
+            if not other.alive:
+                if getattr(other, "is_boss", False):
+                    self._on_boss_killed(other)
+                else:
+                    self._on_enemy_killed(other)
+            zapped += 1
+        if zapped:
+            self.damage_numbers.spawn(target.x, target.y - 52, "SPARKSTRIKE",
+                                      (140, 200, 255))
+
+    def _proc_siphon(self, target, damage, world_rules):
+        stats = self.player.effective_stats
+        heal = max(1, int(stats.max_hp * 0.04))
+        stats.hp = min(stats.max_hp, stats.hp + heal)
+        self.damage_numbers.spawn(self.player.x, self.player.y - 34,
+                                  f"+{heal}", (90, 255, 120))
+        self.damage_numbers.spawn(target.x, target.y - 52, "SIPHON", (90, 255, 120))
+
+    def _proc_shatter(self, target, damage, world_rules):
+        self.reactions.expose(target, 2.0)
+        self.damage_numbers.spawn(target.x, target.y - 52, "SHATTERED",
+                                  (255, 220, 100))
+    
 
     def _clear_player_projectiles(self):
         self.player_projectiles.clear()

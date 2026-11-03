@@ -95,6 +95,14 @@ class PlayerProjectile:
         self.hit_ids = set()
         self.bonus_used = False
 
+        # weapon-class feature fields
+        self.pierce_remaining = 0
+        self.fork_count       = 0
+        self.chain_count      = 0
+        self.fork_generation  = 0
+        self.hit_ids          = set()
+        self.bonus_used       = False
+
     @property
     def rect(self) -> pygame.Rect:
         return pygame.Rect(int(self.x - self.radius), int(self.y - self.radius),
@@ -113,7 +121,7 @@ def spawn_projectile(player, profile: AttackProfile, damage_type: str, world_rul
     speed = profile.projectile_speed
     vx = player.facing.x * speed
     vy = player.facing.y * speed
-    return PlayerProjectile(
+    proj = PlayerProjectile(
         x=player.x,
         y=player.y,
         vx=vx,
@@ -124,3 +132,9 @@ def spawn_projectile(player, profile: AttackProfile, damage_type: str, world_rul
         piercing=profile.piercing,
         max_range=profile.range,
     )
+    # Base pierce from profile, plus player bonuses
+    base_pierce = 1 if profile.piercing else 0
+    proj.pierce_remaining = base_pierce + player.ranged_pierce_bonus()
+    proj.fork_count       = player.ranged_fork_bonus()
+    proj.chain_count      = player.ranged_chain_bonus()
+    return proj

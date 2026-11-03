@@ -9,6 +9,7 @@ generation parameters never change -- but the AREAS it contains are
 built lazily (only when the player actually enters them) to avoid
 building huge amounts of unused content.
 """
+import copy
 import time
 from dataclasses import dataclass, field
 from typing import Optional, List
@@ -29,7 +30,7 @@ class ExtensionSpec:
     map_rows: int = 38
     loot_rules: dict = field(default_factory=dict)              # Phase 7
     boss_personalization: dict = field(default_factory=dict)    # Phase 7
-    overcharge_level: int = 0        # NEW
+    overcharge_level: int = 0          # NEW
     enemy_behavior_bias: dict = field(default_factory=dict)   # NEW
 
     def to_dict(self):
@@ -39,7 +40,7 @@ class ExtensionSpec:
             "area_level": self.area_level,
             "biome": self.biome,
             "is_anomaly": self.is_anomaly,
-            "world_modifiers": self.world_modifiers,
+            "world_modifiers": copy.deepcopy(self.world_modifiers),
             "boss_template_id": self.boss_template_id,
             "room_count": self.room_count,
             "map_cols": self.map_cols,
@@ -58,7 +59,7 @@ class ExtensionSpec:
             area_level=d["area_level"],
             biome=d.get("biome", "unknown"),
             is_anomaly=d.get("is_anomaly", False),
-            world_modifiers=d.get("world_modifiers", []),
+            world_modifiers=copy.deepcopy(d.get("world_modifiers", [])),
             boss_template_id=d.get("boss_template_id"),
             room_count=d.get("room_count", 6),
             map_cols=d.get("map_cols", 50),
@@ -88,11 +89,8 @@ class Extension:
 
     def ensure_built(self, rng_service, world=None):
         """
-        world: optional back-reference so this extension can register
-        its own reserved closed gate the moment its area is actually
-        built (lazy -- matches the existing lazy-area-build philosophy).
-        Passed explicitly rather than stored permanently on Extension
-        to avoid a circular Extension<->World reference in to_dict().
+        Builds the area lazily if not already generated.
+        The `world` parameter is kept for signature compatibility.
         """
         if self.area is not None:
             return self.area
@@ -103,17 +101,6 @@ class Extension:
             cols=self.spec.map_cols, rows=self.spec.map_rows,
             room_count=self.spec.room_count, boss_room=(self.spec.boss_template_id is not None),
         )
-
-        if world is not None and not world.gates_in_area(self.extension_id):
-            gate_room_index = self.area["gate_room_index"]
-            tile_col = self.area.get("gate_tile_col")
-            tile_row = self.area.get("gate_tile_row")
-            if tile_col is None or tile_row is None:
-                # Backwards-compat: older area data without explicit gate tile.
-                x0, y0, x1, y1 = self.area["gate_room"]
-                tile_col, tile_row = (x0 + x1) // 2, (y0 + y1) // 2
-            world.register_extension_gate(self.extension_id, gate_room_index,
-                                          tile_col, tile_row)
         return self.area
 
     def to_dict(self):

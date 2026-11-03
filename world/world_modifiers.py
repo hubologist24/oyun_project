@@ -75,6 +75,7 @@ class WorldModifier:
     description: str = ""
     rules: List[WorldRule] = field(default_factory=list)
 
+    @property
     def tier_overrides(self) -> Dict[str, Dict[str, list]]:
         """Collects all tier_override rules into items/tiers.py's expected shape."""
         overrides = {}
@@ -104,7 +105,6 @@ class WorldModifier:
                 continue
             multiplier *= rule.data.get("multiplier", 1.0)
         return multiplier
-
 
     def on_kill_effects_for(self, target_category: str):
         return [dict(r.data) for r in self.rules
@@ -175,7 +175,7 @@ class WorldRuleSet:
     def tier_overrides(self) -> Dict[str, Dict[str, list]]:
         merged = {}
         for mod in self.modifiers:
-            for modifier_id, tiers in mod.tier_overrides().items():
+            for modifier_id, tiers in mod.tier_overrides.items():
                 merged.setdefault(modifier_id, {}).update(tiers)
         return merged
 
@@ -197,7 +197,6 @@ class WorldRuleSet:
             for dtype, delta in mod.resistance_modifiers_for(target_category).items():
                 merged[dtype] = merged.get(dtype, 0.0) + delta
         return merged
-
 
     def on_kill_effects_for(self, target_category: str):
         out = []

@@ -14,12 +14,24 @@ _DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "tiers.json")
 
 _default_table = None
 
+PROGRAMMATIC_TIERS = {
+    # Ranged counts (T1=1, T2 avg 1.5, T3 avg 2.5)
+    "fork_count":           {"T1": [1, 1], "T2": [1, 2], "T3": [2, 3]},
+    "pierce_count":         {"T1": [1, 1], "T2": [1, 2], "T3": [2, 3]},
+    "chain_count":          {"T1": [1, 1], "T2": [1, 2], "T3": [2, 3]},
+    # Melee on-hit proc chances (%) — always round numbers so displays are clean
+    "proc_chain_lightning": {"T1": [10.0, 10.0], "T2": [15.0, 15.0], "T3": [20.0, 20.0]},
+    "proc_siphon":          {"T1": [3.0,  3.0],  "T2": [5.0,  5.0],  "T3": [8.0,  8.0]},
+    "proc_shatter":         {"T1": [8.0,  8.0],  "T2": [12.0, 12.0], "T3": [18.0, 18.0]},
+}
 
 def _load_default_table():
     global _default_table
     if _default_table is None:
         with open(_DATA_PATH, "r") as f:
             _default_table = json.load(f)
+        for mod_id, tier_data in PROGRAMMATIC_TIERS.items():
+            _default_table.setdefault(mod_id, tier_data)
     return _default_table
 
 

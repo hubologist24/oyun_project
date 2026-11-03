@@ -6,6 +6,7 @@ programmatically instead -- the game engine consumes them identically
 either way, which is the entire point of validating the architecture
 now before AI is introduced.
 """
+import copy
 import json
 import os
 from world.extension import ExtensionSpec
@@ -36,7 +37,7 @@ def build_extension_1(player_level: int) -> ExtensionSpec:
         area_level=area_level,
         biome="ash_canyon",
         is_anomaly=False,
-        world_modifiers=[get_modifier_template("ashen_frailty")],
+        world_modifiers=[copy.deepcopy(get_modifier_template("ashen_frailty"))],
         boss_template_id=None,
         room_count=7,
     )
@@ -50,7 +51,10 @@ def build_extension_2(player_level: int) -> ExtensionSpec:
         area_level=area_level,
         biome="sunken_library",
         is_anomaly=False,
-        world_modifiers=[get_modifier_template("storm_conductive"), get_modifier_template("chaos_ascendancy")],
+        world_modifiers=[
+            copy.deepcopy(get_modifier_template("storm_conductive")),
+            copy.deepcopy(get_modifier_template("chaos_ascendancy")),
+        ],
         boss_template_id=None,
         room_count=8,
     )
@@ -64,7 +68,7 @@ def build_extension_3(player_level: int) -> ExtensionSpec:
         area_level=area_level,
         biome="corrupted_hollow",
         is_anomaly=False,
-        world_modifiers=[get_modifier_template("corrupted_flesh")],
+        world_modifiers=[copy.deepcopy(get_modifier_template("corrupted_flesh"))],
         boss_template_id=None,
         room_count=7,
     )
@@ -83,7 +87,7 @@ def build_anomaly_extension(player_level: int, extension_index: int) -> Extensio
         area_level=area_level,
         biome="anomaly_wastes",
         is_anomaly=True,
-        world_modifiers=[get_modifier_template("brittle_bones")],
+        world_modifiers=[copy.deepcopy(get_modifier_template("brittle_bones"))],
         boss_template_id=None,
         room_count=5,
     )

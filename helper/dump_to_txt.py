@@ -23,7 +23,7 @@ DEFAULT_EXTENSIONS = (".py", ".json")
 # Directories to always skip (VCS metadata, caches, envs, IDE folders).
 EXCLUDED_DIRS = {
     ".git", "__pycache__", ".idea", ".vscode", "venv", ".venv",
-    "env", "node_modules", ".pytest_cache", ".mypy_cache","helper","test"
+    "env", "node_modules", ".pytest_cache", ".mypy_cache","helper","test", "saves"
 }
 
 # Never include the dump script's own output file(s) in the dump.

@@ -3,10 +3,12 @@ import math
 import pygame
 
 import core.config as config
-from core.difficulty import D
+from core.difficulty import D, area_density_mult, area_loot_mult
 from enemies.enemy import spawn_basic_enemy
 from enemies.dialogue import boss_last_words
 from core.game_parts.constants import MAX_ON_KILL_DEPTH
+
+from combat.damage import resolve_damage
 
 
 class LootMixin:
@@ -23,10 +25,20 @@ class LootMixin:
             return
         self._roam_timer = D.get("roam_interval")
         px, py = self.player.x, self.player.y
+
+        # Mild room-density follow-through: scales with area level/density curve
+        area_level = 1
+        if self.current_extension_id is not None:
+            ext = self.world.get_extension(self.current_extension_id)
+            if ext is not None:
+                area_level = ext.spec.area_level
+        roam_cap = int(D.get_int("roam_cap") * min(2.0, area_density_mult(area_level)))
+
         near = sum(1 for e in self.current_area.enemies
                    if abs(e.x - px) < 1000 and abs(e.y - py) < 1000)
-        if near >= D.get_int("roam_cap"):
+        if near >= roam_cap:
             return
+
         ts = config.TILE_SIZE
         grid = self.current_area.tilemap.grid
         rng = self.world.rng_service.get_stream("roaming")
@@ -118,7 +130,13 @@ class LootMixin:
             self.damage_numbers.spawn(enemy.x, enemy.y - 30, "BOOM", (255, 140, 40))
             if self.player.alive and math.hypot(enemy.x - self.player.x,
                                                 enemy.y - self.player.y) < 90:
-                dmg = max(1, int(enemy.damage * 2))
+                stats = self.player.effective_stats
+                res = dict(stats.resistances)
+                res["armor_flat"] = stats.armor
+                base = max(1, int(enemy.damage * 2))
+                dmg = resolve_damage(base, "fire", None, target_resistances=res,
+                                     world_rules=rules, target_category="player",
+                                     source_category="elite")
                 if self.player.take_damage(dmg, cause="fire"):
                     self.event_bus.emit("player_hit", source=enemy.name,
                                         damage=dmg, damage_type="fire")
@@ -136,17 +154,19 @@ class LootMixin:
         g = cfg.get("global_mult", 1.0)
         elite = bool(enemy.is_elite)
 
+        area_loot = area_loot_mult(enemy.area_level)
+
         # --- stone (world-extension currency) ---
         stone_chance = (cfg["enemy_stone_chance"]
                         * (cfg["elite_stone_mult"] if elite else 1.0)
-                        * D.get("stone_drop_mult") * g)
+                        * D.get("stone_drop_mult") * g * area_loot)
         if rng.random() < stone_chance:
             self.current_area.spawn_pickup(enemy.x + 12, enemy.y, "stone")
 
         # --- item first; orb only if the item roll failed ---
         item_chance = (cfg["enemy_item_chance"]
                        * (cfg["elite_item_mult"] if elite else 1.0)
-                       * D.get("loot_drop_mult") * g)
+                       * D.get("loot_drop_mult") * g * area_loot)
         if rng.random() < item_chance:
             self.current_area.spawn_loot(
                 enemy.x, enemy.y, area_level=enemy.area_level,
@@ -155,7 +175,7 @@ class LootMixin:
         else:
             orb_chance = (cfg["enemy_orb_chance"]
                           * (cfg["elite_orb_mult"] if elite else 1.0)
-                          * D.get("orb_drop_mult") * g)
+                          * D.get("orb_drop_mult") * g * area_loot)
             if rng.random() < orb_chance:
                 self.current_area.spawn_orb(enemy.x, enemy.y)
 
@@ -209,7 +229,7 @@ class LootMixin:
                 slots.append(extra)
 
         total_slots = len(slots)
-        boss_mult = D.get("boss_loot_mult") * g
+        boss_mult = D.get("boss_loot_mult") * g * area_loot_mult(level)
         for i, (chance, counts) in enumerate(slots):
             if rng.random() >= min(1.0, chance * boss_mult):
                 continue

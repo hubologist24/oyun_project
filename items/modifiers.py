@@ -9,9 +9,14 @@ import os
 _BASE = os.path.join(os.path.dirname(__file__), "..", "data")
 
 
+
+
 def _load(filename):
     with open(os.path.join(_BASE, filename), "r") as f:
         return json.load(f)
+
+
+
 
 
 class ModifierPools:
@@ -23,13 +28,13 @@ class ModifierPools:
     @classmethod
     def prefixes(cls):
         if cls._prefixes is None:
-            cls._prefixes = _load("prefixes.json")["prefixes"]
+            cls._prefixes = _load("prefixes.json")["prefixes"] + PROGRAMMATIC_PREFIXES
         return cls._prefixes
 
     @classmethod
     def suffixes(cls):
         if cls._suffixes is None:
-            cls._suffixes = _load("suffixes.json")["suffixes"]
+            cls._suffixes = _load("suffixes.json")["suffixes"] + PROGRAMMATIC_SUFFIXES
         return cls._suffixes
 
     @classmethod
@@ -74,3 +79,84 @@ class ModifierPools:
             return "rare"
         rarity = rng.choices(names, weights=w, k=1)[0]
         return rarity
+
+    
+    
+
+RANGED_SUBTYPES       = {"bow", "short_wand", "long_wand"}
+MELEE_SMALL_SUBTYPES  = {"sword"}
+MELEE_BIG_SUBTYPES    = {"greatsword"}
+WEAPON_CLASS_RANGED     = "ranged"
+WEAPON_CLASS_MELEE_SMALL = "melee_small"
+WEAPON_CLASS_MELEE_BIG  = "melee_big"
+
+PROGRAMMATIC_PREFIXES = [
+    {
+        "id": "forking",
+        "name": "Forking",
+        "modifier": "fork_count",
+        "applies_to": ["weapon"],
+        "applies_to_weapon_class": WEAPON_CLASS_RANGED,
+        "primary_slot_only": True,
+        "damage_type": None,
+    },
+    {
+        "id": "piercing",
+        "name": "Piercing",
+        "modifier": "pierce_count",
+        "applies_to": ["weapon"],
+        "applies_to_weapon_class": WEAPON_CLASS_RANGED,
+        "primary_slot_only": True,
+        "damage_type": None,
+    },
+]
+
+PROGRAMMATIC_SUFFIXES = [
+    {
+        "id": "chaining",
+        "name": "Chaining",
+        "modifier": "chain_count",
+        "applies_to": ["weapon"],
+        "applies_to_weapon_class": WEAPON_CLASS_RANGED,
+        "primary_slot_only": True,
+        "damage_type": None,
+    },
+    {
+        "id": "sparkstrike",
+        "name": "Sparkstrike",
+        "modifier": "proc_chain_lightning",
+        "applies_to": ["weapon"],
+        "applies_to_weapon_class": WEAPON_CLASS_MELEE_SMALL,
+        "primary_slot_only": True,
+        "damage_type": "lightning",
+    },
+    {
+        "id": "siphoning",
+        "name": "Siphoning",
+        "modifier": "proc_siphon",
+        "applies_to": ["weapon"],
+        "applies_to_weapon_class": WEAPON_CLASS_MELEE_SMALL,
+        "primary_slot_only": True,
+        "damage_type": None,
+    },
+    {
+        "id": "shattering",
+        "name": "Shattering",
+        "modifier": "proc_shatter",
+        "applies_to": ["weapon"],
+        "applies_to_weapon_class": WEAPON_CLASS_MELEE_SMALL,
+        "primary_slot_only": True,
+        "damage_type": None,
+    },
+]
+
+def get_weapon_class(subtype):
+            if subtype in RANGED_SUBTYPES:
+                return WEAPON_CLASS_RANGED
+            if subtype in MELEE_SMALL_SUBTYPES:
+                return WEAPON_CLASS_MELEE_SMALL
+            if subtype in MELEE_BIG_SUBTYPES:
+                return WEAPON_CLASS_MELEE_BIG
+            return None
+
+   

@@ -10,6 +10,10 @@ class InputMixin:
     def _handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                try:
+                    self._save_game()
+                except Exception as e:
+                    print(f"[Game] Auto-save on quit failed: {e}")
                 self.running = False
             elif event.type == pygame.KEYDOWN:
                 self._handle_keydown(event.key)
@@ -103,10 +107,6 @@ class InputMixin:
                 target = self.gateway_menu.confirm_selection()
                 if target:
                     self._handle_gateway_menu_select(target)
-            elif key == pygame.K_e:
-                self.evolution_banner.cycle_overcharge()
-            elif key == pygame.K_o:
-                self._try_interact_shrine()
             elif key == pygame.K_ESCAPE:
                 self.gateway_menu.hide()
             elif key == pygame.K_LSHIFT:
@@ -168,6 +168,11 @@ class InputMixin:
                 if msg:
                     self._show_message(msg)
                 return
+            if key == pygame.K_x:
+                msg = self.inventory_ui.do_bulk_forge(self.player)
+                if msg:
+                    self._show_message(msg, duration=3.5)
+                return
             if key == pygame.K_r:
                 msg = self.inventory_ui.do_stash_action(self.player)
                 if msg:
@@ -176,6 +181,10 @@ class InputMixin:
             return
 
         if key == pygame.K_ESCAPE:
+            try:
+                self._save_game()
+            except Exception as e:
+                print(f"[Game] Auto-save on exit failed: {e}")
             self.running = False
         elif key == pygame.K_SPACE:
             self._try_attack()
@@ -214,7 +223,7 @@ class InputMixin:
             self._debug_print_world_info()
         elif key == pygame.K_F8:
             self._show_message(f"World Seed: {self.world.world_seed}  |  "
-                               f"Time since last ext: {self.world.seconds_since_last_extension():.0f}s")
+                             f"Time since last ext: {self.world.seconds_since_last_extension():.0f}s")
         elif key == pygame.K_F11:
             mode = config.EXTENSION_MODE_DEBUG if shift_held else config.EXTENSION_MODE_MANUAL
             self._generate_next_extension(mode=mode)

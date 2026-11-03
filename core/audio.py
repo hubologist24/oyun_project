@@ -10,6 +10,8 @@ import struct
 
 import pygame
 
+import array
+
 _SAMPLE_RATE = 22050
 _sounds: dict = {}
 _enabled = False
@@ -34,17 +36,17 @@ def _make_tone(freq, duration_ms, volume=0.3, decay=10.0):
     n = int(_SAMPLE_RATE * duration_ms / 1000)
     if n <= 0:
         return b""
-    out = []
+    samples = array.array("h", [0]) * n
+    two_pi_f = 2.0 * math.pi * freq
     for i in range(n):
         t = i / _SAMPLE_RATE
         env = min(1.0, i / 80.0) * math.exp(-t * decay)
-        v = int(32767 * volume * env * math.sin(2 * math.pi * freq * t))
-        if v > 32767:
-            v = 32767
-        elif v < -32768:
-            v = -32768
-        out.append(struct.pack("<h", v))
-    return b"".join(out)
+        v = int(32767 * volume * env * math.sin(two_pi_f * t))
+        samples[i] = 32767 if v > 32767 else (-32768 if v < -32768 else v)
+    import sys
+    if sys.byteorder == "big":
+        samples.byteswap()
+    return samples.tobytes()
 
 
 def _ensure(name, freq, duration_ms, volume=0.3, decay=10.0):

@@ -172,7 +172,7 @@ class Level:
 
     def spawn_loot(self, x, y, area_level=1, world_rules=None,
                    loot_rules_override=None, **item_kwargs):
-        from core.difficulty import D
+        from core.difficulty import D, area_quality_mult
         from world.loot_rules import LootRules
 
         rid = self.region_at_pixel(x, y)
@@ -183,7 +183,7 @@ class Level:
         loot_rules = loot_rules_override or self.region_loot_rules.get(rid)
 
         # Difficulty now REWARDS with quality, not just punishes with quantity.
-        quality = D.get("loot_quality_mult")
+        quality = D.get("loot_quality_mult") * area_quality_mult(area_level)
         if quality > 1.0:
             base = loot_rules if loot_rules else LootRules.default()
             loot_rules = LootRules(

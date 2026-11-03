@@ -8,6 +8,16 @@ MINOR_PERKS = {
     "swiftness": {"name": "Swiftness",  "desc": "+6% Move Speed, +2% Crit",      "bonus": {"speed_pct": 6, "crit_chance": 0.02}},
     "bulwark":   {"name": "Bulwark",    "desc": "+5 Armor, +10 Max HP",          "bonus": {"armor": 5, "max_hp": 10}},
     "warding":   {"name": "Warding",    "desc": "+3% Fire/Cold/Lightning/Chaos resist", "bonus": {"resist_all": 0.03}},
+        # --- weapon-class minor perks (bonus applied via Player helpers, not stats)
+    "forking_shot": {"name": "Forking Shot",
+                     "desc": "+1 fork on ranged projectiles",
+                     "bonus": {}},
+    "piercing_eye": {"name": "Piercing Eye",
+                     "desc": "+1 pierce on ranged projectiles",
+                     "bonus": {}},
+    "linked_aim":   {"name": "Linked Aim",
+                     "desc": "+1 chain jump on ranged projectiles",
+                     "bonus": {}},
 }
 
 KEYSTONES = {
@@ -17,7 +27,19 @@ KEYSTONES = {
     "phantom_dash":  {"name": "Phantom Dash",    "desc": "+1 dash charge and dash recharges 25% faster."},
     "resonance":     {"name": "Resonance",       "desc": "Elemental reactions repeat at 50% power 0.5s later."},
     "glass_cannon":  {"name": "Glass Cannon",    "desc": "+35% base damage, -25% max HP."},
+        "eldritch_barrage": {
+        "name": "Eldritch Barrage",
+        "desc": "Ranged projectiles gain +1 fork, +1 pierce, and +1 chain. "
+                "Forked children can chain once.",
+    },
+    "stormconduit": {
+        "name": "Storm Conduit",
+        "desc": "Melee hits gain +10% chance to trigger Sparkstrike, "
+                "Siphoning, or Shattering procs.",
+    },
 }
+
+
 
 
 def _offer(table, ids, rng, n):

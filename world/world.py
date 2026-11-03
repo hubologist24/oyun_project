@@ -16,12 +16,12 @@ class World:
         self.total_playtime_seconds = 0.0
         self.playtime_at_last_extension = 0.0
         self.gates: list[Gate] = []   # NEW: all gates across the whole world
-        self.used_shrines: set = set()
         self.region_presence: dict[str, float] = {}    # NEW
         self.cleared_regions: set[str] = set()
+        self.used_shrines: set[str] = set()
 
     # ---------------- gate management ----------------
-    def register_starting_gate(self, room_index: int, tile_col: int, tile_row: int , side="e") -> Gate:
+    def register_starting_gate(self, room_index: int, tile_col: int, tile_row: int, side="e") -> Gate:
         """Called once at game startup to register the starting area's
         reserved (closed) gate slot."""
         gate = Gate(
@@ -125,8 +125,9 @@ class World:
             "playtime_at_last_extension": self.playtime_at_last_extension,
             "extensions": [ext.to_dict() for ext in self.extensions],
             "gates": [g.to_dict() for g in self.gates],
+            "region_presence": self.region_presence,
+            "cleared_regions": sorted(self.cleared_regions),
             "used_shrines": sorted(self.used_shrines),
-             "cleared_regions": sorted(self.cleared_regions),  
         }
 
     @staticmethod
@@ -141,6 +142,7 @@ class World:
         world.gates = [Gate.from_dict(g) for g in d.get("gates", [])]
         if world.gates:
             reset_gate_id_counter(max(g.gate_id for g in world.gates) + 1)
+        world.region_presence = d.get("region_presence", {})
+        world.cleared_regions = set(d.get("cleared_regions", []))
         world.used_shrines = set(d.get("used_shrines", []))
-        world.cleared_regions = set(d.get("cleared_regions", []))   # NEW
         return world

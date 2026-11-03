@@ -8,7 +8,8 @@ import random
 import core.config as config
 import math
 
-from core.difficulty import D
+
+from core.difficulty import D, area_difficulty_mult
 
 ELITE_AFFIXES = ["swift", "armored", "explosive", "regenerating",
                  "thorns", "vampiric", "shielded", "teleporting", "frost_nova"]
@@ -470,14 +471,21 @@ def spawn_basic_enemy(x, y, rng, area_level=1, force_behavior=None,behavior_bias
         row = rng.choices(BEHAVIOR_TABLE, weights=weights, k=1)[0]
     behavior, _, hp_mult, dmg_mult, speed = row
 
-    #hp = int((24 + area_level * 6) * hp_mult * (1.8 if is_elite else 1.0))
-    #dmg = int((6 + area_level * 1.6) * dmg_mult * (1.6 if is_elite else 1.0))
-    #hp  = int((32 + area_level * 9)  * hp_mult * (2.1 if is_elite else 1.0))
-    #dmg = int((9  + area_level * 2.2) * dmg_mult * (1.7 if is_elite else 1.0))
-    dmg = int((6 + area_level * 1.6) * dmg_mult * (1.7 if is_elite else 1.0)
-          * D.get("enemy_damage_mult") * config.ENEMY_DAMAGE_GLOBAL_SCALE)
-    hp  = int((32 + area_level * 9)  * hp_mult * (2.1 if is_elite else 1.0) * D.get("enemy_hp_mult"))
+   
+    
+    area_diff = area_difficulty_mult(area_level)
+
+    #dmg = int((6 + area_level * 1.6) * dmg_mult * (1.7 if is_elite else 1.0)
+    #      * D.get("enemy_damage_mult") * config.ENEMY_DAMAGE_GLOBAL_SCALE)
+    #hp  = int((32 + area_level * 9)  * hp_mult * (2.1 if is_elite else 1.0) * D.get("enemy_hp_mult"))
     #dmg = int((9  + area_level * 2.2) * dmg_mult * (1.7 if is_elite else 1.0) * D.get("enemy_damage_mult"))
+    
+    dmg = int((6 + area_level * 1.6) * dmg_mult * (1.7 if is_elite else 1.0)
+              * D.get("enemy_damage_mult") * config.ENEMY_DAMAGE_GLOBAL_SCALE
+              * area_diff)
+    hp  = int((32 + area_level * 9)  * hp_mult * (2.1 if is_elite else 1.0)
+              * D.get("enemy_hp_mult") * area_diff)
+
     speed = speed * D.get("enemy_speed_mult")
     
     base_name = rng.choice(NAME_POOL[behavior])

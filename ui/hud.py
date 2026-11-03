@@ -100,6 +100,9 @@ class InventoryUI:
     CELL_SIZE = 34
     CELL_PAD = 3
 
+    BULK_FORGE_ITEMS = 10
+    BULK_FORGE_STONES = 3
+
     def __init__(self):
         self.font = pygame.font.SysFont("consolas", 13)
         self.font_title = pygame.font.SysFont("consolas", 17, bold=True)
@@ -120,6 +123,7 @@ class InventoryUI:
         self._hit_regions = []
         self._last_click_time = 0
         self._last_click_target = None
+        self.game = None
 
     # ---------------- mouse ----------------
     def handle_mouse_motion(self, pos, player):
@@ -136,6 +140,62 @@ class InventoryUI:
         elif kind == "equipped":
             self.focus = FOCUS_EQUIPPED
             self.equipped_index = EQUIPMENT_SLOTS.index(value)
+
+    def do_bulk_forge(self, player) -> str:
+        from items.item_generator import generate_random_item
+        from items.item import Item
+
+        items = list(player.inventory.items)
+        if len(items) < self.BULK_FORGE_ITEMS:
+            return (f"Bulk forge needs {self.BULK_FORGE_ITEMS} items "
+                    f"({len(items)}/{self.BULK_FORGE_ITEMS}).")
+        if player.extension_stones < self.BULK_FORGE_STONES:
+            return (f"Bulk forge needs {self.BULK_FORGE_STONES} stones "
+                    f"({player.extension_stones}/{self.BULK_FORGE_STONES}).")
+        if self.game is None:
+            return ""
+
+        to_consume = items[:self.BULK_FORGE_ITEMS]
+
+        avg_ilvl = max(1, sum(it.item_level for it in to_consume) // self.BULK_FORGE_ITEMS)
+        rarity_score = 0.0
+        for it in to_consume:
+            rarity_score += (3 if it.rarity == Item.RARITY_RARE
+                            else 2 if it.rarity == Item.RARITY_MAGIC
+                            else 1)
+        avg_rarity = rarity_score / self.BULK_FORGE_ITEMS
+
+        if avg_rarity >= 2.0:
+            p = s = 3           # six-mod
+        elif avg_rarity >= 1.4:
+            p, s = 3, 2
+        else:
+            p, s = 2, 2
+
+        target_ilvl = avg_ilvl + 3    # base shrine gives +1..+3, we give a flat +3
+        rng = self.game.world.rng_service.get_stream("bulk_forge")
+        rules = self.game._active_world_rules()
+        new_item = generate_random_item(
+            rng, area_level=target_ilvl,
+            world_context={"world_rules": rules},
+            force_affix_counts=(p, s),
+        )
+        new_item.display_name_override = f"Forged {new_item.base_name}"
+
+        for it in to_consume:
+            player.inventory.remove_item(it)
+        player.extension_stones -= self.BULK_FORGE_STONES
+
+        if not player.inventory.add_item(new_item):
+            self.game.current_area.loot_drops.append(
+                {"x": player.x + 20, "y": player.y, "item": new_item})
+            return (f"Forged {new_item.display_name} "
+                    f"[{new_item.affix_count_label()}] (dropped to ground)")
+
+        return (f"Forged {new_item.display_name} "
+                f"[{new_item.affix_count_label()}] "
+                f"from {self.BULK_FORGE_ITEMS} items + {self.BULK_FORGE_STONES} stones")
+    
 
     def handle_mouse_down(self, button, pos, player):
         hit = self._hit_test(pos)
@@ -231,6 +291,19 @@ class InventoryUI:
             ok, missing = player.meets_requirements(item)
             if not ok:
                 return f"Requires {', '.join(missing)}"
+
+            if self._has_multiple_slots(item):
+                from items.equipment_slots import ITEM_SLOT_TO_EQUIP_SLOTS
+                candidates = ITEM_SLOT_TO_EQUIP_SLOTS[item.slot]
+                empty = [s for s in candidates if player.equipped.get(s) is None]
+                if empty:
+                    player.equip(item, slot=empty[0])
+                    return f"Equipped {item.display_name} in {empty[0].replace('_', ' ').title()}"
+                
+                self._prompt_ring_slot(player, item, candidates)
+                return ""  # modal will report via _show_message  
+
+            
             player.equip(item)
             return f"Equipped {item.display_name}"
 
@@ -257,6 +330,36 @@ class InventoryUI:
             return f"Moved {item.display_name} to inventory"
 
         return ""
+
+    def _has_multiple_slots(self, item) -> bool:
+        from items.equipment_slots import ITEM_SLOT_TO_EQUIP_SLOTS
+        return len(ITEM_SLOT_TO_EQUIP_SLOTS.get(item.slot, [])) > 1
+
+    def _prompt_ring_slot(self, player, item, candidates):
+        if self.game is None or self.game.choice_menu is None:
+            return
+        opts = []
+        for slot in candidates:
+            cur = player.equipped.get(slot)
+            opts.append({
+                "id": slot,
+                "name": slot.replace("_", " ").title(),
+                "desc": f"Replace: {cur.display_name if cur else '(empty)'}",
+            })
+        self.game.choice_menu.enqueue(
+            f"Which slot for {item.display_name}?",
+            opts,
+            lambda o: self._equip_ring_to_slot(player, item, o["id"]),
+            subtitle="Left/Right + Enter or 1/2. ESC cancels.",
+            accent=(255, 200, 120),
+            cancellable=True,
+            immediate=True,          # user-initiated -> no arming delay
+        )
+
+    def _equip_ring_to_slot(self, player, item, slot):
+        if player.equip(item, slot=slot) and self.game is not None:
+            self.game._show_message(
+                f"Equipped {item.display_name} in {slot.replace('_', ' ').title()}")    
 
     # ---------------- action: R key / right-click ----------------
     def do_stash_action(self, player) -> str:
@@ -285,9 +388,12 @@ class InventoryUI:
 
         title = self.font_title.render("Inventory", True, config.COLOR_TEXT)
         surface.blit(title, (panel.x + 10, panel.y + 8))
+       
         hint = self.font_small.render(
-            "Click/Arrows: select | E/dbl-click: equip | R/right-click: store | B: stash | I: close",
+            "Click/Arrows: select | E/dbl-click: equip | R/right-click: store | "
+            "X: forge 10 items -> 1 (3 stones) | B: stash | I: close",
             True, (150, 150, 160))
+        
         surface.blit(hint, (panel.x + 10, panel.bottom - 20))
 
         equipped_x = panel.x + 10
@@ -380,9 +486,31 @@ class InventoryUI:
                             compare_against=compare_against, compare=compare,
                             world_rules=world_rules, max_width=380)
             
+    #def _best_guess_equip_slot(self, item, player):
+    #    from items.equipment_slots import resolve_equip_slot
+    #    return resolve_equip_slot(item.slot, player.equipped)
+
     def _best_guess_equip_slot(self, item, player):
-        from items.equipment_slots import resolve_equip_slot
-        return resolve_equip_slot(item.slot, player.equipped)
+        from items.equipment_slots import ITEM_SLOT_TO_EQUIP_SLOTS
+        candidates = ITEM_SLOT_TO_EQUIP_SLOTS.get(item.slot, [])
+        if not candidates:
+            return None
+        if len(candidates) == 1:
+            return candidates[0]
+        empty = [s for s in candidates if player.equipped.get(s) is None]
+        if empty:
+            return empty[0]
+
+        def _weight(slot):
+            it = player.equipped.get(slot)
+            if it is None:
+                return float("-inf")
+            w = getattr(it, "damage_bonus", 0) + getattr(it, "armor_bonus", 0)
+            w += sum(getattr(it, "_other_bonuses", {}).values())
+            w += sum(getattr(it, "_resist_bonus", {}).values())
+            return w
+
+        return max(candidates, key=_weight)
 
 class DamageNumbers:
     """Floating, fading damage text spawned on hits."""

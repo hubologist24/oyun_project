@@ -7,20 +7,19 @@ than aspirational by the time Phase 6 introduces an LLM backend.
 
 Each validator returns (is_valid: bool, errors: list[str]).
 """
+import re
 from typing import List, Tuple
 from world.extension import ExtensionSpec
 from world.extension_templates import get_modifier_template, _load_modifier_templates
 from world.world_modifiers import SUPPORTED_RULE_TYPES, VALID_TARGETS
 from combat.damage_types import DamageTypes
+from items.tiers import get_tier_table
 
 
 MAX_ROOM_COUNT = 20
 MIN_ROOM_COUNT = 2
 MAX_AREA_LEVEL = 500
 MAX_ANOMALY_LEVEL_JUMP = 60
-
-import re
-from items.tiers import get_tier_table
 
 MAX_MAP_DIM = 128
 MIN_MAP_DIM = 20
@@ -209,10 +208,10 @@ class EnemyValidator:
 class BossValidator:
     MAX_HP = 50000
     MAX_PHASES = 6
-    MAX_HIT = 1500          # per-hit cap; level scaling reaches ~330 at lvl 100
-    MAX_ARMOR = 300         # => 75% physical mitigation
+    MAX_HIT = 1500            # per-hit cap; level scaling reaches ~330 at lvl 100
+    MAX_ARMOR = 300           # => 75% physical mitigation
     MIN_COOLDOWN = 0.2
-    MIN_TELEGRAPH = 0.15    # fairness floor: player must be able to react
+    MIN_TELEGRAPH = 0.15      # fairness floor: player must be able to react
 
     @staticmethod
     def validate(b: dict):

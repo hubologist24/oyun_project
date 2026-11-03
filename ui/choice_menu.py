@@ -6,6 +6,7 @@ import core.config as config
 
 class ChoiceMenu:
     CARD_W, CARD_H, GAP = 300, 230, 24
+    ARM_DELAY_MS = 250
 
     def __init__(self):
         self.visible = False
@@ -13,6 +14,7 @@ class ChoiceMenu:
         self._queue = []
         self._cur = None
         self._dim = None
+        self._armed_at = 0
         self._f_title = pygame.font.SysFont("consolas", 30, bold=True)
         self._f_sub = pygame.font.SysFont("consolas", 16)
         self._f_name = pygame.font.SysFont("consolas", 20, bold=True)
@@ -20,9 +22,10 @@ class ChoiceMenu:
 
     # ---- queue ----
     def enqueue(self, title, options, on_pick, subtitle="", accent=(120, 220, 255),
-                cancellable=False):
+                cancellable=False, immediate=False):
         self._queue.append(dict(title=title, options=options, on_pick=on_pick,
-                                subtitle=subtitle, accent=accent, cancellable=cancellable))
+                                subtitle=subtitle, accent=accent,
+                                cancellable=cancellable, immediate=immediate))
         if not self.visible:
             self._next()
 
@@ -34,6 +37,13 @@ class ChoiceMenu:
         self._cur = self._queue.pop(0)
         self.selected = 0
         self.visible = True
+        if self._cur.get("immediate"):
+            self._armed_at = 0
+        else:
+            self._armed_at = pygame.time.get_ticks() + self.ARM_DELAY_MS
+
+    def _is_armed(self):
+        return pygame.time.get_ticks() >= self._armed_at
 
     def _pick(self, idx):
         cur = self._cur
@@ -56,6 +66,8 @@ class ChoiceMenu:
     def handle_key(self, key):
         if not self.visible or self._cur is None:
             return False
+        if not self._is_armed():
+            return True  # swallow early input
         n = len(self._cur["options"])
         if pygame.K_1 <= key <= pygame.K_9:
             self._pick(key - pygame.K_1)
@@ -71,6 +83,8 @@ class ChoiceMenu:
 
     def handle_click(self, button, pos):
         if not self.visible or self._cur is None or button != 1:
+            return
+        if not self._is_armed():
             return
         for i, r in enumerate(self._rects()):
             if r.collidepoint(pos):

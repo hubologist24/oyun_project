@@ -1,218 +1,312 @@
-"""
-Grows the single world map: pastes a generated extension beyond the
-current map edge, carves a corridor from a locked door to its start
-room, opens the door, spawns its enemies/boss, and registers its own
-fresh locked door for the next expansion.
-
-Deterministic: replaying attach_extension() in order on a freshly
-built starting level reproduces the exact same map (used by load).
-"""
-from dataclasses import asdict
+# [PROJECT: world]
+# [SYMBOLS] classes: ExtensionSpec, Extension | functions: find_door_site, stamp_door, attach_extension
+import copy
+import time
 import pygame
-
+from dataclasses import dataclass, field
+from typing import Optional, List
+from world.world_modifiers import WorldRuleSet, WorldModifier
 import core.config as config
-from world.tilemap import FLOOR, WALL, DOOR_CLOSED, DOOR_OPEN
-from world.map_generator import build_procedural_area
-from world.loot_rules import LootRules
+from world.tilemap import DOOR_OPEN, DOOR_CLOSED, WALL, FLOOR
 from enemies.enemy import spawn_basic_enemy
 from enemies.boss import Boss, BossTemplate
 
-MARGIN = 3
-SIDES = {"e": (1, 0), "s": (0, 1)}
-
-BIOME_ELEMENT = {"ash_canyon": "fire", "frozen_reach": "cold", "storm_peaks": "lightning",
-                 "corrupted_hollow": "chaos", "sunken_library": "chaos"}
 
 
-def _line_clear(grid, col, row, dx, dy):
-    rows, cols = len(grid), len(grid[0])
-    c, r = col, row
-    while 0 <= c < cols and 0 <= r < rows:
-        if grid[r][c] != WALL:
-            return False
-        c += dx
-        r += dy
-    return True
+
+@dataclass
+class ExtensionSpec:
+    extension_id: str
+    extension_name: str
+    area_level: int
+    biome: str
+    is_anomaly: bool = False
+    world_modifiers: List[dict] = field(default_factory=list)
+    boss_template_id: Optional[str] = None
+    room_count: int = 6
+    map_cols: int = 50
+    map_rows: int = 38
+    loot_rules: dict = field(default_factory=dict)
+    boss_personalization: dict = field(default_factory=dict)
+    overcharge_level: int = 0
+    enemy_behavior_bias: dict = field(default_factory=dict)
+
+    def to_dict(self):
+        return {
+            "extension_id": self.extension_id,
+            "extension_name": self.extension_name,
+            "area_level": self.area_level,
+            "biome": self.biome,
+            "is_anomaly": self.is_anomaly,
+            "world_modifiers": copy.deepcopy(self.world_modifiers),
+            "boss_template_id": self.boss_template_id,
+            "room_count": self.room_count,
+            "map_cols": self.map_cols,
+            "map_rows": self.map_rows,
+            "loot_rules": self.loot_rules,
+            "boss_personalization": self.boss_personalization,
+            "overcharge_level": self.overcharge_level,
+            "enemy_behavior_bias": self.enemy_behavior_bias,
+        }
+
+    @staticmethod
+    def from_dict(d):
+        return ExtensionSpec(
+            extension_id=d["extension_id"],
+            extension_name=d["extension_name"],
+            area_level=d["area_level"],
+            biome=d.get("biome", "unknown"),
+            is_anomaly=d.get("is_anomaly", False),
+            world_modifiers=copy.deepcopy(d.get("world_modifiers", [])),
+            boss_template_id=d.get("boss_template_id"),
+            room_count=d.get("room_count", 6),
+            map_cols=d.get("map_cols", 50),
+            map_rows=d.get("map_rows", 38),
+            loot_rules=d.get("loot_rules", {}),
+            boss_personalization=d.get("boss_personalization", {}),
+            overcharge_level=d.get("overcharge_level", 0),
+            enemy_behavior_bias=d.get("enemy_behavior_bias", {}),
+        )
 
 
-def find_door_site(grid, rooms):
-    """
-    rooms: list of (x0,y0,x1,y1) in preference order.
-    Returns (col, row, side, index_in_rooms) or None.
-    Pass 1 requires a clear wall path to the map edge (so the corridor
-    won't cut through other rooms). Pass 2 relaxes that.
-    """
-    rows, cols = len(grid), len(grid[0])
-    for strict in (True, False):
-        for i, (x0, y0, x1, y1) in enumerate(rooms):
-            mx, my = (x0 + x1) // 2, (y0 + y1) // 2
-            for side, (c, r) in (("s", (mx, y1)), ("e", (x1, my))):
-                dx, dy = SIDES[side]
-                if not (0 <= c < cols and 0 <= r < rows):
-                    continue
-                if grid[r][c] != WALL:
-                    continue
-                if grid[r - dy][c - dx] != FLOOR:
-                    continue
-                if strict and not _line_clear(grid, c, r, dx, dy):
-                    continue
-                return c, r, side, i
+class Extension:
+
+    def __init__(self, spec: ExtensionSpec, extension_seed: int, created_at: float = None):
+        self.spec = spec
+        self.extension_seed = extension_seed
+        self.created_at = created_at or time.time()
+        self.area = None
+        self.rule_set = WorldRuleSet(
+            modifiers=[WorldModifier.from_dict(m) for m in spec.world_modifiers]
+        )
+
+    @property
+    def extension_id(self):
+        return self.spec.extension_id
+
+    def ensure_built(self, rng_service, world=None):
+        if self.area is not None:
+            return self.area
+        from world.map_generator import build_procedural_area
+        stream = rng_service.derive_child("world", f"extension:{self.extension_id}:area")
+        self.area = build_procedural_area(
+            stream, area_level=self.spec.area_level,
+            cols=self.spec.map_cols, rows=self.spec.map_rows,
+            room_count=self.spec.room_count, boss_room=(self.spec.boss_template_id is not None),
+        )
+
+        if world is not None and not world.gates_in_area(self.extension_id):
+            gate_room_index = self.area["gate_room_index"]
+            tile_col = self.area.get("gate_tile_col")
+            tile_row = self.area.get("gate_tile_row")
+            if tile_col is None or tile_row is None:
+                x0, y0, x1, y1 = self.area["gate_room"]
+                tile_col, tile_row = (x0 + x1) // 2, (y0 + y1) // 2
+            world.register_extension_gate(self.extension_id, gate_room_index,
+                                          tile_col, tile_row)
+        return self.area
+
+    def to_dict(self):
+        return {
+            "spec": self.spec.to_dict(),
+            "extension_seed": self.extension_seed,
+            "created_at": self.created_at,
+        }
+
+    @staticmethod
+    def from_dict(d):
+        spec = ExtensionSpec.from_dict(d["spec"])
+        return Extension(spec, d["extension_seed"], created_at=d.get("created_at"))
+
+
+#def find_door_site(area, room):
+#    """room is (x0, y0, x1, y1) in tiles. Returns (col, row, side, room_index) or None."""
+#    if not room:
+#        return None
+#    x0, y0, x1, y1 = room
+#    return ((x0 + x1) // 2, (y0 + y1) // 2, "e", None)
+
+def _grid_of(area):
+    """Accept a Level, a TileMap, or a raw 2D grid."""
+    if hasattr(area, "tilemap"):
+        return area.tilemap.grid
+    if hasattr(area, "grid"):
+        return area.grid
+    return area
+
+
+def _is_room_tuple(v):
+    return (isinstance(v, (tuple, list)) and len(v) == 4
+            and all(isinstance(n, int) for n in v))
+
+
+def _door_in_room(grid, room):
+    """A floor tile in `room`, at least 1 tile away from the map border."""
+    rows = len(grid)
+    cols = len(grid[0]) if rows else 0
+    x0, y0, x1, y1 = room
+    if x1 <= x0 or y1 <= y0:
+        return None
+
+    def ok(c, r):
+        return 1 <= c <= cols - 2 and 1 <= r <= rows - 2 and grid[r][c] == FLOOR
+
+    cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
+    if ok(cx, cy):
+        return cx, cy
+    for r in range(y0, y1):
+        for c in range(x0, x1):
+            if ok(c, r):
+                return c, r
     return None
 
 
-def stamp_door(level, gate):
-    if gate.state == "closed":
-        level.tilemap.grid[gate.tile_row][gate.tile_col] = DOOR_CLOSED
+def find_door_site(area, rooms):
+    """
+    area:  Level / TileMap / raw grid
+    rooms: one (x0,y0,x1,y1) tuple OR a list of them
+    Returns (col, row, side, room_index) or None. room_index is None for a single room.
+    """
+    grid = _grid_of(area)
+    if not rooms or not grid or not grid[0]:
+        return None
+
+    if _is_room_tuple(rooms):
+        candidates = [(None, rooms)]
+    else:
+        idx = list(range(len(rooms)))
+        order = idx[1:-1] + idx[:1] + idx[-1:] if len(idx) > 2 else idx
+        candidates = [(i, rooms[i]) for i in order]
+
+    for i, room in candidates:
+        if not _is_room_tuple(room):
+            continue
+        spot = _door_in_room(grid, room)
+        if spot:
+            return spot[0], spot[1], "e", i
+    return None
+
+def stamp_door(area, gate):
+    """Stamp a gate's tile into the area's tilemap (open or closed, based on state)."""
+    tm = getattr(area, "tilemap", area)
+    c, r = gate.tile_col, gate.tile_row
+    if c is None or r is None:
+        return
+    if 0 <= r < tm.rows and 0 <= c < tm.cols:
+        tm.grid[r][c] = DOOR_OPEN if gate.is_open() else DOOR_CLOSED
 
 
-def attach_extension(level, extension, gate, rng_service, world=None):
-    spec = extension.spec
-    rid = spec.extension_id
+def attach_extension(area, ext, gate, rng_service, world):
+    ext_area = ext.ensure_built(rng_service, world)
+    if not world.gates_in_area(ext.extension_id):
+        gi = ext_area["gate_room_index"]
+        tc = ext_area.get("gate_tile_col")
+        tr = ext_area.get("gate_tile_row")
+        if tc is None or tr is None:
+            x0, y0, x1, y1 = ext_area["gate_room"]
+            tc, tr = (x0 + x1) // 2, (y0 + y1) // 2
+        # tile coords here are local to the extension, so shift by the offset used below
+        world.register_extension_gate(ext.extension_id, gi,
+                                      tc + area.tilemap.cols + 4, tr)
+    ext_tilemap = ext_area["tilemap"]
+    ext_grid = ext_tilemap.grid
+
+    # Determine placement offset to the right of the current map
+    offset_col = area.tilemap.cols + 4
+    offset_row = 0
+
+    new_cols = max(area.tilemap.cols, offset_col + ext_tilemap.cols)
+    new_rows = max(area.tilemap.rows, offset_row + ext_tilemap.rows)
+    area.tilemap.ensure_size(new_cols, new_rows)
+
+    # Stamp door at gate
+    if gate.tile_col is not None and gate.tile_row is not None:
+        if (0 <= gate.tile_row < area.tilemap.rows
+                and 0 <= gate.tile_col < area.tilemap.cols):
+            area.tilemap.grid[gate.tile_row][gate.tile_col] = DOOR_OPEN
+        
+
+    # Copy extension grid tiles with offset
+    for r_idx, row in enumerate(ext_grid):
+        for c_idx, tile in enumerate(row):
+            tr = offset_row + r_idx
+            tc = offset_col + c_idx
+            if 0 <= tr < area.tilemap.rows and 0 <= tc < area.tilemap.cols:
+                area.tilemap.grid[tr][tc] = tile
+
+    # Carve corridor between gate and extension start
+    gate_c = gate.tile_col if gate.tile_col is not None else area.tilemap.cols - 1
+    gate_r = gate.tile_row if gate.tile_row is not None else area.tilemap.rows // 2
+    target_c = offset_col + ext_area.get("gate_tile_col", 1)
+    target_r = offset_row + ext_area.get("gate_tile_row", 1)
+
+    for c in range(min(gate_c, target_c), max(gate_c, target_c) + 1):
+        if 0 <= gate_r < area.tilemap.rows and 0 <= c < area.tilemap.cols:
+            area.tilemap.grid[gate_r][c] = FLOOR
+            if gate_r + 1 < area.tilemap.rows:
+                area.tilemap.grid[gate_r + 1][c] = FLOOR
+    for r in range(min(gate_r, target_r), max(gate_r, target_r) + 1):
+        if 0 <= r < area.tilemap.rows and 0 <= target_c < area.tilemap.cols:
+            area.tilemap.grid[r][target_c] = FLOOR
+            if target_c + 1 < area.tilemap.cols:
+                area.tilemap.grid[r][target_c + 1] = FLOOR
+
+    # Offset rooms
+    ext_rooms = ext_area.get("rooms", [])
+    shifted_rooms = [
+        (rx0 + offset_col, ry0 + offset_row, rx1 + offset_col, ry1 + offset_row)
+        for (rx0, ry0, rx1, ry1) in ext_rooms
+    ]
+    if hasattr(area, "rooms"):
+        area.rooms.extend(shifted_rooms)
+
+    rid = ext.extension_id
+    if shifted_rooms:
+        min_c = min(r[0] for r in shifted_rooms)
+        min_r = min(r[1] for r in shifted_rooms)
+        max_c = max(r[2] for r in shifted_rooms)
+        max_r = max(r[3] for r in shifted_rooms)
+        reg_rect = pygame.Rect(min_c, min_r, max_c - min_c, max_r - min_r)
+        if hasattr(area, "region_rects"):
+            area.region_rects.append((rid, reg_rect))
+
+    if hasattr(area, "tile_region"):
+        for r_idx, row in enumerate(ext_grid):
+            for c_idx, tile in enumerate(row):
+                if tile == 0:
+                    area.tile_region[(offset_col + c_idx, offset_row + r_idx)] = rid
+
     ts = config.TILE_SIZE
-    tm = level.tilemap
+    ext_start = shifted_rooms[0] if shifted_rooms else (offset_col + 1, offset_row + 1)
+    start_x = (ext_start[0] + ext_start[2]) / 2 * ts
+    start_y = (ext_start[1] + ext_start[3]) / 2 * ts
+    if hasattr(area, "region_start"):
+        area.region_start[rid] = (start_x, start_y)
 
-    stream = rng_service.derive_child("world", f"extension:{rid}:area")
+    # Spawn enemies & bosses
+    stream = rng_service.derive_child("world", f"extension:{rid}:spawns")
+    lvl = ext.spec.area_level
+    enemy_rooms = ext_area.get("enemy_rooms", shifted_rooms[1:] if len(shifted_rooms) > 1 else shifted_rooms)
+    for room in enemy_rooms:
+        rx0, ry0, rx1, ry1 = room
+        count = stream.randint(2, 5)
+        for _ in range(count):
+            col = stream.randint(rx0 + 1, rx1 - 2)
+            row = stream.randint(ry0 + 1, ry1 - 2)
+            x = col * ts + ts / 2
+            y = row * ts + ts / 2
+            e = spawn_basic_enemy(x, y, stream, area_level=lvl)
+            e.region_id = rid
+            e._pack_checked = True
+            if hasattr(area, "enemies"):
+                area.enemies.append(e)
 
-    region_cleared = (world is not None
-                      and rid in getattr(world, "cleared_regions", set()))
-
-    area = build_procedural_area(
-        stream, area_level=spec.area_level, cols=spec.map_cols,
-        rows=spec.map_rows, room_count=spec.room_count,
-        boss_room=(spec.boss_template_id is not None))
-
-    region_grid = area["tilemap"].grid
-    rrows, rcols = len(region_grid), len(region_grid[0])
-    sx0, sy0, sx1, sy1 = area["start_room"]
-    scx, scy = (sx0 + sx1) // 2, (sy0 + sy1) // 2
-    dc, dr, side = gate.tile_col, gate.tile_row, gate.side
-
-    # --- placement: strictly beyond the current map edge ---
-    if side == "e":
-        ox, oy = tm.cols + MARGIN, max(0, dr - scy)
-    else:
-        ox, oy = max(0, dc - scx), tm.rows + MARGIN
-
-    tm.ensure_size(ox + rcols, oy + rrows)
-    for r in range(rrows):
-        for c in range(rcols):
-            tm.grid[oy + r][ox + c] = region_grid[r][c]
-    level.region_rects.append((rid, pygame.Rect(ox, oy, rcols, rrows)))
-
-    # --- corridor from the door to the new start room (1 tile wide) ---
-    tc, tr = ox + scx, oy + scy
-    if side == "e":
-        path = [(c, dr) for c in range(dc, tc + 1)]
-        step = 1 if tr >= dr else -1
-        path += [(tc, r) for r in range(dr, tr + step, step)]
-    else:
-        path = [(dc, r) for r in range(dr, tr + 1)]
-        step = 1 if tc >= dc else -1
-        path += [(c, tr) for c in range(dc, tc + step, step)]
-    for (c, r) in path:
-        if (c, r) != (dc, dr) and tm.grid[r][c] == WALL:
-            tm.grid[r][c] = FLOOR
-            level.tile_region[(c, r)] = rid
-    tm.grid[dr][dc] = DOOR_OPEN
-
-    level.region_start[rid] = (((sx0 + sx1) / 2 + ox) * ts, ((sy0 + sy1) / 2 + oy) * ts)
-
-    # --- shrines in this extension ---
-    from world.shrine import make_shrine
-    shrine_rng = rng_service.derive_child("world", f"extension:{rid}:shrine") 
-    if not any(s.area_id == rid for s in level.shrines):
-        rooms = area["rooms"]
-        occupied = {0, len(rooms) - 1, area.get("gate_room_index", -1)}
-        candidates = [i for i in range(len(rooms)) if i not in occupied]
-        if candidates:
-            idx = shrine_rng.choice(candidates)
-            rx0, ry0, rx1, ry1 = rooms[idx]
-            ax = ((rx0 + rx1) / 2 + ox) * ts
-            ay = ((ry0 + ry1) / 2 + oy) * ts
-            level.shrines.append(make_shrine("sacrifice_altar", ax, ay, rid))
-
-        for enemy_room in area["enemy_rooms"][:2]:
-            x0, y0, x1, y1 = enemy_room
-            cx = (shrine_rng.uniform(x0 + 1, x1 - 1) + ox) * ts
-            cy = (shrine_rng.uniform(y0 + 1, y1 - 1) + oy) * ts
-            level.shrines.append(make_shrine("loot_chest", cx, cy, rid)) 
-
-
-    if spec.loot_rules:
-        level.region_loot_rules[rid] = LootRules.from_dict(spec.loot_rules)
-
-    # --- enemies ---
-    spawn_rng = rng_service.derive_child("world", f"extension:{rid}:runtime")
-    bias = getattr(spec, "enemy_behavior_bias", None) or {}
-    if not region_cleared:
-        for (x0, y0, x1, y1) in area["enemy_rooms"]:
-            for _ in range(spawn_rng.randint(9, 15)):
-                col = spawn_rng.randint(x0 + 1, max(x0 + 1, x1 - 2)) + ox
-                row = spawn_rng.randint(y0 + 1, max(y0 + 1, y1 - 2)) + oy
-                e = spawn_basic_enemy(col * ts + ts / 2, row * ts + ts / 2,
-                                    spawn_rng, area_level=spec.area_level,
-                                    behavior_bias=bias)
-
-                e.region_id = rid
-                elem = BIOME_ELEMENT.get(spec.biome)
-                if elem:                              # biome enemies hit with and resist that element
-                    e.damage_type = elem
-                    e.resistances[elem] = 0.25
-                level.enemies.append(e)
-
-    # NEW: overcharged gate ambush pack
-    overcharge = getattr(spec, "overcharge_level", 0)
-    if not region_cleared and overcharge > 0:
-        ambush_rng = rng_service.derive_child("world", f"extension:{rid}:ambush")
-        region_enemies = [e for e in level.enemies
-                       # if e.region_id == rid and not e.is_elite
-                       if getattr(e, "region_id", "starting_area") == rid and not e.is_elite
-                        ]
-        ambush_rng.shuffle(region_enemies)
-        ambush_count = min(6, overcharge * 2)
-        for e in region_enemies[:ambush_count]:
-            e.is_elite = True
-            e.max_hp = int(e.max_hp * 1.6)
-            e.hp = e.max_hp
-            e.damage = int(e.damage * 1.3)
-            e.xp_reward *= 2
-            e.affixes = list(e.affixes) + ["overcharged"]
-            e._pack_checked = False          # allow them to form a pack
-
-    # --- boss (still validated) ---
-    if not region_cleared and area.get("boss_room") and spec.boss_template_id:
-        from enemies.boss_factory import build_personalized_boss_template
-        from ai.validators import BossValidator
-        bx0, by0, bx1, by1 = area["boss_room"]
-        bx, by = ((bx0 + bx1) / 2 + ox) * ts, ((by0 + by1) / 2 + oy) * ts
-        name = f"Guardian of {spec.extension_name}"
-        template = build_personalized_boss_template(
-            name, spec.boss_personalization, spec.area_level, spawn_rng)
-        ok, errors = BossValidator.validate(asdict(template))
-        if not ok:
-            print(f"[expansion] boss failed validation {errors}; using safe default")
-            template = BossTemplate.hollow_warden()
-            template.name = name
-        boss = Boss(bx, by, template)
+    boss_room = ext_area.get("boss_room")
+    if boss_room is not None:
+        bx0, by0, bx1, by1 = boss_room
+        boss_cx = (bx0 + offset_col + bx1 + offset_col) / 2 * ts
+        boss_cy = (by0 + offset_row + by1 + offset_row) / 2 * ts
+        boss = Boss(boss_cx, boss_cy, BossTemplate.hollow_warden())
         boss.region_id = rid
-        level.bosses.append(boss)
-
-    # --- this region's own locked door (for the NEXT expansion) ---
-    if world is not None:
-        existing = world.gates_in_area(rid)
-        if existing:                       # reload path: gates came from the save
-            for g in existing:
-                stamp_door(level, g)
-        else:
-            rooms = area["rooms"]
-            order = [area["gate_room_index"]] + [i for i in range(len(rooms))
-                                                 if i != area["gate_room_index"]]
-            shifted = [(rooms[i][0] + ox, rooms[i][1] + oy,
-                        rooms[i][2] + ox, rooms[i][3] + oy) for i in order]
-            site = find_door_site(tm.grid, shifted)
-            if site:
-                c, r, s, idx = site
-                g = world.register_extension_gate(rid, order[idx], c, r, s)
-                stamp_door(level, g)
-            else:
-                print(f"[expansion] no door site found in '{rid}'")
+        if hasattr(area, "bosses"):
+            area.bosses.append(boss)

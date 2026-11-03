@@ -104,6 +104,75 @@ class Player:
         self.effective_stats.hp = int(self.effective_stats.max_hp * old_hp_ratio)
         self.effective_stats.clamp_hp()
 
+
+    def _ranged_weapon(self):
+        from items.modifiers import RANGED_SUBTYPES
+        weapon = self.equipped.get("weapon")
+        if weapon is None:
+            return None
+        if getattr(weapon, "weapon_subtype", None) not in RANGED_SUBTYPES:
+            return None
+        return weapon
+
+    def _melee_small_weapon(self):
+        from items.modifiers import MELEE_SMALL_SUBTYPES
+        weapon = self.equipped.get("weapon")
+        if weapon is None:
+            return None
+        if getattr(weapon, "weapon_subtype", None) not in MELEE_SMALL_SUBTYPES:
+            return None
+        return weapon
+
+    def _sum_other_bonus_from_equipped(self, modifier_id, primary_weapon):
+        total = 0.0
+        if primary_weapon is not None:
+            total += primary_weapon.other_bonus(modifier_id)
+        for slot in ("ring_1", "ring_2", "amulet", "offhand"):
+            it = self.equipped.get(slot)
+            if it is not None:
+                total += it.other_bonus(modifier_id)
+        return total
+
+    def ranged_fork_bonus(self) -> int:
+        w = self._ranged_weapon()
+        if w is None:
+            return 0
+        bonus = int(round(self._sum_other_bonus_from_equipped("fork_count", w)))
+        bonus += self.perks.get("forking_shot", 0)
+        if self.has_keystone("eldritch_barrage"):
+            bonus += 1
+        return max(0, min(bonus, 5))
+
+    def ranged_pierce_bonus(self) -> int:
+        w = self._ranged_weapon()
+        if w is None:
+            return 0
+        bonus = int(round(self._sum_other_bonus_from_equipped("pierce_count", w)))
+        bonus += self.perks.get("piercing_eye", 0)
+        if self.has_keystone("eldritch_barrage"):
+            bonus += 1
+        return max(0, min(bonus, 5))
+
+    def ranged_chain_bonus(self) -> int:
+        w = self._ranged_weapon()
+        if w is None:
+            return 0
+        bonus = int(round(self._sum_other_bonus_from_equipped("chain_count", w)))
+        bonus += self.perks.get("linked_aim", 0)
+        if self.has_keystone("eldritch_barrage"):
+            bonus += 1
+        return max(0, min(bonus, 5))
+
+    def melee_proc_chance(self, proc_id: str) -> float:
+        """Returns probability (0.0 - 1.0) for a melee-small proc."""
+        w = self._melee_small_weapon()
+        if w is None:
+            return 0.0
+        raw = self._sum_other_bonus_from_equipped(proc_id, w)
+        if self.has_keystone("stormconduit"):
+            raw += 10.0
+        return max(0.0, min(raw / 100.0, 0.6))
+
     # ---------- keystones / item effects ----------
     def active_keystones(self):
         ks = set(self.keystones)
@@ -317,7 +386,7 @@ class Player:
         if target_slot is None:
             return False
         old = self.equipped.get(target_slot)
-        self.inventory.remove_item(item)
+        #self.inventory.remove_item(item)
         if old is not None:
             self.inventory.add_item(old)
         self.equipped[target_slot] = item

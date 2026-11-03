@@ -1,0 +1,392 @@
+{
+  "world": {
+    "world_seed": 467249515,
+    "created_at": 1793702443.8793495,
+    "total_playtime_seconds": 2.5209999999999972,
+    "playtime_at_last_extension": 2.5209999999999972,
+    "extensions": [
+      {
+        "spec": {
+          "extension_id": "ext_1",
+          "extension_name": "Ext 1",
+          "area_level": 3,
+          "biome": "ash_canyon",
+          "is_anomaly": false,
+          "world_modifiers": [],
+          "boss_template_id": "personalized",
+          "room_count": 6,
+          "map_cols": 50,
+          "map_rows": 38,
+          "loot_rules": {},
+          "boss_personalization": {
+            "mechanic_archetype": "dash_predator",
+            "difficulty_bias": "normal"
+          },
+          "overcharge_level": 0,
+          "enemy_behavior_bias": {}
+        },
+        "extension_seed": 229656057,
+        "created_at": 1793703539.6605024
+      },
+      {
+        "spec": {
+          "extension_id": "ext_2",
+          "extension_name": "Ext 2",
+          "area_level": 3,
+          "biome": "ash_canyon",
+          "is_anomaly": false,
+          "world_modifiers": [],
+          "boss_template_id": "personalized",
+          "room_count": 6,
+          "map_cols": 50,
+          "map_rows": 38,
+          "loot_rules": {},
+          "boss_personalization": {
+            "mechanic_archetype": "dash_predator",
+            "difficulty_bias": "normal"
+          },
+          "overcharge_level": 0,
+          "enemy_behavior_bias": {}
+        },
+        "extension_seed": 730197655,
+        "created_at": 1793703539.6625054
+      }
+    ],
+    "gates": [
+      {
+        "gate_id": 1,
+        "owner_area_id": "starting_area",
+        "room_index": 0,
+        "tile_col": 21,
+        "tile_row": 20,
+        "state": "open",
+        "target_extension_id": "ext_1",
+        "is_starting_gate": true,
+        "opened_at": 1793703539.6605024,
+        "side": "e",
+        "overcharge_level": 0
+      },
+      {
+        "gate_id": 2,
+        "owner_area_id": "ext_1",
+        "room_index": 1,
+        "tile_col": 98,
+        "tile_row": 10,
+        "state": "open",
+        "target_extension_id": "ext_2",
+        "is_starting_gate": false,
+        "opened_at": 1793703539.6625054,
+        "side": "e",
+        "overcharge_level": 0
+      },
+      {
+        "gate_id": 3,
+        "owner_area_id": "ext_2",
+        "room_index": 1,
+        "tile_col": 160,
+        "tile_row": 37,
+        "state": "closed",
+        "target_extension_id": null,
+        "is_starting_gate": false,
+        "opened_at": null,
+        "side": "e",
+        "overcharge_level": 0
+      }
+    ],
+    "region_presence": {},
+    "cleared_regions": [],
+    "used_shrines": []
+  },
+  "player": {
+    "x": 336.0,
+    "y": 336.0,
+    "base_stats": {
+      "max_hp": 100,
+      "hp": 100,
+      "base_damage": 12,
+      "primary_damage_type": "physical",
+      "armor": 0,
+      "speed": 260.0,
+      "resistances": {},
+      "crit_chance": 0.05,
+      "attack_speed_bonus": 0.0,
+      "strength": 5,
+      "dexterity": 5,
+      "intelligence": 5
+    },
+    "progression": {
+      "level": 1,
+      "xp": 0
+    },
+    "inventory": {
+      "cols": 10,
+      "rows": 6,
+      "cells": []
+    },
+    "extension_stones": 3,
+    "trophies": [
+      {
+        "name": "Old, the Slain",
+        "damage_type": "fire",
+        "generation": 1
+      }
+    ],
+    "equipped": {
+      "weapon": {
+        "item_id": 201,
+        "base_name": "Rusty Sword",
+        "slot": "weapon",
+        "rarity": "magic",
+        "item_level": 1,
+        "weapon_subtype": "sword",
+        "display_name_override": "Storm Rusty Sword",
+        "implicit": {
+          "kind": "implicit",
+          "affix_id": "implicit_base",
+          "display_name": "",
+          "modifier": "physical_damage",
+          "damage_type": "physical",
+          "tier": "T4",
+          "value": 35.2,
+          "creation_tier_range": [
+            20,
+            39
+          ]
+        },
+        "prefixes": [
+          {
+            "kind": "prefix",
+            "affix_id": "storm",
+            "display_name": "Storm",
+            "modifier": "lightning_damage",
+            "damage_type": "lightning",
+            "tier": "T5",
+            "value": 7.7,
+            "creation_tier_range": [
+              3,
+              9
+            ]
+          }
+        ],
+        "suffixes": [],
+        "creation_context": {
+          "world_id": "world_0",
+          "extension_id": "starting_world",
+          "item_level": 1,
+          "area_level": 1
+        },
+        "damage_bonus": 43,
+        "armor_bonus": 0,
+        "unique_id": null
+      },
+      "offhand": null,
+      "head": null,
+      "chest": null,
+      "legs": null,
+      "boots": null,
+      "gloves": {
+        "item_id": 202,
+        "base_name": "Bone Claws",
+        "slot": "gloves",
+        "rarity": "magic",
+        "item_level": 1,
+        "weapon_subtype": null,
+        "display_name_override": "Bone Claws of the Bear",
+        "implicit": {
+          "kind": "implicit",
+          "affix_id": "implicit_base",
+          "display_name": "",
+          "modifier": "armor",
+          "damage_type": null,
+          "tier": "T4",
+          "value": 15.7,
+          "creation_tier_range": [
+            8,
+            17
+          ]
+        },
+        "prefixes": [],
+        "suffixes": [
+          {
+            "kind": "suffix",
+            "affix_id": "of_the_bear",
+            "display_name": "of the Bear",
+            "modifier": "life",
+            "damage_type": null,
+            "tier": "T4",
+            "value": 12.8,
+            "creation_tier_range": [
+              10,
+              29
+            ]
+          }
+        ],
+        "creation_context": {
+          "world_id": "world_0",
+          "extension_id": "starting_world",
+          "item_level": 1,
+          "area_level": 1
+        },
+        "damage_bonus": 0,
+        "armor_bonus": 16,
+        "unique_id": null
+      },
+      "ring_1": null,
+      "ring_2": null,
+      "amulet": null
+    },
+    "perks": {},
+    "keystones": [],
+    "current_hp": 162
+  },
+  "current_extension_id": null,
+  "event_log": {
+    "events": [
+      {
+        "event_type": "item_equipped",
+        "timestamp": 1793702443.90337,
+        "payload": {
+          "item_id": 1,
+          "slot": "weapon"
+        }
+      },
+      {
+        "event_type": "item_equipped",
+        "timestamp": 1793702443.904386,
+        "payload": {
+          "item_id": 2,
+          "slot": "gloves"
+        }
+      },
+      {
+        "event_type": "item_equipped",
+        "timestamp": 1793703548.1992252,
+        "payload": {
+          "item_id": 97,
+          "slot": "weapon"
+        }
+      },
+      {
+        "event_type": "item_equipped",
+        "timestamp": 1793703548.1992252,
+        "payload": {
+          "item_id": 98,
+          "slot": "gloves"
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793703548.1992252,
+        "payload": {
+          "name": "dash_strike"
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793703548.1992252,
+        "payload": {
+          "name": "reverse_slash"
+        }
+      },
+      {
+        "event_type": "item_equipped",
+        "timestamp": 1793703548.2291193,
+        "payload": {
+          "item_id": 99,
+          "slot": "weapon"
+        }
+      },
+      {
+        "event_type": "item_equipped",
+        "timestamp": 1793703548.2301195,
+        "payload": {
+          "item_id": 100,
+          "slot": "gloves"
+        }
+      },
+      {
+        "event_type": "item_equipped",
+        "timestamp": 1793703548.2482033,
+        "payload": {
+          "item_id": 101,
+          "slot": "weapon"
+        }
+      },
+      {
+        "event_type": "item_equipped",
+        "timestamp": 1793703548.2492132,
+        "payload": {
+          "item_id": 102,
+          "slot": "gloves"
+        }
+      },
+      {
+        "event_type": "item_equipped",
+        "timestamp": 1793703570.577299,
+        "payload": {
+          "item_id": 201,
+          "slot": "weapon"
+        }
+      },
+      {
+        "event_type": "item_equipped",
+        "timestamp": 1793703570.577299,
+        "payload": {
+          "item_id": 202,
+          "slot": "gloves"
+        }
+      }
+    ]
+  },
+  "exploration": {
+    "visited": {
+      "starting_area": [
+        [
+          6,
+          6
+        ],
+        [
+          7,
+          6
+        ],
+        [
+          7,
+          7
+        ]
+      ]
+    },
+    "area_totals": {
+      "starting_area": 796
+    }
+  },
+  "nemesis": {
+    "records": [
+      {
+        "nid": 1,
+        "name": "Nul, the Voidtouched",
+        "damage_type": "chaos",
+        "taunt": "Chaos? I AM chaos, little spark.",
+        "behavior": "chaser",
+        "area_level": 3,
+        "kills_on_player": 1,
+        "generation": 1,
+        "world_boss": false,
+        "archetype": "dash_predator",
+        "status": "alive",
+        "respawn_at": 0.0,
+        "grudge": 0,
+        "escapes": 0,
+        "personality": "cunning",
+        "stolen_item": {}
+      }
+    ]
+  },
+  "used_shrines": [],
+  "feedback": {
+    "too_hard": 0,
+    "too_easy": 0,
+    "avoid_biomes": []
+  },
+  "version": 1,
+  "saved_at": 1793703570.5807903
+}

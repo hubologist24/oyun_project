@@ -2,7 +2,7 @@
 Main game loop and state orchestration - Phase 8 (split into mixins).
 Behaviour lives in core/game_parts/*; this file owns construction + the loop.
 """
-import sys
+#import sys
 import random
 import pygame
 
@@ -46,8 +46,12 @@ class Game(InputMixin, DrawMixin, CombatMixin, LootMixin, ExtensionMixin,
            ProgressionMixin, PressureMixin, AmbientMixin,
            PersistenceMixin, DebugMixin):
 
-    def __init__(self):
+
+    def __init__(self, slot_id="1"):
         pygame.init()
+        self.slot_id = slot_id
+        self.save_manager = SaveManager(slot_id=slot_id)
+        
         pygame.display.set_caption("AI-Evolving ARPG - Phase 8 Prototype (Gates & Gateway Portal)")
         self.screen = pygame.display.set_mode((config.SCREEN_WIDTH, config.SCREEN_HEIGHT))
         self.clock = pygame.time.Clock()
@@ -58,26 +62,17 @@ class Game(InputMixin, DrawMixin, CombatMixin, LootMixin, ExtensionMixin,
             (config.SCREEN_WIDTH, config.SCREEN_HEIGHT), pygame.SRCALPHA)
 
         self.event_bus = EventBus()
-        self.save_manager = SaveManager()
         self.event_log = EventLog(self.event_bus)
         self.exploration = ExplorationTracker()
         self.extension_generator = self._build_extension_generator()
 
         self.world = World(random.randint(0, 2**31 - 1))
         audio.init()
+        
+        # Initialize timers and state attributes early to avoid missing attribute errors
         self._hitstop_timer = 0.0
         self._respawn_timer = 1.5
-
-        self.starting_area = build_level(self.world.rng_service)
-        self.current_area = self.starting_area
-        self.current_extension_id = None
-        self.current_area_id = "starting_area"
-        self.exploration.register_area(self.current_area_id, self.current_area.tilemap)
-        self._ensure_starting_gate_registered()
-
-        self.player = Player(*self.starting_area.start_pos, self.event_bus)
-        self.player.stash = self.save_manager.load_stash()
-        self.camera = Camera(*self.starting_area.tilemap.pixel_size())
+        self._ambient_event_timer = 0.0
 
         self.hud = HUD()
         self.inventory_ui = InventoryUI()
@@ -85,6 +80,7 @@ class Game(InputMixin, DrawMixin, CombatMixin, LootMixin, ExtensionMixin,
         self.profile_screen = ProfileScreen()
         self.gateway_menu = GatewayMenu()
         self.choice_menu = ChoiceMenu()
+        self.inventory_ui.game = self
 
         self._echoes = []
         self.feedback = {"too_hard": 0, "too_easy": 0, "avoid_biomes": []}
@@ -118,12 +114,10 @@ class Game(InputMixin, DrawMixin, CombatMixin, LootMixin, ExtensionMixin,
         from world.terrain import TerrainSystem
         self.terrain = TerrainSystem(self)
         self.packs = PackManager(self)
-        self.packs.assign_new()
+        #self.packs.assign_new()
         self.nemesis = NemesisManager(self)
 
         self.codex = CodexManager()
-        self.player.codex_manager = self.codex
-        self.player.recalc_stats()
 
         self._boss_deaths_this_attempt = 0
         self._pressure_ambush_timer = 0.0
@@ -131,9 +125,41 @@ class Game(InputMixin, DrawMixin, CombatMixin, LootMixin, ExtensionMixin,
         self._deaths_since_boss_kill = 0
 
         self._register_events()
-        self._grant_starting_gear()
-        D.set_player_level(self.player.progression.level)
+
+        # Try loading save state first before generating fresh default objects
+        loaded_successfully = False
+        if self.save_manager.exists():
+            try:
+                self._load_game()
+                loaded_successfully = True
+            except Exception as e:
+                print(f"[Game] Auto-load failed ({e}); starting fresh.")
+
+        # Fall back to fresh game setup if no save exists or load failed
+        if not loaded_successfully:
+            self.starting_area = build_level(self.world.rng_service)
+            self.current_area = self.starting_area
+            self.current_extension_id = None
+            self.current_area_id = "starting_area"
+            self.exploration.register_area(self.current_area_id, self.current_area.tilemap)
+            self._ensure_starting_gate_registered()
+
+            self.player = Player(*self.starting_area.start_pos, self.event_bus)
+            self.player.stash = self.save_manager.load_stash()
+            self.camera = Camera(*self.starting_area.tilemap.pixel_size())
+            
+            self._grant_starting_gear()
+            D.set_player_level(self.player.progression.level)
+
+            self.packs.assign_new()
+
+        self.player.codex_manager = self.codex
+        self.player.recalc_stats()
+
+        # Safely roll the initial ambient timer at the end
         self._ambient_event_timer = self._roll_ambient_event_timer()
+
+
 
     # ---------------- core loop ----------------
     def _show_message(self, text, duration=2.5):
@@ -146,8 +172,8 @@ class Game(InputMixin, DrawMixin, CombatMixin, LootMixin, ExtensionMixin,
             self._handle_events()
             self._update(dt)
             self._draw()
-        pygame.quit()
-        sys.exit()
+        #pygame.quit()
+        #sys.exit()
 
     # PASTE _update() HERE unchanged (it's the one big method that stays).
     # --- Add these imports at the top of core/game.py ---

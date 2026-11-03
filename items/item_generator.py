@@ -18,6 +18,9 @@ from items.affix import RolledAffix
 from items.modifiers import ModifierPools
 from items.tiers import resolve_tier_for_roll, roll_value_for_tier, get_tier_table
 
+from items.modifiers import (ModifierPools, get_weapon_class,
+                              WEAPON_CLASS_RANGED, WEAPON_CLASS_MELEE_SMALL)
+
 GUARANTEE_CHANCE = 0.25
 
 UNIQUE_CHANCE = 0.02         # regular drops
@@ -91,6 +94,12 @@ DEFAULT_WORLD_CONTEXT = {
     "extension_id": "starting_world",
     "world_rules": None,
 }
+
+def _affix_matches_weapon_class(affix, weapon_class):
+    required = affix.get("applies_to_weapon_class")
+    if required is None:
+        return True
+    return required == weapon_class
 
 
 def _roll_slot_category(rng, force_slot=None):
@@ -198,14 +207,20 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
                        + ModifierPools.prefixes_for_slot("weapon"))
         suffix_pool = (ModifierPools.suffixes_for_slot("armor")
                        + ModifierPools.suffixes_for_slot("weapon"))
-        # de-dupe by id
         seen = set()
         prefix_pool = [a for a in prefix_pool if not (a["id"] in seen or seen.add(a["id"]))]
         seen = set()
         suffix_pool = [a for a in suffix_pool if not (a["id"] in seen or seen.add(a["id"]))]
+        # Weapon-class affixes are weapon-only: strip them from jewelry pools.
+        prefix_pool = [a for a in prefix_pool if not a.get("primary_slot_only")]
+        suffix_pool = [a for a in suffix_pool if not a.get("primary_slot_only")]
     else:
         prefix_pool = ModifierPools.prefixes_for_slot(slot_category)
         suffix_pool = ModifierPools.suffixes_for_slot(slot_category)
+        if slot_category == "weapon":
+            wc = get_weapon_class(weapon_subtype)
+            prefix_pool = [a for a in prefix_pool if _affix_matches_weapon_class(a, wc)]
+            suffix_pool = [a for a in suffix_pool if _affix_matches_weapon_class(a, wc)]
 
 
     prefixes, suffixes = [], []
