@@ -60,6 +60,62 @@
       ],
       "effects": [],
       "grants_keystone": "resonance"
-    }
+    },
+    {
+  "id": "glasscrown", "name": "Glasscrown", "base_name": "Glasscrown Circlet",
+  "slot": "head", "min_level": 15,
+  "implicit": {"modifier": "armor", "damage_type": null, "value": 30},
+  "affixes": [
+    {"kind": "prefix", "modifier": "life", "value": 60},
+    {"kind": "suffix", "modifier": "critical_chance", "value": 5}
+  ],
+  "effects": [],
+  "grants_keystone": "glass_cannon"
+},
+{
+  "id": "metronome", "name": "Metronome", "base_name": "Metronome Charm",
+  "slot": "amulet", "min_level": 10,
+  "affixes": [
+    {"kind": "prefix", "modifier": "life", "value": 40},
+    {"kind": "suffix", "modifier": "attack_speed", "value": 6}
+  ],
+  "effects": [],
+  "grants_keystone": "rhythm"
+},
+{
+  "id": "windwhisper", "name": "Windwhisper", "base_name": "Windwhisper Bow",
+  "slot": "weapon", "weapon_subtype": "bow", "min_level": 10,
+  "implicit": {"modifier": "physical_damage", "damage_type": "physical", "value": 60},
+  "affixes": [
+    {"kind": "suffix", "modifier": "critical_chance", "value": 6},
+    {"kind": "suffix", "modifier": "attack_speed", "value": 8}
+  ],
+  "effects": [],
+  "grants_keystone": "eldritch_barrage"
+},
+{
+  "id": "thunderfall", "name": "Thunderfall", "base_name": "Thunderfall Greatsword",
+  "slot": "weapon", "weapon_subtype": "greatsword", "min_level": 14,
+  "implicit": {"modifier": "lightning_damage", "damage_type": "lightning", "value": 65},
+  "affixes": [
+    {"kind": "prefix", "modifier": "physical_damage", "damage_type": "physical", "value": 40},
+    {"kind": "suffix", "modifier": "resist_lightning", "value": 15}
+  ],
+  "effects": [],
+  "grants_keystone": "stormconduit"
+},
+{
+  "id": "voidbinder", "name": "Voidbinder", "base_name": "Voidbinder Signet",
+  "slot": "ring", "min_level": 12,
+  "affixes": [
+    {"kind": "prefix", "modifier": "chaos_damage", "damage_type": "chaos", "value": 35},
+    {"kind": "suffix", "modifier": "attack_speed", "value": 8}
+  ],
+  "effects": [{"type": "conversion", "from_type": "chaos", "to_type": "cold", "percent": 0.40}],
+  "grants_keystone": "phantom_dash"
+}
   ]
+
+
+  
 }

@@ -1,5 +1,3 @@
-# [PROJECT: .] [ENTRY POINT]
-# [SYMBOLS] functions: _run_character_select, main
 import sys
 import os
 
@@ -26,6 +24,25 @@ def _run_character_select(screen, clock):
     return select.result
 
 
+def _run_level_prompt(screen, clock):
+    """Returns: chosen level (>0), None if skipped, or -1 if user quit."""
+    from ui.character_creator import CharacterCreatorUI
+    creator = CharacterCreatorUI()
+    creator.show()
+    while creator.visible:
+        for ev in pygame.event.get():
+            if ev.type == pygame.QUIT:
+                return -1
+            if ev.type == pygame.KEYDOWN:
+                result = creator.handle_key(ev.key)
+                if result is not None:
+                    return result
+        creator.draw(screen)
+        pygame.display.flip()
+        clock.tick(60)
+    return None  # user pressed ESC — skip the test setup
+
+
 def main():
     pygame.init()
     pygame.display.set_caption("AI-Evolving ARPG")
@@ -38,7 +55,18 @@ def main():
             slot_id = _run_character_select(screen, clock)
             if slot_id is None:
                 break
-            game = Game(slot_id=slot_id)
+
+            # Only prompt for a starting level on a brand-new slot.
+            from save.save_manager import SaveManager
+            is_fresh = not SaveManager(slot_id=slot_id).exists()
+
+            starting_level = None
+            if is_fresh:
+                starting_level = _run_level_prompt(screen, clock)
+                if starting_level == -1:
+                    break
+
+            game = Game(slot_id=slot_id, starting_level=starting_level)
             game.run()
     finally:
         pygame.quit()

@@ -72,6 +72,22 @@
         "damage_multiplier": 0.9
       },
       "stat_requirements": { "intelligence": 10 }
-    }
+    },
+    {
+  "id": "gun",
+  "display_name": "Gun",
+  "attack_pattern": "ricochet_shot",
+  "base_attack": {
+    "kind": "projectile",
+    "range": 520,
+    "projectile_speed": 720,
+    "piercing": true,
+    "hits_all": false,
+    "attack_cooldown_multiplier": 0.9,
+    "damage_multiplier": 1.0,
+    "base_ricochets": 1
+  },
+  "stat_requirements": { "dexterity": 10 }
+}
   ]
 }

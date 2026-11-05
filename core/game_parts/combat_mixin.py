@@ -11,6 +11,11 @@ from core.game_parts.constants import CRIT_BURST_RADIUS, CRIT_BURST_RATIO
 
 from combat.attack_patterns import PlayerProjectile
 
+import random
+import pygame
+
+
+
 
 CHAIN_RADIUS          = 220.0
 CHAIN_DAMAGE_MULT     = 0.70
@@ -272,13 +277,28 @@ class CombatMixin:
 
     def _update_player_projectiles(self, dt):
         area = self.current_area
+        #for proj in list(self.player_projectiles):
+        #    proj.update(dt)
+
+        #    if not proj.alive:
+        #        self.player_projectiles.remove(proj)
+        #        continue
+        #    if area.tilemap.collides_rect(proj.rect):
+        #        self.player_projectiles.remove(proj)
+        #        continue
         for proj in list(self.player_projectiles):
+            prev_x, prev_y = proj.x, proj.y
             proj.update(dt)
 
             if not proj.alive:
                 self.player_projectiles.remove(proj)
                 continue
             if area.tilemap.collides_rect(proj.rect):
+                if (proj.ricochet_count > 0
+                        and self._try_projectile_ricochet(proj, prev_x, prev_y, dt)):
+                    proj.ricochet_count -= 1
+                    self._spawn_ricochet_effect(proj)
+                    continue
                 self.player_projectiles.remove(proj)
                 continue
 
@@ -313,6 +333,61 @@ class CombatMixin:
 
             if consumed and proj in self.player_projectiles:
                 self.player_projectiles.remove(proj)
+
+
+    def _try_projectile_ricochet(self, proj, prev_x, prev_y, dt) -> bool:
+        """Reverse velocity on the axis that hit a wall. Returns True if bounced."""
+        tilemap = self.current_area.tilemap
+        r = proj.radius
+
+        def blocked(x, y):
+            return tilemap.collides_rect(
+                pygame.Rect(int(x - r), int(y - r), r * 2, r * 2))
+
+        nx = prev_x + proj.vx * dt
+        ny = prev_y + proj.vy * dt
+        x_blocked = blocked(nx, prev_y)
+        y_blocked = blocked(prev_x, ny)
+        if not x_blocked and not y_blocked:
+            return False
+
+        # Snap back to the last safe position, then redirect.
+        proj.x, proj.y = prev_x, prev_y
+        speed = math.hypot(proj.vx, proj.vy) or 1.0
+
+        if self.player.has_keystone("trick_shot"):
+            targets = [t for t in (self.current_area.enemies + self.current_area.bosses)
+                       if t.alive and math.hypot(t.x - proj.x, t.y - proj.y) < 400]
+            if targets and random.random() < 0.5:
+                target = random.choice(targets)
+                dx, dy = target.x - proj.x, target.y - proj.y
+                d = math.hypot(dx, dy) or 1.0
+                proj.vx = dx / d * speed
+                proj.vy = dy / d * speed
+            else:
+                angle = random.uniform(0.0, 2.0 * math.pi)
+                proj.vx = math.cos(angle) * speed
+                proj.vy = math.sin(angle) * speed
+        else:
+            if x_blocked and y_blocked:
+                proj.vx = -proj.vx
+                proj.vy = -proj.vy
+            elif x_blocked:
+                proj.vx = -proj.vx
+            else:
+                proj.vy = -proj.vy
+
+        # Give the ricochet room to actually fly before dying.
+        proj.remaining_range += 100
+        return True
+
+    def _spawn_ricochet_effect(self, proj):
+        self.crit_bursts.append({
+            "x": proj.x, "y": proj.y, "radius": 25,
+            "life": 0.15, "max_life": 0.15,
+            "color": (255, 220, 120),
+        })
+        self.damage_numbers.spawn(proj.x, proj.y - 20, "RICOCHET", (255, 220, 120))
 
 
     def _projectile_on_hit_effects(self, proj, hit_target):

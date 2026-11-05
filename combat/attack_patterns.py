@@ -99,6 +99,7 @@ class PlayerProjectile:
         self.pierce_remaining = 0
         self.fork_count       = 0
         self.chain_count      = 0
+        self.ricochet_count   = 0
         self.fork_generation  = 0
         self.hit_ids          = set()
         self.bonus_used       = False
@@ -132,9 +133,19 @@ def spawn_projectile(player, profile: AttackProfile, damage_type: str, world_rul
         piercing=profile.piercing,
         max_range=profile.range,
     )
-    # Base pierce from profile, plus player bonuses
     base_pierce = 1 if profile.piercing else 0
     proj.pierce_remaining = base_pierce + player.ranged_pierce_bonus()
-    proj.fork_count       = player.ranged_fork_bonus()
-    proj.chain_count      = player.ranged_chain_bonus()
+
+    weapon = player.equipped.get("weapon")
+    subtype = getattr(weapon, "weapon_subtype", None) if weapon else None
+
+    if subtype == "gun":
+        # Guns never fork or chain — those bonuses are discarded.
+        proj.fork_count = 0
+        proj.chain_count = 0
+    else:
+        proj.fork_count  = player.ranged_fork_bonus()
+        proj.chain_count = player.ranged_chain_bonus()
+
+    proj.ricochet_count = profile.base_ricochets + player.ranged_ricochet_bonus()
     return proj

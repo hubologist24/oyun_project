@@ -59,6 +59,13 @@ WEAPON_BASES_BY_SUBTYPE = {
         ("Storm Scepter", "lightning_damage"),
         ("Void Scepter", "chaos_damage"),
     ],
+
+        "gun": [
+        ("Flintlock Pistol", "physical_damage"),
+        ("Scrap Revolver", "physical_damage"),
+        ("Thunderbuss", "lightning_damage"),
+        ("Hexbore Rifle", "chaos_damage"),
+    ],
 }
 
 # Relative drop weight per subtype (independent of quality, which is
@@ -69,6 +76,7 @@ WEAPON_SUBTYPE_WEIGHTS = {
     "bow": 3,
     "short_wand": 4,
     "long_wand": 2,
+    "gun": 3,
 }
 
 ARMOR_BASES = [

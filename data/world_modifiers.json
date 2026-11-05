@@ -40,6 +40,35 @@
       "rules": [
         {"type": "tier_override", "modifier": "physical_damage", "tiers": {"T1": [25, 35], "T2": [15, 24]}}
       ]
-    }
+    },
+
+
+    {
+  "id": "volatile_death",
+  "name": "Volatile Death",
+  "description": "Fallen minions erupt in flame.",
+  "rules": [
+    {"type": "on_kill_effect", "effect": "explode", "target": "minion",
+     "damage_type": "fire", "radius": 75, "damage_ratio": 0.22}
+  ]
+},
+{
+  "id": "blood_ground",
+  "name": "Blood Ground",
+  "description": "Killing restores you.",
+  "rules": [
+    {"type": "on_kill_effect", "effect": "heal_player", "target": "minion", "percent": 0.035}
+  ]
+},
+{
+  "id": "chaos_rift",
+  "name": "Chaos Rift",
+  "description": "Physical blows warp toward chaos.",
+  "rules": [
+    {"type": "conversion", "from_type": "physical", "to_type": "chaos", "percent": 0.30, "scope": "player"}
+  ]
+}
+
+
   ]
 }

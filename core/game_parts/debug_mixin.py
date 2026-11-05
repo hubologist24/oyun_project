@@ -2,6 +2,8 @@
 import core.config as config
 from items.item_generator import generate_random_item
 
+from core.difficulty import D
+
 
 class DebugMixin:
 
@@ -38,3 +40,71 @@ class DebugMixin:
         print(f"=== Seconds since last extension: {self.world.seconds_since_last_extension():.1f} "
               f"(threshold: {config.WORLD_EXTENSION_SECONDS}) ===")
         self._show_message("World rule info printed to console (F7).")
+
+
+
+    def _apply_test_level(self, level):
+        """Testing helper: level up the player and give a full random gear set."""
+        level = max(1, int(level))
+        self._level_up_to(level)
+        self._grant_full_gear_at_level(level)
+        D.set_player_level(level)
+        self.player.recalc_stats()
+        self.player.heal_to_full()
+        self._show_message(
+            f"TEST SETUP: Level {level} with a full randomized gear set",
+            duration=5.0,
+        )
+
+    def _level_up_to(self, target_level):
+        guard = 0
+        while self.player.progression.level < target_level and guard < 500:
+            remaining = (self.player.progression.xp_to_next()
+                         - self.player.progression.xp)
+            if remaining <= 0:
+                remaining = 1
+            self.player.gain_xp(remaining)
+            guard += 1
+
+    def _grant_full_gear_at_level(self, level):
+        """Generate one random item per equipment slot at `level` and equip it."""
+        from items.item_generator import generate_random_item
+
+        rng = self.world.rng_service.get_stream(f"test_gear_{level}")
+
+        # (equipment_slot, force_slot_category) — offhand has no generator category.
+        slot_targets = [
+            ("weapon",  "weapon"),
+            ("head",    "armor"),
+            ("chest",   "armor"),
+            ("legs",    "armor"),
+            ("boots",   "armor"),
+            ("gloves",  "armor"),
+            ("ring_1",  "ring"),
+            ("ring_2",  "ring"),
+            ("amulet",  "amulet"),
+        ]
+
+        for target_slot, category in slot_targets:
+            item = None
+            # Armor category is randomized between head/chest/legs/boots/gloves,
+            # so we roll until we get the piece we need. Same for rings.
+            for _ in range(40):
+                candidate = generate_random_item(
+                    rng, area_level=level, force_slot=category
+                )
+                if target_slot.startswith("ring"):
+                    if candidate.slot == "ring":
+                        item = candidate
+                        break
+                elif candidate.slot == target_slot:
+                    item = candidate
+                    break
+
+            if item is None:
+                print(f"[Test] Could not roll a {target_slot} item at level {level}")
+                continue
+
+            self.player.equipped[target_slot] = item
+            print(f"[Test] {target_slot}: {item.display_name} "
+                  f"[{item.affix_count_label()}] ilvl {item.item_level}")

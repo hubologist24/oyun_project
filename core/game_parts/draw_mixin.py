@@ -1,4 +1,5 @@
-"""Rendering. Fonts are cached (no more SysFont per frame)."""
+# [PROJECT: core]
+# [SYMBOLS] classes: DrawMixin
 import textwrap
 import pygame
 
@@ -26,7 +27,6 @@ class DrawMixin:
 
         self.terrain.draw(self.screen, self.camera)
 
-        # Safe zone tint
         if self.current_area_id == "starting_area":
             safe_scr = self.camera.world_to_screen_rect(self.starting_area.safe_room_rect)
             pygame.draw.rect(self.screen, (70, 160, 90), safe_scr, 2, border_radius=10)
@@ -106,7 +106,6 @@ class DrawMixin:
             pts = swing_fx.build_polygon_points(fx, self.camera.world_to_screen)
             frac = fx["life"] / fx["max_life"]
             alpha = int(150 * frac)
-            # Greatsword cones get a warmer tint than sword arcs
             fill = (255, 235, 130, alpha) if fx["arc_deg"] >= 150 else (200, 230, 255, alpha)
             pygame.draw.polygon(self._fx_surface, fill, pts)
             pygame.draw.lines(self._fx_surface,
@@ -134,12 +133,14 @@ class DrawMixin:
             pygame.draw.circle(self.screen, (255, 220, 120), pos, proj.radius)
             pygame.draw.circle(self.screen, (255, 255, 255), pos, proj.radius, 1)
 
+    # ---------------------------------------------------------------- CHANGED
     def _draw_region_info(self):
         rid = self.current_area_id
         ext = self.world.get_extension(rid) if rid != "starting_area" else None
-        W = 320
-        lines = []   # (text, color, bold)
+        W = 360
+        lines = []
 
+        # --- header ---
         if ext is None:
             lines.append(("Starting Region", (255, 255, 255), True))
             lines.append(("Area Lvl 1  -  the original world", (200, 200, 210), False))
@@ -149,21 +150,54 @@ class DrawMixin:
             tag = "  [ANOMALY]" if s.is_anomaly else ""
             if s.overcharge_level > 0:
                 tag += f"  [OVERCHARGE +{s.overcharge_level}]"
-            lines.append((f"Area Lvl {s.area_level}{tag}", (255, 120, 120) if s.is_anomaly
-                          else (200, 200, 210), False))
+            lines.append((f"Area Lvl {s.area_level}{tag}",
+                          (255, 120, 120) if s.is_anomaly else (200, 200, 210), False))
             gate = next((g for g in self.world.gates
                          if g.target_extension_id == rid), None)
             if gate:
                 lines.append((f"Opened from: {self._area_display_name(gate.owner_area_id)}",
                               (140, 220, 255), False))
-            if s.world_modifiers:
-                lines.append(("World rules:", (180, 255, 180), False))
-                for m in s.world_modifiers:
-                    lines.append((f" - {m.get('name', '?')}", (180, 255, 180), False))
-                    if self.show_region_details:
-                        for w in textwrap.wrap(m.get("description", ""), 40):
-                            lines.append((f"    {w}", (140, 190, 140), False))
 
+        # --- global world attunement (the modifier pool) ---
+        pool = self.world.modifier_pool
+        counts = pool.polarity_counts()
+        lines.append((f"World Attunement [{pool.size()}/{pool.ceiling}]  "
+                      f"+{counts['buff']} \u2212{counts['curse']}",
+                      (220, 220, 240), True))
+
+        max_shown = 10 if self.show_region_details else 5
+        shown = 0
+        for m in pool.modifiers:
+            if shown >= max_shown:
+                remaining = pool.size() - shown
+                if remaining > 0:
+                    lines.append((f"  ... and {remaining} more "
+                                  f"(F4 to {'hide' if self.show_region_details else 'expand'})",
+                                  (150, 150, 160), False))
+                break
+            pol = m.get("polarity", "neutral")
+            color = (150, 230, 150) if pol == "buff" else (230, 140, 140)
+            tag = "+" if pol == "buff" else ("\u2212" if pol == "curse" else "\u00b7")
+            lines.append((f"  {tag} {m.get('name', '?')}", color, False))
+            if self.show_region_details:
+                for w in textwrap.wrap(m.get("description", ""), 40):
+                    lines.append((f"     {w}", (140, 170, 140), False))
+            shown += 1
+
+        # --- what THIS region changed (delta in spec.world_modifiers) ---
+        if ext is not None and ext.spec.world_modifiers:
+            added = [m for m in ext.spec.world_modifiers if not m.get("_removed")]
+            removed = [m for m in ext.spec.world_modifiers if m.get("_removed")]
+            if added:
+                lines.append(("This region added:", (200, 180, 120), False))
+                for m in added:
+                    lines.append((f"  + {m.get('name', '?')}", (220, 200, 140), False))
+            if removed:
+                lines.append(("This region lifted:", (160, 140, 160), False))
+                for m in removed:
+                    lines.append((f"  \u2212 {m.get('name', '?')}", (200, 160, 200), False))
+
+        # --- enemies / boss ---
         alive = sum(1 for e in self.current_area.enemies
                     if e.alive and getattr(e, "region_id", "starting_area") == rid)
         lines.append((f"Enemies left: {alive}", (230, 200, 200), False))
@@ -190,6 +224,7 @@ class DrawMixin:
                       f"(F4: {'less' if self.show_region_details else 'more'})",
                       (150, 150, 160), False))
 
+        # --- panel ---
         h = 16 + sum(22 if b else 18 for _, _, b in lines)
         panel = pygame.Surface((W, h), pygame.SRCALPHA)
         panel.fill((10, 10, 16, 190))
@@ -221,7 +256,6 @@ class DrawMixin:
             self.screen.blit(txt, (config.SCREEN_WIDTH // 2 - txt.get_width() // 2, 96))
 
     def _draw_region_atmosphere(self):
-        """Translucent color wash so each extension feels visually distinct."""
         if self.current_extension_id is None:
             return
         ext = self.world.get_extension(self.current_extension_id)
@@ -235,8 +269,17 @@ class DrawMixin:
         overlay.fill(tint)
         self.screen.blit(overlay, (0, 0))
 
+    # ---------------------------------------------------------------- CHANGED
     def _region_tint(self, spec):
-        flavor = " ".join(m.get("name", "") for m in spec.world_modifiers).lower()
+        names = []
+        for m in spec.world_modifiers:
+            if not isinstance(m, dict):
+                continue
+            if m.get("_removed"):
+                continue
+            names.append(m.get("name", ""))
+        flavor = " ".join(names).lower()
+
         if "chaos" in flavor or "corrupt" in flavor:
             return (120, 40, 160)
         if "storm" in flavor or "conductive" in flavor:

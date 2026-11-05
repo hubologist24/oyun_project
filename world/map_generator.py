@@ -10,11 +10,14 @@ runtime boss behavior lives in exactly one place.
 import random
 from world.tilemap import TileMap
 
-ROOM_BRACKET_SIZE          = 10   # area levels per bracket
-ROOM_MAX_EXTRA_CAP         = 4    # hard cap on extra rooms
-DENSITY_PER_BRACKET        = 0.15 # +15% enemies per 10 area levels
-DENSITY_CAP                = 0.60 # hard cap (+60%)
-MAP_GROWTH_PER_EXTRA_ROOM  = 0.25 # +25% tiles per extra room
+
+
+ROOM_BRACKET_SIZE          = 10
+ROOM_MAX_EXTRA_CAP         = 2
+ROOM_EXTRA_WEIGHTS         = (4, 3, 2)   # odds of +0 / +1 / +2 rooms (tweak freely)
+DENSITY_PER_BRACKET        = 0.15
+DENSITY_CAP                = 0.60
+MAP_GROWTH_PER_EXTRA_ROOM  = 0.25
 
 
 def _carve_h(grid, x0, x1, y):
@@ -37,20 +40,32 @@ def _carve_v(grid, y0, y1, x):
             grid[row][x + 1] = 0
 
 def extra_rooms_for_level(rng, area_level):
-    """
-    RNG-based bonus rooms as a function of area level.
+    rolls = list(range(ROOM_MAX_EXTRA_CAP + 1))
+    return rng.choices(rolls, weights=list(ROOM_EXTRA_WEIGHTS), k=1)[0]
 
-    Bracket (by area_level):        max_extra:   distribution (triangular):
-        1-10                        1            [0]=50%  [1]=50%
-       11-20                        2            [0]=25%  [1]=50%  [2]=25%
-       21-30                        3            [0]=17%  [1]=33%  [2]=33%  [3]=17%
-       31+                          4 (cap)      [0]=11%  [1]=22%  [2]=33%  [3]=22%  [4]=11%
-    """
-    bracket = max(0, (area_level - 1) // ROOM_BRACKET_SIZE)
-    max_extra = min(ROOM_MAX_EXTRA_CAP, bracket + 1)
-    rolls = list(range(max_extra + 1))
-    weights = [min(r + 1, max_extra - r + 1) for r in rolls]  # triangular
-    return rng.choices(rolls, weights=weights, k=1)[0]
+
+def _pick_gate_tile(grid, room):
+    """Deterministic (consumes no RNG). Picks a tile away from the room center,
+    with a fully open 3x3 around it so the closed door never blocks a path."""
+    rows = len(grid)
+    cols = len(grid[0]) if rows else 0
+    x0, y0, x1, y1 = room
+    cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
+
+    def open3(c, r):
+        for dr in (-1, 0, 1):
+            for dc in (-1, 0, 1):
+                rr, cc = r + dr, c + dc
+                if not (0 <= rr < rows and 0 <= cc < cols) or grid[rr][cc] != 0:
+                    return False
+        return True
+
+    cands = [(c, r) for r in range(y0 + 1, y1 - 1)
+             for c in range(x0 + 1, x1 - 1) if open3(c, r)]
+    if not cands:
+        return cx, cy
+    cands.sort(key=lambda p: (-(abs(p[0] - cx) + abs(p[1] - cy)), p[1], p[0]))
+    return cands[0]
 
 
 def enemy_density_mult(area_level):
@@ -150,8 +165,8 @@ def generate_dungeon_grid(rng: random.Random, cols=50, rows=38, room_count=6,
     return grid, rooms
 
 
-def build_procedural_area(rng: random.Random, area_level: int, cols=50, rows=38,
-                          room_count=6, boss_room=True):
+def build_procedural_area(rng, area_level, cols=50, rows=38,
+                          room_count=6, boss_room=True, extra_rooms=None):
     #grid, rooms = generate_dungeon_grid(rng, cols=cols, rows=rows,
     #                                    room_count=room_count + 1)
 
@@ -159,7 +174,9 @@ def build_procedural_area(rng: random.Random, area_level: int, cols=50, rows=38,
     # produced nothing (pathologically tiny map), carve a small floor
     # so downstream code always sees at least one room.
 
-    extra_rooms = extra_rooms_for_level(rng, area_level)
+    #extra_rooms = extra_rooms_for_level(rng, area_level)
+    if extra_rooms is None:
+        extra_rooms = extra_rooms_for_level(rng, area_level)
     effective_room_count = room_count + extra_rooms
 
     cols, rows = _scale_map_for_rooms(cols, rows, extra_rooms)
@@ -183,22 +200,28 @@ def build_procedural_area(rng: random.Random, area_level: int, cols=50, rows=38,
     if boss_room_rect is not None:
         reserved.add(len(rooms) - 1)
 
+
     available = [i for i in range(len(rooms)) if i not in reserved]
-    if available:
+    gate_room_index = available[0] if available else len(rooms) - 1
+    gate_room_rect = rooms[gate_room_index]
+    gate_tile_col, gate_tile_row = _pick_gate_tile(tilemap.grid, gate_room_rect)
+
+    #available = [i for i in range(len(rooms)) if i not in reserved]
+    #if available:
         # Normal case -- a genuinely separate gate room exists.
-        gate_room_index = available[0]
-        gate_room_rect = rooms[gate_room_index]
-        gx0, gy0, gx1, gy1 = gate_room_rect
-        gate_tile_col = (gx0 + gx1) // 2
-        gate_tile_row = (gy0 + gy1) // 2
-    else:
+    #    gate_room_index = available[0]
+    #    gate_room_rect = rooms[gate_room_index]
+    #    gx0, gy0, gx1, gy1 = gate_room_rect
+    #    gate_tile_col = (gx0 + gx1) // 2
+    #    gate_tile_row = (gy0 + gy1) // 2
+    #else:
         # Degenerate case -- reuse the last room, but place the gate
         # off-center so it never shares a tile with spawn/boss.
-        gate_room_index = len(rooms) - 1
-        gate_room_rect = rooms[gate_room_index]
-        gx0, gy0, gx1, gy1 = gate_room_rect
-        gate_tile_col = gx0 + max(1, (gx1 - gx0) // 4)
-        gate_tile_row = gy0 + max(1, (gy1 - gy0) // 4)
+    #    gate_room_index = len(rooms) - 1
+    #    gate_room_rect = rooms[gate_room_index]
+    #    gx0, gy0, gx1, gy1 = gate_room_rect
+    #    gate_tile_col = gx0 + max(1, (gx1 - gx0) // 4)
+    #    gate_tile_row = gy0 + max(1, (gy1 - gy0) // 4)
 
     enemy_room_indices = [i for i in range(len(rooms))
                           if i not in reserved and i != gate_room_index]

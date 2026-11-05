@@ -84,11 +84,14 @@ class ModifierPools:
     
 
 RANGED_SUBTYPES       = {"bow", "short_wand", "long_wand"}
+RICOCHET_SUBTYPES     = {"gun"}                               # NEW
+ALL_RANGED_SUBTYPES   = RANGED_SUBTYPES | RICOCHET_SUBTYPES    # NEW
 MELEE_SMALL_SUBTYPES  = {"sword"}
 MELEE_BIG_SUBTYPES    = {"greatsword"}
 WEAPON_CLASS_RANGED     = "ranged"
 WEAPON_CLASS_MELEE_SMALL = "melee_small"
 WEAPON_CLASS_MELEE_BIG  = "melee_big"
+WEAPON_CLASS_RICOCHET   = "ricochet"
 
 PROGRAMMATIC_PREFIXES = [
     {
@@ -106,6 +109,15 @@ PROGRAMMATIC_PREFIXES = [
         "modifier": "pierce_count",
         "applies_to": ["weapon"],
         "applies_to_weapon_class": WEAPON_CLASS_RANGED,
+        "primary_slot_only": True,
+        "damage_type": None,
+    },
+        {
+        "id": "ricocheting",
+        "name": "Ricocheting",
+        "modifier": "ricochet_count",
+        "applies_to": ["weapon"],
+        "applies_to_weapon_class": WEAPON_CLASS_RICOCHET,
         "primary_slot_only": True,
         "damage_type": None,
     },
@@ -151,12 +163,14 @@ PROGRAMMATIC_SUFFIXES = [
 ]
 
 def get_weapon_class(subtype):
-            if subtype in RANGED_SUBTYPES:
-                return WEAPON_CLASS_RANGED
-            if subtype in MELEE_SMALL_SUBTYPES:
-                return WEAPON_CLASS_MELEE_SMALL
-            if subtype in MELEE_BIG_SUBTYPES:
-                return WEAPON_CLASS_MELEE_BIG
-            return None
+    if subtype in RICOCHET_SUBTYPES:
+        return WEAPON_CLASS_RICOCHET
+    if subtype in RANGED_SUBTYPES:
+        return WEAPON_CLASS_RANGED
+    if subtype in MELEE_SMALL_SUBTYPES:
+        return WEAPON_CLASS_MELEE_SMALL
+    if subtype in MELEE_BIG_SUBTYPES:
+        return WEAPON_CLASS_MELEE_BIG
+    return None
 
    

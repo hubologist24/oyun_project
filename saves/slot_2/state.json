@@ -1,0 +1,6755 @@
+{
+  "world": {
+    "world_seed": 435623996,
+    "created_at": 1793817578.9685838,
+    "total_playtime_seconds": 210.8369999999783,
+    "playtime_at_last_extension": 165.2579999999874,
+    "extensions": [
+      {
+        "spec": {
+          "extension_id": "extension_1",
+          "extension_name": "The Bone Wastes",
+          "area_level": 11,
+          "biome": "bone_wastes",
+          "is_anomaly": false,
+          "world_modifiers": [
+            {
+              "id": "gilded_seams",
+              "name": "Gilded Seams",
+              "description": "Killing blows restore a sliver of life.",
+              "polarity": "buff",
+              "rules": [
+                {
+                  "type": "on_kill_effect",
+                  "effect": "heal_player",
+                  "target": "all",
+                  "percent": 0.03
+                }
+              ]
+            },
+            {
+              "id": "corrupted_flesh",
+              "name": "Corrupted Flesh",
+              "description": "Chaos eats away at those who touch this place.",
+              "polarity": "curse",
+              "rules": [
+                {
+                  "type": "damage_taken_multiplier",
+                  "target": "player",
+                  "damage_type": "chaos",
+                  "multiplier": 1.35
+                }
+              ]
+            },
+            {
+              "id": "brittle_bones",
+              "name": "Brittle Bones",
+              "description": "Physical blows crack harder.",
+              "polarity": "curse",
+              "rules": [
+                {
+                  "type": "resistance_modifier",
+                  "target": "player",
+                  "damage_type": "physical",
+                  "delta": -0.15
+                }
+              ]
+            }
+          ],
+          "boss_template_id": "personalized",
+          "room_count": 8,
+          "map_cols": 50,
+          "map_rows": 38,
+          "loot_rules": {
+            "favored_damage_types": {
+              "physical": 1.3,
+              "lightning": 1.4
+            },
+            "rare_chance_multiplier": 1.0,
+            "six_mod_chance_multiplier": 1.0,
+            "guarantee_enabling_affix": null
+          },
+          "boss_personalization": {
+            "mechanic_archetype": "reflector",
+            "punishes_damage_type": "physical",
+            "rewards_on_defeat_damage_type": "lightning",
+            "difficulty_bias": "normal"
+          },
+          "overcharge_level": 0,
+          "enemy_behavior_bias": {
+            "ranged": 2.0,
+            "circler": 1.7
+          }
+        },
+        "extension_seed": 1683413307,
+        "created_at": 1793817747.5121179
+      }
+    ],
+    "gates": [
+      {
+        "gate_id": 4,
+        "owner_area_id": "starting_area",
+        "room_index": 0,
+        "tile_col": 21,
+        "tile_row": 20,
+        "state": "open",
+        "target_extension_id": "extension_1",
+        "is_starting_gate": true,
+        "opened_at": 1793817747.5121179,
+        "side": "e",
+        "overcharge_level": 0
+      },
+      {
+        "gate_id": 5,
+        "owner_area_id": "extension_1",
+        "room_index": 1,
+        "tile_col": 77,
+        "tile_row": 7,
+        "state": "closed",
+        "target_extension_id": null,
+        "is_starting_gate": false,
+        "opened_at": null,
+        "side": "e",
+        "overcharge_level": 0
+      }
+    ],
+    "region_presence": {
+      "starting_area": 0.0,
+      "extension_1": 0.0
+    },
+    "cleared_regions": [
+      "extension_1",
+      "starting_area"
+    ],
+    "used_shrines": [],
+    "modifier_pool": {
+      "modifiers": [
+        {
+          "id": "gilded_seams",
+          "name": "Gilded Seams",
+          "description": "Killing blows restore a sliver of life.",
+          "polarity": "buff",
+          "rules": [
+            {
+              "type": "on_kill_effect",
+              "effect": "heal_player",
+              "target": "all",
+              "percent": 0.03
+            }
+          ]
+        },
+        {
+          "id": "corrupted_flesh",
+          "name": "Corrupted Flesh",
+          "description": "Chaos eats away at those who touch this place.",
+          "polarity": "curse",
+          "rules": [
+            {
+              "type": "damage_taken_multiplier",
+              "target": "player",
+              "damage_type": "chaos",
+              "multiplier": 1.35
+            }
+          ]
+        },
+        {
+          "id": "brittle_bones",
+          "name": "Brittle Bones",
+          "description": "Physical blows crack harder.",
+          "polarity": "curse",
+          "rules": [
+            {
+              "type": "resistance_modifier",
+              "target": "player",
+              "damage_type": "physical",
+              "delta": -0.15
+            }
+          ]
+        }
+      ],
+      "target": 10,
+      "floor": 5,
+      "ceiling": 18,
+      "drift": 0.8,
+      "step_log": [
+        {
+          "size_before": 0,
+          "size_after": 3,
+          "added": [
+            {
+              "id": "gilded_seams",
+              "name": "Gilded Seams",
+              "description": "Killing blows restore a sliver of life.",
+              "polarity": "buff",
+              "rules": [
+                {
+                  "type": "on_kill_effect",
+                  "effect": "heal_player",
+                  "target": "all",
+                  "percent": 0.03
+                }
+              ]
+            },
+            {
+              "id": "corrupted_flesh",
+              "name": "Corrupted Flesh",
+              "description": "Chaos eats away at those who touch this place.",
+              "polarity": "curse",
+              "rules": [
+                {
+                  "type": "damage_taken_multiplier",
+                  "target": "player",
+                  "damage_type": "chaos",
+                  "multiplier": 1.35
+                }
+              ]
+            },
+            {
+              "id": "brittle_bones",
+              "name": "Brittle Bones",
+              "description": "Physical blows crack harder.",
+              "polarity": "curse",
+              "rules": [
+                {
+                  "type": "resistance_modifier",
+                  "target": "player",
+                  "damage_type": "physical",
+                  "delta": -0.15
+                }
+              ]
+            }
+          ],
+          "removed": []
+        }
+      ]
+    }
+  },
+  "player": {
+    "x": 3918.8314806590947,
+    "y": 885.492409269743,
+    "base_stats": {
+      "max_hp": 160,
+      "hp": 100,
+      "base_damage": 18,
+      "primary_damage_type": "physical",
+      "armor": 6,
+      "speed": 260.0,
+      "resistances": {},
+      "crit_chance": 0.05,
+      "attack_speed_bonus": 0.0,
+      "strength": 11,
+      "dexterity": 11,
+      "intelligence": 11
+    },
+    "progression": {
+      "level": 7,
+      "xp": 214
+    },
+    "inventory": {
+      "cols": 10,
+      "rows": 6,
+      "cells": [
+        {
+          "col": 2,
+          "row": 0,
+          "item": {
+            "item_id": 209,
+            "base_name": "Cloth Leggings",
+            "slot": "legs",
+            "rarity": "magic",
+            "item_level": 1,
+            "weapon_subtype": null,
+            "display_name_override": "Cloth Leggings of Warding",
+            "implicit": {
+              "kind": "implicit",
+              "affix_id": "implicit_base",
+              "display_name": "",
+              "modifier": "armor",
+              "damage_type": null,
+              "tier": "T4",
+              "value": 14.1,
+              "creation_tier_range": [
+                8,
+                17
+              ]
+            },
+            "prefixes": [],
+            "suffixes": [
+              {
+                "kind": "suffix",
+                "affix_id": "of_warding",
+                "display_name": "of Warding",
+                "modifier": "resist_fire",
+                "damage_type": null,
+                "tier": "T4",
+                "value": 7.6,
+                "creation_tier_range": [
+                  4,
+                  9
+                ]
+              }
+            ],
+            "creation_context": {
+              "world_id": "world_0",
+              "extension_id": "starting_world",
+              "item_level": 1,
+              "area_level": 1
+            },
+            "damage_bonus": 0,
+            "armor_bonus": 14,
+            "unique_id": null
+          }
+        },
+        {
+          "col": 0,
+          "row": 0,
+          "item": {
+            "item_id": 212,
+            "base_name": "Swift Striders",
+            "slot": "boots",
+            "rarity": "rare",
+            "item_level": 4,
+            "weapon_subtype": null,
+            "display_name_override": "Vital Swift Striders of the Glacier",
+            "implicit": {
+              "kind": "implicit",
+              "affix_id": "implicit_base",
+              "display_name": "",
+              "modifier": "armor",
+              "damage_type": null,
+              "tier": "T5",
+              "value": 4.0,
+              "creation_tier_range": [
+                2,
+                7
+              ]
+            },
+            "prefixes": [
+              {
+                "kind": "prefix",
+                "affix_id": "vital",
+                "display_name": "Vital",
+                "modifier": "life",
+                "damage_type": null,
+                "tier": "T5",
+                "value": 8.1,
+                "creation_tier_range": [
+                  3,
+                  9
+                ]
+              },
+              {
+                "kind": "prefix",
+                "affix_id": "sturdy",
+                "display_name": "Sturdy",
+                "modifier": "armor",
+                "damage_type": null,
+                "tier": "T5",
+                "value": 4.4,
+                "creation_tier_range": [
+                  2,
+                  7
+                ]
+              }
+            ],
+            "suffixes": [
+              {
+                "kind": "suffix",
+                "affix_id": "of_the_glacier",
+                "display_name": "of the Glacier",
+                "modifier": "resist_cold",
+                "damage_type": null,
+                "tier": "T4",
+                "value": 4.1,
+                "creation_tier_range": [
+                  4,
+                  9
+                ]
+              }
+            ],
+            "creation_context": {
+              "world_id": "world_0",
+              "extension_id": "starting_world",
+              "item_level": 4,
+              "area_level": 3
+            },
+            "damage_bonus": 0,
+            "armor_bonus": 8,
+            "unique_id": null
+          }
+        },
+        {
+          "col": 1,
+          "row": 0,
+          "item": {
+            "item_id": 213,
+            "base_name": "Short Bow",
+            "slot": "weapon",
+            "rarity": "rare",
+            "item_level": 14,
+            "weapon_subtype": "bow",
+            "display_name_override": "Burning Short Bow of Precision",
+            "implicit": {
+              "kind": "implicit",
+              "affix_id": "implicit_base",
+              "display_name": "",
+              "modifier": "physical_damage",
+              "damage_type": "physical",
+              "tier": "T5",
+              "value": 18.8,
+              "creation_tier_range": [
+                8,
+                19
+              ]
+            },
+            "prefixes": [
+              {
+                "kind": "prefix",
+                "affix_id": "burning",
+                "display_name": "Burning",
+                "modifier": "fire_damage",
+                "damage_type": "fire",
+                "tier": "T5",
+                "value": 7.7,
+                "creation_tier_range": [
+                  6,
+                  15
+                ]
+              },
+              {
+                "kind": "prefix",
+                "affix_id": "storm",
+                "display_name": "Storm",
+                "modifier": "lightning_damage",
+                "damage_type": "lightning",
+                "tier": "T5",
+                "value": 5.5,
+                "creation_tier_range": [
+                  3,
+                  9
+                ]
+              }
+            ],
+            "suffixes": [
+              {
+                "kind": "suffix",
+                "affix_id": "of_precision",
+                "display_name": "of Precision",
+                "modifier": "critical_chance",
+                "damage_type": null,
+                "tier": "T4",
+                "value": 1.0,
+                "creation_tier_range": [
+                  1,
+                  1
+                ]
+              },
+              {
+                "kind": "suffix",
+                "affix_id": "of_power",
+                "display_name": "of Power",
+                "modifier": "physical_damage",
+                "damage_type": "physical",
+                "tier": "T4",
+                "value": 30.8,
+                "creation_tier_range": [
+                  20,
+                  39
+                ]
+              }
+            ],
+            "creation_context": {
+              "world_id": "world_0",
+              "extension_id": "extension_1",
+              "item_level": 14,
+              "area_level": 13
+            },
+            "damage_bonus": 63,
+            "armor_bonus": 0,
+            "unique_id": null
+          }
+        }
+      ]
+    },
+    "extension_stones": 4,
+    "trophies": [],
+    "equipped": {
+      "weapon": {
+        "item_id": 208,
+        "base_name": "Cracked Spear",
+        "slot": "weapon",
+        "rarity": "magic",
+        "item_level": 1,
+        "weapon_subtype": "sword",
+        "display_name_override": "Burning Cracked Spear",
+        "implicit": {
+          "kind": "implicit",
+          "affix_id": "implicit_base",
+          "display_name": "",
+          "modifier": "physical_damage",
+          "damage_type": "physical",
+          "tier": "T5",
+          "value": 12.8,
+          "creation_tier_range": [
+            8,
+            19
+          ]
+        },
+        "prefixes": [
+          {
+            "kind": "prefix",
+            "affix_id": "burning",
+            "display_name": "Burning",
+            "modifier": "fire_damage",
+            "damage_type": "fire",
+            "tier": "T4",
+            "value": 19.4,
+            "creation_tier_range": [
+              16,
+              31
+            ]
+          }
+        ],
+        "suffixes": [],
+        "creation_context": {
+          "world_id": "world_0",
+          "extension_id": "starting_world",
+          "item_level": 1,
+          "area_level": 1
+        },
+        "damage_bonus": 32,
+        "armor_bonus": 0,
+        "unique_id": null
+      },
+      "offhand": null,
+      "head": null,
+      "chest": {
+        "item_id": 211,
+        "base_name": "Tattered Cloak",
+        "slot": "chest",
+        "rarity": "rare",
+        "item_level": 6,
+        "weapon_subtype": null,
+        "display_name_override": "Sturdy Tattered Cloak of Warding",
+        "implicit": {
+          "kind": "implicit",
+          "affix_id": "implicit_base",
+          "display_name": "",
+          "modifier": "armor",
+          "damage_type": null,
+          "tier": "T5",
+          "value": 4.9,
+          "creation_tier_range": [
+            2,
+            7
+          ]
+        },
+        "prefixes": [
+          {
+            "kind": "prefix",
+            "affix_id": "sturdy",
+            "display_name": "Sturdy",
+            "modifier": "armor",
+            "damage_type": null,
+            "tier": "T5",
+            "value": 5.5,
+            "creation_tier_range": [
+              2,
+              7
+            ]
+          }
+        ],
+        "suffixes": [
+          {
+            "kind": "suffix",
+            "affix_id": "of_warding",
+            "display_name": "of Warding",
+            "modifier": "resist_fire",
+            "damage_type": null,
+            "tier": "T4",
+            "value": 6.2,
+            "creation_tier_range": [
+              4,
+              9
+            ]
+          },
+          {
+            "kind": "suffix",
+            "affix_id": "of_storms",
+            "display_name": "of Storms",
+            "modifier": "resist_lightning",
+            "damage_type": null,
+            "tier": "T4",
+            "value": 6.2,
+            "creation_tier_range": [
+              4,
+              9
+            ]
+          }
+        ],
+        "creation_context": {
+          "world_id": "world_0",
+          "extension_id": "starting_world",
+          "item_level": 6,
+          "area_level": 7
+        },
+        "damage_bonus": 0,
+        "armor_bonus": 10,
+        "unique_id": null
+      },
+      "legs": {
+        "item_id": 210,
+        "base_name": "Cloth Leggings",
+        "slot": "legs",
+        "rarity": "rare",
+        "item_level": 7,
+        "weapon_subtype": null,
+        "display_name_override": "Vital Cloth Leggings of Haste",
+        "implicit": {
+          "kind": "implicit",
+          "affix_id": "implicit_base",
+          "display_name": "",
+          "modifier": "armor",
+          "damage_type": null,
+          "tier": "T5",
+          "value": 3.8,
+          "creation_tier_range": [
+            2,
+            7
+          ]
+        },
+        "prefixes": [
+          {
+            "kind": "prefix",
+            "affix_id": "vital",
+            "display_name": "Vital",
+            "modifier": "life",
+            "damage_type": null,
+            "tier": "T4",
+            "value": 14.4,
+            "creation_tier_range": [
+              10,
+              29
+            ]
+          },
+          {
+            "kind": "prefix",
+            "affix_id": "reinforced",
+            "display_name": "Reinforced",
+            "modifier": "armor",
+            "damage_type": null,
+            "tier": "T5",
+            "value": 4.3,
+            "creation_tier_range": [
+              2,
+              7
+            ]
+          }
+        ],
+        "suffixes": [
+          {
+            "kind": "suffix",
+            "affix_id": "of_haste",
+            "display_name": "of Haste",
+            "modifier": "attack_speed",
+            "damage_type": null,
+            "tier": "T4",
+            "value": 2.0,
+            "creation_tier_range": [
+              1,
+              3
+            ]
+          }
+        ],
+        "creation_context": {
+          "world_id": "world_0",
+          "extension_id": "starting_world",
+          "item_level": 7,
+          "area_level": 7
+        },
+        "damage_bonus": 0,
+        "armor_bonus": 8,
+        "unique_id": null
+      },
+      "boots": null,
+      "gloves": null,
+      "ring_1": null,
+      "ring_2": null,
+      "amulet": null
+    },
+    "perks": {
+      "piercing_eye": 1,
+      "swiftness": 2,
+      "power": 1,
+      "bulwark": 1,
+      "tempo": 1
+    },
+    "keystones": [],
+    "current_hp": 210
+  },
+  "current_extension_id": "extension_1",
+  "event_log": {
+    "events": [
+      {
+        "event_type": "item_equipped",
+        "timestamp": 1793817578.9815838,
+        "payload": {
+          "item_id": 208,
+          "slot": "weapon"
+        }
+      },
+      {
+        "event_type": "item_equipped",
+        "timestamp": 1793817578.9825847,
+        "payload": {
+          "item_id": 209,
+          "slot": "legs"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817582.752295,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 75,
+          "target": "Carrion Bat",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817582.752295,
+        "payload": {
+          "target_category": "minion",
+          "distance": 63.48129538287545,
+          "damage": 75,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817582.752295,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817582.752295,
+        "payload": {
+          "name": "Carrion Bat"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817583.6259694,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 80,
+          "target": "Cave Spider",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817583.6259694,
+        "payload": {
+          "target_category": "minion",
+          "distance": 69.4652059982129,
+          "damage": 80,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817583.6259694,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817583.6269567,
+        "payload": {
+          "name": "Cave Spider"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817584.3014019,
+        "payload": {
+          "source": "Feral Rat",
+          "damage": 6,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817585.0506516,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 75,
+          "target": "Feral Rat",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817585.0506516,
+        "payload": {
+          "target_category": "minion",
+          "distance": 40.79414372273653,
+          "damage": 75,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817585.0506516,
+        "payload": {
+          "name": "reverse_slash"
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817585.0506516,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817585.0506516,
+        "payload": {
+          "name": "Feral Rat"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817585.4653258,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 80,
+          "target": "Teleporting Bandit",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817585.4653258,
+        "payload": {
+          "target_category": "elite",
+          "distance": 41.32558577560916,
+          "damage": 80,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817585.4653258,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817585.8767025,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 84,
+          "target": "Teleporting Bandit",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817585.8767025,
+        "payload": {
+          "target_category": "elite",
+          "distance": 65.08239272273974,
+          "damage": 84,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817585.8767025,
+        "payload": {
+          "name": "reverse_slash"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817586.2900453,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 88,
+          "target": "Teleporting Bandit",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817586.2900453,
+        "payload": {
+          "target_category": "elite",
+          "distance": 62.45122469771331,
+          "damage": 88,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817586.6881666,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 92,
+          "target": "Teleporting Bandit",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817586.6881666,
+        "payload": {
+          "target_category": "elite",
+          "distance": 60.50182936081902,
+          "damage": 92,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817586.8654342,
+        "payload": {
+          "source": "Bone Archer",
+          "damage": 4,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817587.7349846,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 113,
+          "target": "Teleporting Bandit",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817587.7349846,
+        "payload": {
+          "target_category": "elite",
+          "distance": 22.11545333500149,
+          "damage": 113,
+          "damage_type": "physical",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "level_up",
+        "timestamp": 1793817587.7349846,
+        "payload": {
+          "level": 2
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817587.7349846,
+        "payload": {
+          "name": "Teleporting Bandit"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817588.806277,
+        "payload": {
+          "source": "Bone Archer",
+          "damage": 4,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817589.4508116,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 77,
+          "target": "Skeleton",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817589.4508116,
+        "payload": {
+          "target_category": "minion",
+          "distance": 62.59957308438872,
+          "damage": 77,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817589.4508116,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817589.4508116,
+        "payload": {
+          "name": "Skeleton"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817589.4508116,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 77,
+          "target": "Skeleton",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817589.4508116,
+        "payload": {
+          "target_category": "minion",
+          "distance": 69.68171071516733,
+          "damage": 77,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817589.4508116,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817589.4508116,
+        "payload": {
+          "name": "Skeleton"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817589.8619401,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 81,
+          "target": "Wisp",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817589.8619401,
+        "payload": {
+          "target_category": "minion",
+          "distance": 68.44128234774804,
+          "damage": 81,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817589.8619401,
+        "payload": {
+          "name": "Wisp"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817590.5898142,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 86,
+          "target": "Bone Archer",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817590.5898142,
+        "payload": {
+          "target_category": "minion",
+          "distance": 58.4894912426205,
+          "damage": 86,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817590.5898142,
+        "payload": {
+          "name": "Bone Archer"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817595.0313513,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 77,
+          "target": "Slinker",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817595.0313513,
+        "payload": {
+          "target_category": "minion",
+          "distance": 64.39566222371161,
+          "damage": 77,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817595.0313513,
+        "payload": {
+          "name": "reverse_slash"
+        }
+      },
+      {
+        "event_type": "level_up",
+        "timestamp": 1793817595.0323524,
+        "payload": {
+          "level": 3
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817595.0323524,
+        "payload": {
+          "name": "Slinker"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817603.3837078,
+        "payload": {
+          "source": "Bone Archer",
+          "damage": 6,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817603.484433,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 78,
+          "target": "Wild Wolf",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817603.484433,
+        "payload": {
+          "target_category": "minion",
+          "distance": 67.0848864064856,
+          "damage": 78,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817603.484433,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817603.4864838,
+        "payload": {
+          "name": "Wild Wolf"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817604.4045365,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 83,
+          "target": "Teleporting Cave Spider",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817604.4045365,
+        "payload": {
+          "target_category": "elite",
+          "distance": 64.95026427386904,
+          "damage": 83,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817604.4045365,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817604.8748083,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 87,
+          "target": "Teleporting Cave Spider",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817604.8748083,
+        "payload": {
+          "target_category": "elite",
+          "distance": 52.3844415529832,
+          "damage": 87,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817604.8748083,
+        "payload": {
+          "name": "Teleporting Cave Spider"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817605.8298788,
+        "payload": {
+          "source": "Imp",
+          "damage": 4,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817605.8469834,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 77,
+          "target": "Imp",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817605.8469834,
+        "payload": {
+          "target_category": "minion",
+          "distance": 32.62334274334762,
+          "damage": 77,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817605.8469834,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817605.8469834,
+        "payload": {
+          "name": "Imp"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817606.2810066,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 81,
+          "target": "Bandit",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817606.2810066,
+        "payload": {
+          "target_category": "minion",
+          "distance": 34.44091209923736,
+          "damage": 81,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817606.2820077,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817606.5839334,
+        "payload": {
+          "source": "Bone Archer",
+          "damage": 6,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817607.3238895,
+        "payload": {
+          "name": "Bandit"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817608.9267824,
+        "payload": {
+          "source": "Bone Archer",
+          "damage": 6,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817609.1598551,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 77,
+          "target": "Wild Wolf",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817609.160862,
+        "payload": {
+          "target_category": "minion",
+          "distance": 50.09718395968937,
+          "damage": 77,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817609.160862,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817609.6583211,
+        "payload": {
+          "name": "Wild Wolf"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817610.1408513,
+        "payload": {
+          "source": "Bone Archer",
+          "damage": 6,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817610.1754165,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 77,
+          "target": "Carrion Bat",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817610.1754165,
+        "payload": {
+          "target_category": "minion",
+          "distance": 54.66184340165787,
+          "damage": 77,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817610.1754165,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "level_up",
+        "timestamp": 1793817610.1771224,
+        "payload": {
+          "level": 4
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817610.1771224,
+        "payload": {
+          "name": "Carrion Bat"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817610.1771224,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 78,
+          "target": "Bone Archer",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817610.1771224,
+        "payload": {
+          "target_category": "minion",
+          "distance": 54.777275880820255,
+          "damage": 78,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817610.1771224,
+        "payload": {
+          "name": "Bone Archer"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817613.9871547,
+        "payload": {
+          "source": "Carrion Bat",
+          "damage": 4,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817614.6237829,
+        "payload": {
+          "source": "Carrion Bat",
+          "damage": 4,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817615.3739483,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 84,
+          "target": "Feral Rat",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817615.3739483,
+        "payload": {
+          "target_category": "minion",
+          "distance": 65.69902780861156,
+          "damage": 84,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817615.3739483,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817615.3739483,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 84,
+          "target": "Bandit",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817615.3739483,
+        "payload": {
+          "target_category": "minion",
+          "distance": 65.75427349607126,
+          "damage": 84,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817615.3739483,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817615.3739483,
+        "payload": {
+          "source": "Carrion Bat",
+          "damage": 4,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817615.8264596,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 84,
+          "target": "Feral Rat",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817615.8264596,
+        "payload": {
+          "target_category": "minion",
+          "distance": 43.14801271645934,
+          "damage": 84,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817615.8264596,
+        "payload": {
+          "name": "Feral Rat"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817615.8264596,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 84,
+          "target": "Explosive Gnawer",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817615.8264596,
+        "payload": {
+          "target_category": "elite",
+          "distance": 56.467371183991126,
+          "damage": 84,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817615.8264596,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817615.8264596,
+        "payload": {
+          "name": "Explosive Gnawer"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817615.8264596,
+        "payload": {
+          "source": "Explosive Gnawer",
+          "damage": 18,
+          "damage_type": "fire"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817615.8264596,
+        "payload": {
+          "name": "Carrion Bat"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817615.8264596,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 127,
+          "target": "Bandit",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817615.8264596,
+        "payload": {
+          "target_category": "minion",
+          "distance": 59.46995499961469,
+          "damage": 127,
+          "damage_type": "physical",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817615.8264596,
+        "payload": {
+          "name": "Bandit"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817616.7203107,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 85,
+          "target": "Wild Wolf",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817616.7203107,
+        "payload": {
+          "target_category": "minion",
+          "distance": 64.31225757393135,
+          "damage": 85,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817616.721312,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817616.7223167,
+        "payload": {
+          "name": "Wild Wolf"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817617.3267334,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 89,
+          "target": "Slinker",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817617.3267334,
+        "payload": {
+          "target_category": "minion",
+          "distance": 60.702552521546245,
+          "damage": 89,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817617.3277442,
+        "payload": {
+          "name": "Slinker"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817618.8225706,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 94,
+          "target": "Hexer",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817618.8225706,
+        "payload": {
+          "target_category": "minion",
+          "distance": 56.81316840305678,
+          "damage": 94,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "level_up",
+        "timestamp": 1793817618.8225706,
+        "payload": {
+          "level": 5
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817618.8225706,
+        "payload": {
+          "name": "Hexer"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817641.2782772,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 86,
+          "target": "Feral Rat",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817641.2782772,
+        "payload": {
+          "target_category": "minion",
+          "distance": 72.49357212548884,
+          "damage": 86,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817641.2782772,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817641.7779636,
+        "payload": {
+          "name": "Feral Rat"
+        }
+      },
+      {
+        "event_type": "boss_attempt_started",
+        "timestamp": 1793817642.5215592,
+        "payload": {
+          "boss_id": "The Hollow Warden"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817642.5215592,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 76,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817642.5215592,
+        "payload": {
+          "target_category": "boss",
+          "distance": 74.66039572789143,
+          "damage": 76,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817642.969066,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 80,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817642.969066,
+        "payload": {
+          "target_category": "boss",
+          "distance": 62.38150716315315,
+          "damage": 80,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817643.4203565,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 84,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817643.4203565,
+        "payload": {
+          "target_category": "boss",
+          "distance": 79.83527365066455,
+          "damage": 84,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817643.5947952,
+        "payload": {
+          "source": "The Hollow Warden",
+          "damage": 34,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817644.0082796,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 72,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817644.0082796,
+        "payload": {
+          "target_category": "boss",
+          "distance": 83.18123583501298,
+          "damage": 72,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817644.5383878,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 76,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817644.5383878,
+        "payload": {
+          "target_category": "boss",
+          "distance": 83.18123583501298,
+          "damage": 76,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817645.038955,
+        "payload": {
+          "source": "Gnawer",
+          "damage": 3,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817645.0549898,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 72,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817645.0549898,
+        "payload": {
+          "target_category": "boss",
+          "distance": 83.18123583501298,
+          "damage": 72,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817645.4880435,
+        "payload": {
+          "name": "Carrion Bat"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817645.4880435,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 138,
+          "target": "Gnawer",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817645.4880435,
+        "payload": {
+          "target_category": "minion",
+          "distance": 33.227057483890974,
+          "damage": 138,
+          "damage_type": "physical",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817645.4880435,
+        "payload": {
+          "name": "Gnawer"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817645.4880435,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 76,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817645.4880435,
+        "payload": {
+          "target_category": "boss",
+          "distance": 78.88617073592955,
+          "damage": 76,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817646.4061503,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 80,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817646.4061503,
+        "payload": {
+          "target_category": "boss",
+          "distance": 68.66766296782947,
+          "damage": 80,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817646.8411777,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 84,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817646.8411777,
+        "payload": {
+          "target_category": "boss",
+          "distance": 69.91627639929229,
+          "damage": 84,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817647.290615,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 88,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817647.290615,
+        "payload": {
+          "target_category": "boss",
+          "distance": 68.79905175958957,
+          "damage": 88,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817647.7557719,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 92,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817647.7557719,
+        "payload": {
+          "target_category": "boss",
+          "distance": 68.79905175958957,
+          "damage": 92,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817648.0047524,
+        "payload": {
+          "source": "The Hollow Warden",
+          "damage": 38,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817648.57183,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 87,
+          "target": "Gnawer",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817648.57183,
+        "payload": {
+          "target_category": "minion",
+          "distance": 47.85990713652153,
+          "damage": 87,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817648.57183,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817648.57183,
+        "payload": {
+          "name": "Gnawer"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817648.57283,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 72,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817648.57283,
+        "payload": {
+          "target_category": "boss",
+          "distance": 80.01251534938599,
+          "damage": 72,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817649.093077,
+        "payload": {
+          "source": "Carrion Bat",
+          "damage": 3,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817649.4963713,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 87,
+          "target": "Carrion Bat",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817649.4963713,
+        "payload": {
+          "target_category": "minion",
+          "distance": 20.585488759034572,
+          "damage": 87,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817649.4963713,
+        "payload": {
+          "name": "reverse_slash"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817649.498373,
+        "payload": {
+          "name": "Carrion Bat"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817650.1600046,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 113,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817650.1600046,
+        "payload": {
+          "target_category": "boss",
+          "distance": 92.96806505200692,
+          "damage": 113,
+          "damage_type": "physical",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817650.7498937,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 80,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817650.7498937,
+        "payload": {
+          "target_category": "boss",
+          "distance": 97.66281573714406,
+          "damage": 80,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817650.7498937,
+        "payload": {
+          "name": "reverse_slash"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817651.5282397,
+        "payload": {
+          "source": "The Hollow Warden",
+          "damage": 53,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817652.683558,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 72,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817652.683558,
+        "payload": {
+          "target_category": "boss",
+          "distance": 58.47534715154745,
+          "damage": 72,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817653.1226676,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 76,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817653.1226676,
+        "payload": {
+          "target_category": "boss",
+          "distance": 54.10912662311756,
+          "damage": 76,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817653.3628159,
+        "payload": {
+          "source": "The Hollow Warden",
+          "damage": 38,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817653.6884027,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 107,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817653.6884027,
+        "payload": {
+          "target_category": "boss",
+          "distance": 63.00891186669889,
+          "damage": 107,
+          "damage_type": "physical",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817654.1280375,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 76,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817654.1280375,
+        "payload": {
+          "target_category": "boss",
+          "distance": 63.00891186669889,
+          "damage": 76,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817654.267628,
+        "payload": {
+          "source": "Imp",
+          "damage": 3,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817655.0606916,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 87,
+          "target": "Imp",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817655.0606916,
+        "payload": {
+          "target_category": "minion",
+          "distance": 40.06855725952695,
+          "damage": 87,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817655.061692,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817655.061692,
+        "payload": {
+          "name": "Imp"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817655.061692,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 72,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817655.061692,
+        "payload": {
+          "target_category": "boss",
+          "distance": 76.16395314641335,
+          "damage": 72,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_death",
+        "timestamp": 1793817655.2008755,
+        "payload": {
+          "cause": "physical"
+        }
+      },
+      {
+        "event_type": "boss_attempt_ended",
+        "timestamp": 1793817655.2018807,
+        "payload": {
+          "result": "death",
+          "boss_id": "The Hollow Warden"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817655.2018807,
+        "payload": {
+          "source": "The Hollow Warden",
+          "damage": 38,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817658.3788347,
+        "payload": {
+          "source": "Slinker",
+          "damage": 4,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817659.4548063,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 88,
+          "target": "Slinker",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817659.4548063,
+        "payload": {
+          "target_category": "minion",
+          "distance": 68.56878715974102,
+          "damage": 88,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817659.4548063,
+        "payload": {
+          "name": "Slinker"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817661.4382746,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 90,
+          "target": "Wisp",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817661.4382746,
+        "payload": {
+          "target_category": "minion",
+          "distance": 69.12108447546439,
+          "damage": 90,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817662.1951025,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 142,
+          "target": "Wisp",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817662.1951025,
+        "payload": {
+          "target_category": "minion",
+          "distance": 50.975428900344276,
+          "damage": 142,
+          "damage_type": "physical",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817662.1951025,
+        "payload": {
+          "name": "Wisp"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817663.8996973,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 102,
+          "target": "Bone Golem",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817663.8996973,
+        "payload": {
+          "target_category": "minion",
+          "distance": 50.36195635893261,
+          "damage": 102,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817663.8996973,
+        "payload": {
+          "name": "reverse_slash"
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817663.8996973,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817664.1120777,
+        "payload": {
+          "source": "Bone Golem",
+          "damage": 12,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817665.1580126,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 85,
+          "target": "Slinker",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817665.1580126,
+        "payload": {
+          "target_category": "minion",
+          "distance": 60.00904285452414,
+          "damage": 85,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817665.556971,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 92,
+          "target": "Bone Golem",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817665.556971,
+        "payload": {
+          "target_category": "minion",
+          "distance": 61.008202136196466,
+          "damage": 92,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817665.556971,
+        "payload": {
+          "name": "Bone Golem"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817666.3479683,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 95,
+          "target": "Slinker",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817666.3479683,
+        "payload": {
+          "target_category": "minion",
+          "distance": 60.41581551473137,
+          "damage": 95,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817666.3479683,
+        "payload": {
+          "name": "Slinker"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817670.255662,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 85,
+          "target": "Stalker",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817670.255662,
+        "payload": {
+          "target_category": "minion",
+          "distance": 44.004127253673275,
+          "damage": 85,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817670.255662,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817670.7524776,
+        "payload": {
+          "name": "Stalker"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817671.8767803,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 90,
+          "target": "Slinker",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817671.8767803,
+        "payload": {
+          "target_category": "minion",
+          "distance": 63.16702532031545,
+          "damage": 90,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817672.4540179,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 95,
+          "target": "Bandit",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817672.4540179,
+        "payload": {
+          "target_category": "minion",
+          "distance": 66.46556087761005,
+          "damage": 95,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817672.4550314,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817672.9526055,
+        "payload": {
+          "name": "Bandit"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817676.0977597,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 85,
+          "target": "Bandit",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817676.0977597,
+        "payload": {
+          "target_category": "minion",
+          "distance": 41.05989236277666,
+          "damage": 85,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817676.0977597,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817676.584715,
+        "payload": {
+          "name": "Bandit"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817677.1383393,
+        "payload": {
+          "source": "Carrion Bat",
+          "damage": 3,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817677.3023834,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 87,
+          "target": "Gnawer",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817677.3023834,
+        "payload": {
+          "target_category": "minion",
+          "distance": 64.44045782904713,
+          "damage": 87,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817677.3023834,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817677.3023834,
+        "payload": {
+          "name": "Gnawer"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817677.8377519,
+        "payload": {
+          "name": "Carrion Bat"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817677.8377519,
+        "payload": {
+          "name": "Gnawer"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817677.8397317,
+        "payload": {
+          "name": "Carrion Bat"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817677.8397317,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 138,
+          "target": "Gnawer",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817677.8397317,
+        "payload": {
+          "target_category": "minion",
+          "distance": 49.93136380786217,
+          "damage": 138,
+          "damage_type": "physical",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817677.8397317,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817677.8397317,
+        "payload": {
+          "name": "Gnawer"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817677.8397317,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 138,
+          "target": "Carrion Bat",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817677.8397317,
+        "payload": {
+          "target_category": "minion",
+          "distance": 68.35912624612837,
+          "damage": 138,
+          "damage_type": "physical",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817677.8397317,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "boss_attempt_started",
+        "timestamp": 1793817677.8397317,
+        "payload": {
+          "boss_id": "The Hollow Warden"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817677.8407323,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 76,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817677.8407323,
+        "payload": {
+          "target_category": "boss",
+          "distance": 77.82316027271884,
+          "damage": 76,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817679.1881442,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 80,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817679.1881442,
+        "payload": {
+          "target_category": "boss",
+          "distance": 50.61182813180138,
+          "damage": 80,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817679.6278899,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 84,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817679.6278899,
+        "payload": {
+          "target_category": "boss",
+          "distance": 83.36188592994272,
+          "damage": 84,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817679.6278899,
+        "payload": {
+          "name": "reverse_slash"
+        }
+      },
+      {
+        "event_type": "boss_killed",
+        "timestamp": 1793817679.6289103,
+        "payload": {
+          "name": "The Hollow Warden"
+        }
+      },
+      {
+        "event_type": "boss_attempt_ended",
+        "timestamp": 1793817679.6289103,
+        "payload": {
+          "result": "victory",
+          "boss_id": "The Hollow Warden"
+        }
+      },
+      {
+        "event_type": "item_found",
+        "timestamp": 1793817680.3671982,
+        "payload": {
+          "item_id": 210,
+          "rarity": "rare",
+          "is_six_mod": false
+        }
+      },
+      {
+        "event_type": "item_found",
+        "timestamp": 1793817680.5323002,
+        "payload": {
+          "item_id": 211,
+          "rarity": "rare",
+          "is_six_mod": false
+        }
+      },
+      {
+        "event_type": "item_equipped",
+        "timestamp": 1793817683.4600604,
+        "payload": {
+          "item_id": 210,
+          "slot": "legs"
+        }
+      },
+      {
+        "event_type": "item_equipped",
+        "timestamp": 1793817685.316836,
+        "payload": {
+          "item_id": 211,
+          "slot": "chest"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817691.9248314,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 85,
+          "target": "Regenerating Wisp",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817691.9248314,
+        "payload": {
+          "target_category": "elite",
+          "distance": 63.8003399758098,
+          "damage": 85,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817692.7872102,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 90,
+          "target": "Regenerating Wisp",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817692.7872102,
+        "payload": {
+          "target_category": "elite",
+          "distance": 61.81362678308712,
+          "damage": 90,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817693.1846466,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 142,
+          "target": "Regenerating Wisp",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817693.1846466,
+        "payload": {
+          "target_category": "elite",
+          "distance": 56.018157561149586,
+          "damage": 142,
+          "damage_type": "physical",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "level_up",
+        "timestamp": 1793817693.1856444,
+        "payload": {
+          "level": 6
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817693.1856444,
+        "payload": {
+          "name": "Regenerating Wisp"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817711.275552,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 130,
+          "target": "Cave Spider",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817711.275552,
+        "payload": {
+          "target_category": "minion",
+          "distance": 60.06142091748782,
+          "damage": 130,
+          "damage_type": "physical",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817711.275552,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817711.275552,
+        "payload": {
+          "name": "Cave Spider"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817714.536626,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 88,
+          "target": "Imp",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817714.536626,
+        "payload": {
+          "target_category": "minion",
+          "distance": 54.5582949199438,
+          "damage": 88,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817714.536626,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817714.536626,
+        "payload": {
+          "name": "Imp"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817715.6679637,
+        "payload": {
+          "source": "Cultist",
+          "damage": 4,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817715.7359078,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 88,
+          "target": "Carrion Bat",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817715.7359078,
+        "payload": {
+          "target_category": "minion",
+          "distance": 62.45147437775435,
+          "damage": 88,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817715.7359078,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817715.7369227,
+        "payload": {
+          "name": "Carrion Bat"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817716.8092196,
+        "payload": {
+          "source": "Imp",
+          "damage": 2,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817717.2516403,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 88,
+          "target": "Crypt Brute",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817717.2516403,
+        "payload": {
+          "target_category": "minion",
+          "distance": 62.75379201363983,
+          "damage": 88,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817717.2516403,
+        "payload": {
+          "name": "reverse_slash"
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817717.2526364,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817717.2526364,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 89,
+          "target": "Imp",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817717.2526364,
+        "payload": {
+          "target_category": "minion",
+          "distance": 66.40306195691018,
+          "damage": 89,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817717.2526364,
+        "payload": {
+          "name": "reverse_slash"
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817717.2526364,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817717.2526364,
+        "payload": {
+          "name": "Imp"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817717.2526364,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 88,
+          "target": "Frost_Nova Bone Golem",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817717.2526364,
+        "payload": {
+          "target_category": "elite",
+          "distance": 86.60444400593049,
+          "damage": 88,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817717.2526364,
+        "payload": {
+          "name": "reverse_slash"
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817717.2541478,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817717.635127,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 93,
+          "target": "Frost_Nova Bone Golem",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817717.635127,
+        "payload": {
+          "target_category": "elite",
+          "distance": 77.80668586299812,
+          "damage": 93,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817718.0222912,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 148,
+          "target": "Frost_Nova Bone Golem",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817718.0222912,
+        "payload": {
+          "target_category": "elite",
+          "distance": 83.8732847884565,
+          "damage": 148,
+          "damage_type": "physical",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817718.0222912,
+        "payload": {
+          "name": "reverse_slash"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817718.0222912,
+        "payload": {
+          "name": "Frost_Nova Bone Golem"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817719.1885178,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 101,
+          "target": "Imp",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817719.1885178,
+        "payload": {
+          "target_category": "minion",
+          "distance": 56.514436246580495,
+          "damage": 101,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817719.1885178,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817719.1885178,
+        "payload": {
+          "name": "Imp"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817720.1279426,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 81,
+          "target": "Armored Feral Rat",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817720.1279426,
+        "payload": {
+          "target_category": "elite",
+          "distance": 73.39978901711588,
+          "damage": 81,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817720.1279426,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817720.4928875,
+        "payload": {
+          "name": "Stalker"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817720.493888,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 170,
+          "target": "Crypt Brute",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817720.493888,
+        "payload": {
+          "target_category": "minion",
+          "distance": 74.60419222786422,
+          "damage": 170,
+          "damage_type": "physical",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817720.493888,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817721.0075345,
+        "payload": {
+          "name": "Crypt Brute"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817721.1218228,
+        "payload": {
+          "name": "Armored Feral Rat"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817721.6884298,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 118,
+          "target": "Crypt Brute",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817721.6884298,
+        "payload": {
+          "target_category": "minion",
+          "distance": 72.57230359571463,
+          "damage": 118,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817721.6884298,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817721.6884298,
+        "payload": {
+          "name": "Crypt Brute"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817722.4181943,
+        "payload": {
+          "source": "Bone Golem",
+          "damage": 11,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817722.958624,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 88,
+          "target": "Lurker",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817722.958624,
+        "payload": {
+          "target_category": "minion",
+          "distance": 31.395047256068477,
+          "damage": 88,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817722.958624,
+        "payload": {
+          "name": "reverse_slash"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817722.958624,
+        "payload": {
+          "name": "Lurker"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817723.3408103,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 93,
+          "target": "Bone Golem",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817723.3408103,
+        "payload": {
+          "target_category": "minion",
+          "distance": 45.96402821323992,
+          "damage": 93,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817723.3408103,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817723.3408103,
+        "payload": {
+          "name": "Bone Golem"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817723.9896507,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 96,
+          "target": "Dust Shade",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817723.9896507,
+        "payload": {
+          "target_category": "minion",
+          "distance": 63.34405016703298,
+          "damage": 96,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817723.9896507,
+        "payload": {
+          "name": "Dust Shade"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817725.082746,
+        "payload": {
+          "source": "Cultist",
+          "damage": 4,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817725.5360098,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 88,
+          "target": "Cultist",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817725.5360098,
+        "payload": {
+          "target_category": "minion",
+          "distance": 51.919133685721135,
+          "damage": 88,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817725.5360098,
+        "payload": {
+          "name": "Cultist"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817725.9006243,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 92,
+          "target": "Gnawer",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817725.9006243,
+        "payload": {
+          "target_category": "minion",
+          "distance": 69.81636361831305,
+          "damage": 92,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817725.9006243,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817725.9041414,
+        "payload": {
+          "name": "Gnawer"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817726.2822359,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 148,
+          "target": "Lurker",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817726.2822359,
+        "payload": {
+          "target_category": "minion",
+          "distance": 64.6481547488813,
+          "damage": 148,
+          "damage_type": "physical",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817726.2822359,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817726.2822359,
+        "payload": {
+          "name": "Lurker"
+        }
+      },
+      {
+        "event_type": "item_found",
+        "timestamp": 1793817726.9913538,
+        "payload": {
+          "item_id": 212,
+          "rarity": "rare",
+          "is_six_mod": false
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817727.7681558,
+        "payload": {
+          "source": "Hexer",
+          "damage": 6,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817728.3496878,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 130,
+          "target": "Hexer",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817728.3496878,
+        "payload": {
+          "target_category": "minion",
+          "distance": 67.51765510793042,
+          "damage": 130,
+          "damage_type": "physical",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "level_up",
+        "timestamp": 1793817728.3506846,
+        "payload": {
+          "level": 7
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817728.3506846,
+        "payload": {
+          "name": "Hexer"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817733.1729162,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 95,
+          "target": "Swift Skeleton",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817733.1729162,
+        "payload": {
+          "target_category": "elite",
+          "distance": 54.074397397409506,
+          "damage": 95,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817733.1729162,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817733.4671993,
+        "payload": {
+          "source": "Bandit",
+          "damage": 4,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817733.6657217,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 91,
+          "target": "Bandit",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817733.6657217,
+        "payload": {
+          "target_category": "minion",
+          "distance": 39.91788390558016,
+          "damage": 91,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817733.6657217,
+        "payload": {
+          "name": "reverse_slash"
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817733.6657217,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817733.6657217,
+        "payload": {
+          "name": "Bandit"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817733.6667392,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 90,
+          "target": "Swift Skeleton",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817733.6667392,
+        "payload": {
+          "target_category": "elite",
+          "distance": 72.7143090359982,
+          "damage": 90,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817733.6667392,
+        "payload": {
+          "name": "reverse_slash"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817733.6667392,
+        "payload": {
+          "name": "Swift Skeleton"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817734.4653382,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 93,
+          "target": "Slinker",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817734.4653382,
+        "payload": {
+          "target_category": "minion",
+          "distance": 70.59119683214432,
+          "damage": 93,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817735.5197887,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 98,
+          "target": "Slinker",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817735.5197887,
+        "payload": {
+          "target_category": "minion",
+          "distance": 73.46470336382528,
+          "damage": 98,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817735.5197887,
+        "payload": {
+          "name": "Slinker"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817735.972055,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 104,
+          "target": "Wisp",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817735.972055,
+        "payload": {
+          "target_category": "minion",
+          "distance": 52.63984297081492,
+          "damage": 104,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817735.972055,
+        "payload": {
+          "name": "Wisp"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817736.6211588,
+        "payload": {
+          "source": "Cave Spider",
+          "damage": 4,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817736.7030137,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 91,
+          "target": "Cave Spider",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817736.7030137,
+        "payload": {
+          "target_category": "minion",
+          "distance": 20.764411056918124,
+          "damage": 91,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817736.7030137,
+        "payload": {
+          "name": "Cave Spider"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817737.2541611,
+        "payload": {
+          "source": "Gnawer",
+          "damage": 4,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817737.7696905,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 88,
+          "target": "Gnawer",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817737.7696905,
+        "payload": {
+          "target_category": "minion",
+          "distance": 10.261479797093758,
+          "damage": 88,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817737.7696905,
+        "payload": {
+          "name": "reverse_slash"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817737.7696905,
+        "payload": {
+          "name": "Gnawer"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817739.8930955,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 88,
+          "target": "Dust Shade",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817739.8930955,
+        "payload": {
+          "target_category": "minion",
+          "distance": 68.60495907213755,
+          "damage": 88,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817740.3371646,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 93,
+          "target": "Dust Shade",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817740.3371646,
+        "payload": {
+          "target_category": "minion",
+          "distance": 54.19028114467576,
+          "damage": 93,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817740.3371646,
+        "payload": {
+          "name": "Dust Shade"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817740.7858157,
+        "payload": {
+          "source": "Skeleton",
+          "damage": 4,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817741.415078,
+        "payload": {
+          "source": "Skeleton",
+          "damage": 4,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817741.5351412,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 91,
+          "target": "Skeleton",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817741.5351412,
+        "payload": {
+          "target_category": "minion",
+          "distance": 33.79428532419646,
+          "damage": 91,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817741.5351412,
+        "payload": {
+          "name": "Skeleton"
+        }
+      },
+      {
+        "event_type": "extension_generated",
+        "timestamp": 1793817747.51666,
+        "payload": {
+          "extension_id": "extension_1",
+          "mode": "manual",
+          "area_level": 11
+        }
+      },
+      {
+        "event_type": "area_entered",
+        "timestamp": 1793817756.2860892,
+        "payload": {
+          "area_id": "extension_1"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817766.2768676,
+        "payload": {
+          "source": "Swift Dust Shade",
+          "damage": 31,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "boss_attempt_started",
+        "timestamp": 1793817767.161453,
+        "payload": {
+          "boss_id": "The Hollow Warden"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817767.1624587,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 74,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817767.1624587,
+        "payload": {
+          "target_category": "boss",
+          "distance": 87.17924650596555,
+          "damage": 74,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817767.5938053,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 78,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817767.5938053,
+        "payload": {
+          "target_category": "boss",
+          "distance": 54.44557295668844,
+          "damage": 78,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817767.9885511,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 82,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817767.9885511,
+        "payload": {
+          "target_category": "boss",
+          "distance": 54.44557295668844,
+          "damage": 82,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817768.1645308,
+        "payload": {
+          "source": "The Hollow Warden",
+          "damage": 38,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817768.9101987,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 74,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817768.9101987,
+        "payload": {
+          "target_category": "boss",
+          "distance": 82.95900795791819,
+          "damage": 74,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817769.351729,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 78,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817769.351729,
+        "payload": {
+          "target_category": "boss",
+          "distance": 69.70120755927292,
+          "damage": 78,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817769.7572892,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 82,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817769.7572892,
+        "payload": {
+          "target_category": "boss",
+          "distance": 69.70120755927292,
+          "damage": 82,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817770.2181194,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 130,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817770.2181194,
+        "payload": {
+          "target_category": "boss",
+          "distance": 91.08999965809164,
+          "damage": 130,
+          "damage_type": "physical",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817770.6437876,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 136,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817770.6437876,
+        "payload": {
+          "target_category": "boss",
+          "distance": 66.84889473407765,
+          "damage": 136,
+          "damage_type": "physical",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817771.0658278,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 95,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817771.0658278,
+        "payload": {
+          "target_category": "boss",
+          "distance": 58.75373858376392,
+          "damage": 95,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817771.5592651,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 112,
+          "target": "Gnawer",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817771.5592651,
+        "payload": {
+          "target_category": "minion",
+          "distance": 46.606840732868385,
+          "damage": 112,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817771.5592651,
+        "payload": {
+          "name": "reverse_slash"
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817771.5592651,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817771.5592651,
+        "payload": {
+          "name": "Gnawer"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817771.5612688,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 112,
+          "target": "Imp",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817771.5612688,
+        "payload": {
+          "target_category": "minion",
+          "distance": 51.16345838074862,
+          "damage": 112,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817771.5612688,
+        "payload": {
+          "name": "reverse_slash"
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817771.5612688,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817771.5612688,
+        "payload": {
+          "name": "Imp"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817771.5622733,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 112,
+          "target": "Imp",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817771.5622733,
+        "payload": {
+          "target_category": "minion",
+          "distance": 54.77737574389318,
+          "damage": 112,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817771.5622733,
+        "payload": {
+          "name": "reverse_slash"
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817771.5622733,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817771.5622733,
+        "payload": {
+          "name": "Imp"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817771.5622733,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 112,
+          "target": "Carrion Bat",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817771.5622733,
+        "payload": {
+          "target_category": "minion",
+          "distance": 65.07762537400014,
+          "damage": 112,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817771.5622733,
+        "payload": {
+          "name": "reverse_slash"
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817771.5622733,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817771.5622733,
+        "payload": {
+          "name": "Carrion Bat"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817771.5622733,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 99,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817771.5622733,
+        "payload": {
+          "target_category": "boss",
+          "distance": 74.14154283605183,
+          "damage": 99,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817771.5622733,
+        "payload": {
+          "name": "reverse_slash"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817773.3041961,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 103,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817773.3041961,
+        "payload": {
+          "target_category": "boss",
+          "distance": 56.276914503671925,
+          "damage": 103,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817774.202939,
+        "payload": {
+          "source": "The Hollow Warden",
+          "damage": 59,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817775.2587907,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 74,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817775.2587907,
+        "payload": {
+          "target_category": "boss",
+          "distance": 82.4093984465351,
+          "damage": 74,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817775.7354968,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 78,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817775.7354968,
+        "payload": {
+          "target_category": "boss",
+          "distance": 82.4093984465351,
+          "damage": 78,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817776.037134,
+        "payload": {
+          "source": "The Hollow Warden",
+          "damage": 43,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817776.2354164,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 74,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817776.2354164,
+        "payload": {
+          "target_category": "boss",
+          "distance": 82.4093984465351,
+          "damage": 74,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817776.6425629,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 78,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817776.6425629,
+        "payload": {
+          "target_category": "boss",
+          "distance": 82.4093984465351,
+          "damage": 78,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817777.0684376,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 124,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817777.0684376,
+        "payload": {
+          "target_category": "boss",
+          "distance": 82.4093984465351,
+          "damage": 124,
+          "damage_type": "physical",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817777.4061947,
+        "payload": {
+          "source": "Carrion Bat",
+          "damage": 12,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817777.7055578,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 83,
+          "target": "Gnawer",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817777.7055578,
+        "payload": {
+          "target_category": "minion",
+          "distance": 34.12382708834099,
+          "damage": 83,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817777.7055578,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "player_death",
+        "timestamp": 1793817777.8420446,
+        "payload": {
+          "cause": "physical"
+        }
+      },
+      {
+        "event_type": "boss_attempt_ended",
+        "timestamp": 1793817777.8430388,
+        "payload": {
+          "result": "death",
+          "boss_id": "The Hollow Warden"
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817777.8430388,
+        "payload": {
+          "source": "The Hollow Warden",
+          "damage": 59,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817778.2407281,
+        "payload": {
+          "name": "Gnawer"
+        }
+      },
+      {
+        "event_type": "boss_attempt_started",
+        "timestamp": 1793817781.202969,
+        "payload": {
+          "boss_id": "The Hollow Warden"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817781.2039714,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 74,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817781.2039714,
+        "payload": {
+          "target_category": "boss",
+          "distance": 78.94937695422377,
+          "damage": 74,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817781.6345012,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 132,
+          "target": "Carrion Bat",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817781.6345012,
+        "payload": {
+          "target_category": "minion",
+          "distance": 59.036164312297885,
+          "damage": 132,
+          "damage_type": "physical",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817781.6345012,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817781.6345012,
+        "payload": {
+          "name": "Carrion Bat"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817781.6345012,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 78,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817781.6345012,
+        "payload": {
+          "target_category": "boss",
+          "distance": 78.94937695422377,
+          "damage": 78,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817782.0528069,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 82,
+          "target": "The Hollow Warden",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817782.0528069,
+        "payload": {
+          "target_category": "boss",
+          "distance": 78.94937695422377,
+          "damage": 82,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "boss_killed",
+        "timestamp": 1793817782.0528069,
+        "payload": {
+          "name": "The Hollow Warden"
+        }
+      },
+      {
+        "event_type": "boss_attempt_ended",
+        "timestamp": 1793817782.0528069,
+        "payload": {
+          "result": "victory",
+          "boss_id": "The Hollow Warden"
+        }
+      },
+      {
+        "event_type": "item_found",
+        "timestamp": 1793817782.8920333,
+        "payload": {
+          "item_id": 213,
+          "rarity": "rare",
+          "is_six_mod": false
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817784.8170164,
+        "payload": {
+          "source": "Imp",
+          "damage": 12,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817784.856025,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 83,
+          "target": "Imp",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817784.856025,
+        "payload": {
+          "target_category": "minion",
+          "distance": 33.696997376209396,
+          "damage": 83,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817784.856025,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817784.856025,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 83,
+          "target": "Wild Wolf",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817784.856025,
+        "payload": {
+          "target_category": "minion",
+          "distance": 68.39839343674251,
+          "damage": 83,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817784.856025,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817785.388925,
+        "payload": {
+          "name": "Imp"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817786.0338464,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 88,
+          "target": "Wild Wolf",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817786.0338464,
+        "payload": {
+          "target_category": "minion",
+          "distance": 61.70012196567475,
+          "damage": 88,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "kinetic_technique",
+        "timestamp": 1793817786.0338464,
+        "payload": {
+          "name": "intercept"
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817786.0358646,
+        "payload": {
+          "name": "Wild Wolf"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817787.0524113,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 55,
+          "target": "Swift Dust Shade",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817787.0524113,
+        "payload": {
+          "target_category": "elite",
+          "distance": 56.63380614549936,
+          "damage": 55,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817787.895007,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 58,
+          "target": "Swift Dust Shade",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817787.895007,
+        "payload": {
+          "target_category": "elite",
+          "distance": 60.14441789794594,
+          "damage": 58,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817788.37624,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 61,
+          "target": "Swift Dust Shade",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817788.37624,
+        "payload": {
+          "target_category": "elite",
+          "distance": 47.623567384227734,
+          "damage": 61,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_hit",
+        "timestamp": 1793817788.6419375,
+        "payload": {
+          "source": "Swift Dust Shade",
+          "damage": 31,
+          "damage_type": "physical"
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817788.7655127,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 50,
+          "target": "Swift Dust Shade",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817788.7655127,
+        "payload": {
+          "target_category": "elite",
+          "distance": 50.319595531863875,
+          "damage": 50,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817789.5062146,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 53,
+          "target": "Swift Dust Shade",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817789.5062146,
+        "payload": {
+          "target_category": "elite",
+          "distance": 56.587244448775564,
+          "damage": 53,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817789.9129374,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 55,
+          "target": "Swift Dust Shade",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817789.9129374,
+        "payload": {
+          "target_category": "elite",
+          "distance": 56.587244448775564,
+          "damage": 55,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817790.2930164,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 87,
+          "target": "Swift Dust Shade",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817790.2930164,
+        "payload": {
+          "target_category": "elite",
+          "distance": 56.587244448775564,
+          "damage": 87,
+          "damage_type": "physical",
+          "is_crit": true
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817790.6493857,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 61,
+          "target": "Swift Dust Shade",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817790.6493857,
+        "payload": {
+          "target_category": "elite",
+          "distance": 56.587244448775564,
+          "damage": 61,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "skill_used",
+        "timestamp": 1793817791.0136912,
+        "payload": {
+          "skill": "basic_attack",
+          "damage": 64,
+          "target": "Swift Dust Shade",
+          "damage_type": "physical",
+          "weapon_name": "Burning Cracked Spear",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "player_attack",
+        "timestamp": 1793817791.0136912,
+        "payload": {
+          "target_category": "elite",
+          "distance": 56.587244448775564,
+          "damage": 64,
+          "damage_type": "physical",
+          "is_crit": false
+        }
+      },
+      {
+        "event_type": "enemy_killed",
+        "timestamp": 1793817791.0136912,
+        "payload": {
+          "name": "Swift Dust Shade"
+        }
+      }
+    ]
+  },
+  "exploration": {
+    "visited": {
+      "starting_area": [
+        [
+          15,
+          21
+        ],
+        [
+          26,
+          21
+        ],
+        [
+          7,
+          17
+        ],
+        [
+          34,
+          10
+        ],
+        [
+          36,
+          7
+        ],
+        [
+          37,
+          6
+        ],
+        [
+          20,
+          20
+        ],
+        [
+          19,
+          9
+        ],
+        [
+          10,
+          6
+        ],
+        [
+          36,
+          25
+        ],
+        [
+          37,
+          24
+        ],
+        [
+          34,
+          28
+        ],
+        [
+          8,
+          9
+        ],
+        [
+          8,
+          18
+        ],
+        [
+          3,
+          22
+        ],
+        [
+          19,
+          18
+        ],
+        [
+          17,
+          21
+        ],
+        [
+          28,
+          21
+        ],
+        [
+          33,
+          27
+        ],
+        [
+          9,
+          26
+        ],
+        [
+          13,
+          8
+        ],
+        [
+          38,
+          7
+        ],
+        [
+          24,
+          8
+        ],
+        [
+          43,
+          21
+        ],
+        [
+          38,
+          16
+        ],
+        [
+          18,
+          10
+        ],
+        [
+          35,
+          26
+        ],
+        [
+          21,
+          9
+        ],
+        [
+          18,
+          19
+        ],
+        [
+          39,
+          17
+        ],
+        [
+          20,
+          22
+        ],
+        [
+          34,
+          21
+        ],
+        [
+          45,
+          21
+        ],
+        [
+          8,
+          11
+        ],
+        [
+          11,
+          7
+        ],
+        [
+          37,
+          26
+        ],
+        [
+          3,
+          24
+        ],
+        [
+          4,
+          23
+        ],
+        [
+          15,
+          7
+        ],
+        [
+          26,
+          7
+        ],
+        [
+          38,
+          9
+        ],
+        [
+          10,
+          20
+        ],
+        [
+          38,
+          18
+        ],
+        [
+          35,
+          28
+        ],
+        [
+          39,
+          10
+        ],
+        [
+          7,
+          21
+        ],
+        [
+          18,
+          21
+        ],
+        [
+          27,
+          8
+        ],
+        [
+          14,
+          8
+        ],
+        [
+          17,
+          7
+        ],
+        [
+          28,
+          7
+        ],
+        [
+          36,
+          20
+        ],
+        [
+          34,
+          23
+        ],
+        [
+          37,
+          19
+        ],
+        [
+          8,
+          4
+        ],
+        [
+          9,
+          3
+        ],
+        [
+          23,
+          20
+        ],
+        [
+          37,
+          28
+        ],
+        [
+          3,
+          26
+        ],
+        [
+          32,
+          7
+        ],
+        [
+          4,
+          25
+        ],
+        [
+          5,
+          23
+        ],
+        [
+          38,
+          11
+        ],
+        [
+          32,
+          25
+        ],
+        [
+          16,
+          8
+        ],
+        [
+          33,
+          24
+        ],
+        [
+          21,
+          4
+        ],
+        [
+          13,
+          21
+        ],
+        [
+          25,
+          20
+        ],
+        [
+          7,
+          14
+        ],
+        [
+          31,
+          8
+        ],
+        [
+          22,
+          5
+        ],
+        [
+          34,
+          7
+        ],
+        [
+          20,
+          8
+        ],
+        [
+          37,
+          3
+        ],
+        [
+          17,
+          9
+        ],
+        [
+          34,
+          25
+        ],
+        [
+          32,
+          9
+        ],
+        [
+          33,
+          8
+        ],
+        [
+          7,
+          7
+        ],
+        [
+          18,
+          7
+        ],
+        [
+          35,
+          23
+        ],
+        [
+          33,
+          26
+        ],
+        [
+          7,
+          16
+        ],
+        [
+          34,
+          9
+        ],
+        [
+          37,
+          5
+        ],
+        [
+          20,
+          19
+        ],
+        [
+          21,
+          18
+        ],
+        [
+          9,
+          7
+        ],
+        [
+          37,
+          23
+        ],
+        [
+          14,
+          21
+        ],
+        [
+          10,
+          8
+        ],
+        [
+          24,
+          7
+        ],
+        [
+          33,
+          10
+        ],
+        [
+          25,
+          6
+        ],
+        [
+          35,
+          7
+        ],
+        [
+          21,
+          7
+        ],
+        [
+          8,
+          20
+        ],
+        [
+          32,
+          20
+        ],
+        [
+          36,
+          27
+        ],
+        [
+          18,
+          9
+        ],
+        [
+          35,
+          25
+        ],
+        [
+          10,
+          26
+        ],
+        [
+          2,
+          22
+        ],
+        [
+          11,
+          25
+        ],
+        [
+          16,
+          21
+        ],
+        [
+          18,
+          18
+        ],
+        [
+          34,
+          11
+        ],
+        [
+          22,
+          9
+        ],
+        [
+          38,
+          27
+        ],
+        [
+          37,
+          7
+        ],
+        [
+          6,
+          22
+        ],
+        [
+          20,
+          21
+        ],
+        [
+          22,
+          18
+        ],
+        [
+          39,
+          25
+        ],
+        [
+          3,
+          23
+        ],
+        [
+          4,
+          22
+        ],
+        [
+          35,
+          9
+        ],
+        [
+          24,
+          9
+        ],
+        [
+          25,
+          8
+        ],
+        [
+          19,
+          22
+        ],
+        [
+          39,
+          9
+        ],
+        [
+          29,
+          8
+        ],
+        [
+          48,
+          21
+        ],
+        [
+          22,
+          20
+        ],
+        [
+          3,
+          25
+        ],
+        [
+          4,
+          24
+        ],
+        [
+          17,
+          18
+        ],
+        [
+          16,
+          7
+        ],
+        [
+          33,
+          23
+        ],
+        [
+          8,
+          24
+        ],
+        [
+          10,
+          21
+        ],
+        [
+          39,
+          11
+        ],
+        [
+          38,
+          13
+        ],
+        [
+          20,
+          7
+        ],
+        [
+          22,
+          4
+        ],
+        [
+          21,
+          6
+        ],
+        [
+          31,
+          7
+        ],
+        [
+          37,
+          11
+        ],
+        [
+          8,
+          8
+        ],
+        [
+          30,
+          8
+        ],
+        [
+          36,
+          24
+        ],
+        [
+          19,
+          8
+        ],
+        [
+          17,
+          20
+        ],
+        [
+          27,
+          21
+        ],
+        [
+          11,
+          22
+        ],
+        [
+          38,
+          15
+        ],
+        [
+          32,
+          29
+        ],
+        [
+          20,
+          9
+        ],
+        [
+          22,
+          6
+        ],
+        [
+          21,
+          8
+        ],
+        [
+          23,
+          5
+        ],
+        [
+          37,
+          4
+        ],
+        [
+          29,
+          21
+        ],
+        [
+          36,
+          8
+        ],
+        [
+          34,
+          29
+        ],
+        [
+          10,
+          7
+        ],
+        [
+          33,
+          9
+        ],
+        [
+          35,
+          6
+        ],
+        [
+          11,
+          6
+        ],
+        [
+          36,
+          26
+        ],
+        [
+          37,
+          25
+        ],
+        [
+          8,
+          19
+        ],
+        [
+          19,
+          19
+        ],
+        [
+          42,
+          21
+        ],
+        [
+          10,
+          25
+        ],
+        [
+          11,
+          24
+        ],
+        [
+          46,
+          21
+        ],
+        [
+          39,
+          15
+        ],
+        [
+          38,
+          17
+        ],
+        [
+          12,
+          7
+        ],
+        [
+          38,
+          26
+        ],
+        [
+          31,
+          20
+        ],
+        [
+          18,
+          20
+        ],
+        [
+          40,
+          23
+        ],
+        [
+          36,
+          10
+        ],
+        [
+          27,
+          7
+        ],
+        [
+          8,
+          3
+        ],
+        [
+          8,
+          12
+        ],
+        [
+          11,
+          8
+        ],
+        [
+          25,
+          7
+        ],
+        [
+          5,
+          22
+        ],
+        [
+          19,
+          21
+        ],
+        [
+          37,
+          27
+        ],
+        [
+          39,
+          8
+        ],
+        [
+          15,
+          8
+        ],
+        [
+          29,
+          7
+        ],
+        [
+          26,
+          8
+        ],
+        [
+          38,
+          10
+        ],
+        [
+          11,
+          26
+        ],
+        [
+          38,
+          19
+        ],
+        [
+          7,
+          13
+        ],
+        [
+          23,
+          9
+        ],
+        [
+          7,
+          22
+        ],
+        [
+          18,
+          22
+        ],
+        [
+          21,
+          21
+        ],
+        [
+          17,
+          8
+        ],
+        [
+          28,
+          8
+        ],
+        [
+          36,
+          21
+        ],
+        [
+          34,
+          24
+        ],
+        [
+          8,
+          5
+        ],
+        [
+          9,
+          4
+        ],
+        [
+          37,
+          20
+        ],
+        [
+          5,
+          24
+        ],
+        [
+          32,
+          8
+        ],
+        [
+          8,
+          23
+        ],
+        [
+          51,
+          21
+        ],
+        [
+          38,
+          12
+        ],
+        [
+          32,
+          26
+        ],
+        [
+          20,
+          6
+        ],
+        [
+          18,
+          6
+        ],
+        [
+          35,
+          22
+        ],
+        [
+          7,
+          6
+        ],
+        [
+          33,
+          25
+        ],
+        [
+          49,
+          21
+        ],
+        [
+          34,
+          26
+        ],
+        [
+          8,
+          7
+        ],
+        [
+          19,
+          7
+        ],
+        [
+          37,
+          22
+        ],
+        [
+          11,
+          21
+        ],
+        [
+          38,
+          5
+        ],
+        [
+          41,
+          22
+        ],
+        [
+          38,
+          14
+        ],
+        [
+          32,
+          28
+        ],
+        [
+          18,
+          8
+        ],
+        [
+          35,
+          24
+        ]
+      ],
+      "extension_1": [
+        [
+          79,
+          24
+        ],
+        [
+          90,
+          24
+        ],
+        [
+          87,
+          25
+        ],
+        [
+          92,
+          24
+        ],
+        [
+          85,
+          18
+        ],
+        [
+          66,
+          32
+        ],
+        [
+          63,
+          27
+        ],
+        [
+          56,
+          21
+        ],
+        [
+          77,
+          28
+        ],
+        [
+          60,
+          21
+        ],
+        [
+          82,
+          24
+        ],
+        [
+          62,
+          21
+        ],
+        [
+          87,
+          20
+        ],
+        [
+          62,
+          30
+        ],
+        [
+          73,
+          30
+        ],
+        [
+          86,
+          24
+        ],
+        [
+          97,
+          24
+        ],
+        [
+          85,
+          22
+        ],
+        [
+          75,
+          30
+        ],
+        [
+          88,
+          24
+        ],
+        [
+          81,
+          18
+        ],
+        [
+          82,
+          26
+        ],
+        [
+          62,
+          32
+        ],
+        [
+          81,
+          20
+        ],
+        [
+          54,
+          21
+        ],
+        [
+          84,
+          22
+        ],
+        [
+          86,
+          19
+        ],
+        [
+          83,
+          20
+        ],
+        [
+          82,
+          21
+        ],
+        [
+          71,
+          30
+        ],
+        [
+          95,
+          24
+        ],
+        [
+          63,
+          35
+        ],
+        [
+          78,
+          26
+        ],
+        [
+          63,
+          28
+        ],
+        [
+          84,
+          26
+        ],
+        [
+          86,
+          23
+        ],
+        [
+          85,
+          24
+        ],
+        [
+          63,
+          21
+        ],
+        [
+          67,
+          30
+        ],
+        [
+          91,
+          24
+        ],
+        [
+          85,
+          26
+        ],
+        [
+          65,
+          23
+        ],
+        [
+          66,
+          31
+        ],
+        [
+          84,
+          21
+        ],
+        [
+          86,
+          18
+        ],
+        [
+          55,
+          21
+        ],
+        [
+          83,
+          22
+        ],
+        [
+          85,
+          19
+        ],
+        [
+          65,
+          25
+        ],
+        [
+          57,
+          21
+        ],
+        [
+          82,
+          20
+        ],
+        [
+          65,
+          34
+        ],
+        [
+          66,
+          33
+        ],
+        [
+          68,
+          30
+        ],
+        [
+          81,
+          24
+        ],
+        [
+          84,
+          23
+        ],
+        [
+          64,
+          26
+        ],
+        [
+          78,
+          25
+        ],
+        [
+          59,
+          21
+        ],
+        [
+          64,
+          35
+        ],
+        [
+          70,
+          30
+        ],
+        [
+          94,
+          24
+        ],
+        [
+          85,
+          21
+        ],
+        [
+          98,
+          24
+        ],
+        [
+          84,
+          25
+        ],
+        [
+          86,
+          22
+        ],
+        [
+          62,
+          31
+        ],
+        [
+          78,
+          27
+        ],
+        [
+          83,
+          26
+        ],
+        [
+          76,
+          29
+        ],
+        [
+          81,
+          19
+        ],
+        [
+          84,
+          18
+        ],
+        [
+          53,
+          21
+        ],
+        [
+          87,
+          23
+        ],
+        [
+          62,
+          33
+        ],
+        [
+          83,
+          19
+        ],
+        [
+          65,
+          22
+        ]
+      ]
+    },
+    "area_totals": {
+      "starting_area": 796,
+      "extension_1": 950
+    }
+  },
+  "nemesis": {
+    "records": []
+  },
+  "used_shrines": [],
+  "feedback": {
+    "too_hard": 0,
+    "too_easy": 0,
+    "avoid_biomes": []
+  },
+  "version": 1,
+  "saved_at": 1793817794.9384592
+}

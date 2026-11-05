@@ -62,6 +62,9 @@
       "applies_to": ["weapon", "armor"],
       "modifier": "life",
       "damage_type": null
-    }
+    },
+
+    { "id": "toxic",    "name": "Toxic",    "applies_to": ["weapon"], "modifier": "poison_damage", "damage_type": "poison" },
+{ "id": "bleeding", "name": "Bleeding", "applies_to": ["weapon"], "modifier": "bleed_damage",  "damage_type": "bleed"  }
   ]
 }

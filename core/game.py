@@ -47,7 +47,7 @@ class Game(InputMixin, DrawMixin, CombatMixin, LootMixin, ExtensionMixin,
            PersistenceMixin, DebugMixin):
 
 
-    def __init__(self, slot_id="1"):
+    def __init__(self, slot_id="1",starting_level=None):
         pygame.init()
         self.slot_id = slot_id
         self.save_manager = SaveManager(slot_id=slot_id)
@@ -150,6 +150,9 @@ class Game(InputMixin, DrawMixin, CombatMixin, LootMixin, ExtensionMixin,
             
             self._grant_starting_gear()
             D.set_player_level(self.player.progression.level)
+            if starting_level is not None and starting_level > 1:
+                self._apply_test_level(starting_level)
+
 
             self.packs.assign_new()
 

@@ -1,0 +1,119 @@
+{
+  "blessings": [
+    { "id": "empowering_air", "name": "Empowering Air",
+      "description": "Every strike lands a little harder here.",
+      "polarity": "buff",
+      "rules": [
+        {"type": "damage_dealt_multiplier", "target": "all",
+         "damage_type": null, "multiplier": 1.15}
+      ]},
+    { "id": "warding_stones", "name": "Warding Stones",
+      "description": "Ancient glyphs blunt incoming blows.",
+      "polarity": "buff",
+      "rules": [
+        {"type": "damage_taken_multiplier", "target": "player",
+         "damage_type": null, "multiplier": 0.88}
+      ]},
+    { "id": "echoing_embers", "name": "Echoing Embers",
+      "description": "Fire damage resonates strongly here.",
+      "polarity": "buff",
+      "rules": [
+        {"type": "damage_dealt_multiplier", "target": "all",
+         "damage_type": "fire", "multiplier": 1.25}
+      ]},
+    { "id": "gilded_seams", "name": "Gilded Seams",
+      "description": "Killing blows restore a sliver of life.",
+      "polarity": "buff",
+      "rules": [
+        {"type": "on_kill_effect", "effect": "heal_player",
+         "target": "all", "percent": 0.03}
+      ]},
+    { "id": "conductors_blessing", "name": "Conductor's Blessing",
+      "description": "Lightning leaps further and faster.",
+      "polarity": "buff",
+      "rules": [
+        {"type": "damage_dealt_multiplier", "target": "all",
+         "damage_type": "lightning", "multiplier": 1.20}
+      ]},{ "id": "molten_heart", "name": "Molten Heart",
+  "description": "The land bleeds fire into every physical strike.",
+  "polarity": "buff",
+  "rules": [
+    {"type": "conversion", "from_type": "physical", "to_type": "fire", "percent": 0.30, "scope": "player"}
+  ]},
+{ "id": "chaos_embrace", "name": "Chaos Embrace",
+  "description": "Chaos answers you, and only you.",
+  "polarity": "buff",
+  "rules": [
+    {"type": "damage_dealt_multiplier", "target": "all", "damage_type": "chaos", "multiplier": 1.22}
+  ]},
+{ "id": "ironclad", "name": "Ironclad",
+  "description": "The stones here strengthen your bones.",
+  "polarity": "buff",
+  "rules": [
+    {"type": "resistance_modifier", "target": "player", "damage_type": "physical", "delta": 0.10}
+  ]}
+
+
+
+  ],
+  "curses": [
+    { "id": "ashen_frailty", "name": "Ashen Frailty",
+      "description": "Fire burns hotter and lingers here.",
+      "polarity": "curse",
+      "rules": [
+        {"type": "damage_taken_multiplier", "target": "player",
+         "damage_type": "fire", "multiplier": 1.30}
+      ]},
+    { "id": "brittle_bones", "name": "Brittle Bones",
+      "description": "Physical blows crack harder.",
+      "polarity": "curse",
+      "rules": [
+        {"type": "resistance_modifier", "target": "player",
+         "damage_type": "physical", "delta": -0.15}
+      ]},
+    { "id": "corrupted_flesh", "name": "Corrupted Flesh",
+      "description": "Chaos eats away at those who touch this place.",
+      "polarity": "curse",
+      "rules": [
+        {"type": "damage_taken_multiplier", "target": "player",
+         "damage_type": "chaos", "multiplier": 1.35}
+      ]},
+    { "id": "storm_conductive", "name": "Storm Conductive",
+      "description": "Lightning arcs wildly here.",
+      "polarity": "curse",
+      "rules": [
+        {"type": "damage_taken_multiplier", "target": "player",
+         "damage_type": "lightning", "multiplier": 1.25}
+      ]},
+    { "id": "hungering_shade", "name": "Hungering Shade",
+      "description": "Slain enemies erupt in chaos.",
+      "polarity": "curse",
+      "rules": [
+        {"type": "on_kill_effect", "effect": "explode",
+         "target": "minion", "damage_type": "chaos",
+         "radius": 80, "damage_ratio": 0.20}
+      ]},
+
+      { "id": "rift_fever", "name": "Rift Fever",
+  "description": "Reality frays around your blows — physical strength bends to chaos.",
+  "polarity": "curse",
+  "rules": [
+    {"type": "conversion", "from_type": "physical", "to_type": "chaos", "percent": 0.25, "scope": "player"}
+  ]},
+{ "id": "volatile_corpses", "name": "Volatile Corpses",
+  "description": "The dead do not rest easily here.",
+  "polarity": "curse",
+  "rules": [
+    {"type": "on_kill_effect", "effect": "explode", "target": "minion",
+     "damage_type": "fire", "radius": 70, "damage_ratio": 0.25}
+  ]},
+{ "id": "frozen_vein", "name": "Frozen Vein",
+  "description": "Cold seeps into every wound here.",
+  "polarity": "curse",
+  "rules": [
+    {"type": "resistance_modifier", "target": "player", "damage_type": "cold", "delta": -0.15}
+  ]}
+  
+  
+    ]
+}

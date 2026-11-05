@@ -6,6 +6,8 @@ from world.world_modifiers import WorldRuleSet
 from world.gate import Gate, next_gate_id, reset_gate_id_counter
 import core.config as config
 
+from world.modifier_pool import ModifierPool, load_catalog
+
 
 class World:
     def __init__(self, world_seed: int):
@@ -19,6 +21,7 @@ class World:
         self.region_presence: dict[str, float] = {}    # NEW
         self.cleared_regions: set[str] = set()
         self.used_shrines: set[str] = set()
+        self.modifier_pool = ModifierPool()
 
     # ---------------- gate management ----------------
     def register_starting_gate(self, room_index: int, tile_col: int, tile_row: int, side="e") -> Gate:
@@ -91,9 +94,19 @@ class World:
     # ---------------- extension management ----------------
     def add_extension(self, spec: ExtensionSpec) -> Extension:
         stream = self.rng_service.derive_child(
-            "world", f"extension_seed:{spec.extension_id}"
-        )
+            "world", f"extension_seed:{spec.extension_id}")
         extension_seed = stream.randint(0, 2**31 - 1)
+
+        blessings, curses = load_catalog()
+        pool_rng = self.rng_service.get_stream("modifier_pool")
+        summary = self.modifier_pool.step(pool_rng, blessings, curses)
+
+        # Preserve delta as narrative for the UI; the pool is the source
+        # of truth for gameplay. `Extension.rule_set` is intentionally empty.
+        spec.world_modifiers = summary["added"] + [
+            dict(m, _removed=True) for m in summary["removed"]
+        ]
+
         ext = Extension(spec, extension_seed)
         self.extensions.append(ext)
         self.playtime_at_last_extension = self.total_playtime_seconds
@@ -111,10 +124,45 @@ class World:
                 return ext
         return None
 
+    def test_migration_from_legacy_save_with_modifier_lacking_id():
+        """Old modifiers may have no 'id'; migration must dedupe on name then."""
+        from world.world import World
+        
+        legacy = {
+            "world_seed": 1, 
+            "created_at": 0.0,
+            "total_playtime_seconds": 0.0, 
+            "playtime_at_last_extension": 0.0,
+            "extensions": [
+                {
+                    "spec": {
+                        "extension_id": "e1", 
+                        "extension_name": "A",
+                        "area_level": 2, 
+                        "biome": "a",
+                        "world_modifiers": [{"name": "NoId", "rules": []}]
+                    },
+                    "extension_seed": 1, 
+                    "created_at": 0.0
+                }
+            ],
+            "gates": [], 
+            "region_presence": {},
+            "cleared_regions": [], 
+            "used_shrines": []
+        }
+        
+        w = World.from_dict(legacy)
+        return {
+            "migration_handles_missing_id": hasattr(w, "modifier_pool"),
+            "pool_has_one": w.modifier_pool.size() == 1
+        }
+
     def aggregate_rule_set(self) -> WorldRuleSet:
+        from world.world_modifiers import WorldModifier
         combined = WorldRuleSet()
-        for ext in self.extensions:
-            combined.modifiers.extend(ext.rule_set.modifiers)
+        for m in self.modifier_pool.modifiers:
+            combined.modifiers.append(WorldModifier.from_dict(m))
         return combined
 
     def to_dict(self):
@@ -128,6 +176,7 @@ class World:
             "region_presence": self.region_presence,
             "cleared_regions": sorted(self.cleared_regions),
             "used_shrines": sorted(self.used_shrines),
+            "modifier_pool": self.modifier_pool.to_dict(),
         }
 
     @staticmethod
@@ -145,4 +194,20 @@ class World:
         world.region_presence = d.get("region_presence", {})
         world.cleared_regions = set(d.get("cleared_regions", []))
         world.used_shrines = set(d.get("used_shrines", []))
+
+        if "modifier_pool" in d:
+            world.modifier_pool = ModifierPool.from_dict(d["modifier_pool"])
+        else:
+            merged, seen = [], set()
+            for ext_data in d.get("extensions", []):
+                for m in ext_data.get("spec", {}).get("world_modifiers", []):
+                    if not isinstance(m, dict):
+                        continue
+                    key = m.get("id") or m.get("name")
+                    if key and key not in seen:
+                        seen.add(key)
+                        merged.append(m)
+            world.modifier_pool = ModifierPool(modifiers=merged)
+
+
         return world

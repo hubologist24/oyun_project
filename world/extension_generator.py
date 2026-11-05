@@ -95,6 +95,7 @@ class WorldExtensionGenerator:
             biome="uncharted",
             is_anomaly=False,
             world_modifiers=[],
-            boss_template_id=None,
+            boss_template_id="personalized",
             room_count=6,
+            size_tier=1,
         )

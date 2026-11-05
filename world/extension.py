@@ -31,7 +31,9 @@ class ExtensionSpec:
     loot_rules: dict = field(default_factory=dict)              # Phase 7
     boss_personalization: dict = field(default_factory=dict)    # Phase 7
     overcharge_level: int = 0          # NEW
-    enemy_behavior_bias: dict = field(default_factory=dict)   # NEW
+    
+    enemy_behavior_bias: dict = field(default_factory=dict)
+    size_tier: int = -1          # -1 = let the map generator roll; else 0, 1 or 2
 
     def to_dict(self):
         return {
@@ -49,6 +51,8 @@ class ExtensionSpec:
             "boss_personalization": self.boss_personalization,
             "overcharge_level": self.overcharge_level,
             "enemy_behavior_bias": self.enemy_behavior_bias,
+            #size_tier: int = -1 
+             "size_tier": self.size_tier,          # in to_dict
         }
 
     @staticmethod
@@ -68,6 +72,7 @@ class ExtensionSpec:
             boss_personalization=d.get("boss_personalization", {}),
             overcharge_level=d.get("overcharge_level", 0),
             enemy_behavior_bias=d.get("enemy_behavior_bias", {}),
+            size_tier=d.get("size_tier", -1),     # in from_dict
         )
 
 
@@ -79,9 +84,10 @@ class Extension:
         self.extension_seed = extension_seed
         self.created_at = created_at or time.time()
         self.area = None  # built lazily via ensure_built()
-        self.rule_set = WorldRuleSet(
-            modifiers=[WorldModifier.from_dict(m) for m in spec.world_modifiers]
-        )
+        #self.rule_set = WorldRuleSet(
+        #    modifiers=[WorldModifier.from_dict(m) for m in spec.world_modifiers]
+        #)
+        self.rule_set = WorldRuleSet() 
 
     @property
     def extension_id(self):
@@ -99,7 +105,9 @@ class Extension:
         self.area = build_procedural_area(
             stream, area_level=self.spec.area_level,
             cols=self.spec.map_cols, rows=self.spec.map_rows,
-            room_count=self.spec.room_count, boss_room=(self.spec.boss_template_id is not None),
+            room_count=self.spec.room_count,
+            boss_room=(self.spec.boss_template_id is not None),
+            extra_rooms=(self.spec.size_tier if self.spec.size_tier >= 0 else None),
         )
         return self.area
 

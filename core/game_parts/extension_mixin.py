@@ -1,6 +1,6 @@
 """World extensions, gates, gateway portal, overcharge, push-back feedback."""
 import core.config as config
-from world.expansion import attach_extension, find_door_site, stamp_door
+from world.expansion import attach_extension,  stamp_door
 from world.extension_generator import WorldExtensionGenerator
 from ui.world_evolution import WorldEvolutionBanner
 
@@ -41,19 +41,36 @@ class ExtensionMixin:
         print("[Game] Using ProceduralWorldGenerator only.")
         return WorldExtensionGenerator(backend=procedural, fallback_backend=procedural)
 
+    def _starting_gate_site(self):
+        """East side of the gate room, off the entry corridor and the altar,
+        with an open 3x3 around it so the door never blocks a path."""
+        from world.map_generator import _pick_gate_tile
+        area = self.starting_area
+        grid = area.tilemap.grid
+        x0, y0, x1, y1 = area.gate_room
+        c, r = x1 - 2, (y0 + y1) // 2
+        ok = all(grid[r + dr][c + dc] == 0
+                 for dr in (-1, 0, 1) for dc in (-1, 0, 1))
+        if not ok:
+            c, r = _pick_gate_tile(grid, area.gate_room)
+        return c, r, "e"
+
+    def _restamp_gates(self):
+        for g in self.world.gates:
+            stamp_door(self.current_area, g)
+
     def _ensure_starting_gate_registered(self):
         existing = self.world.gates_in_area("starting_area")
         if existing:
             for g in existing:
+                # Move old center gates, but never one that already has a corridor.
+                if g.is_starting_gate and not g.is_open():
+                    g.tile_col, g.tile_row, g.side = self._starting_gate_site()
                 stamp_door(self.starting_area, g)
             return
-        #site = find_door_site(self.starting_area.tilemap.grid,
-        #                      [self.starting_area.gate_room])
-        site = find_door_site(self.starting_area, self.starting_area.gate_room)
-        if site:
-            c, r, side, _ = site
-            gate = self.world.register_starting_gate(0, c, r, side)
-            stamp_door(self.starting_area, gate)
+        c, r, side = self._starting_gate_site()
+        gate = self.world.register_starting_gate(0, c, r, side)
+        stamp_door(self.starting_area, gate)
 
     # ---------------- overcharge ----------------
     def _apply_overcharge_to_spec(self, spec, overcharge):
@@ -80,6 +97,11 @@ class ExtensionMixin:
                  "damage_type": None, "multiplier": 1.25},
             ],
         }
+        self.world.modifier_pool.modifiers.append(
+            dict(overcharge_mod, polarity="curse"))
+        spec.boss_personalization = dict(spec.boss_personalization or {})
+        spec.boss_personalization["difficulty_bias"] = "high"
+
         # Respect MAX_MODIFIERS = 3: replace the last modifier rather than
         # adding a fourth.
         if len(spec.world_modifiers) < 3:
@@ -153,19 +175,19 @@ class ExtensionMixin:
             max_oc = min(WorldEvolutionBanner.MAX_OVERCHARGE,
                          max(0, self.player.extension_stones - 1))
 
-        # Clamp so the banner never advertises an overcharge the player
-        # cannot afford (non-debug) or exceeds the hard cap (debug).
         oc = min(self.evolution_banner.overcharge_level, max_oc)
         preview_level = spec.area_level + oc * 3
-        rule_names = [m["name"] for m in spec.world_modifiers]
+
+        # Show the CURRENT pool, not spec.world_modifiers (which is empty here).
+        pool_names = [m.get("name", "?") for m in self.world.modifier_pool.modifiers]
         if oc > 0:
-            rule_names.append(f"Overcharged Reality (+{oc})")
+            pool_names.append(f"Overcharged Reality (+{oc})")
 
         self.evolution_banner.show(
             extension_name=spec.extension_name,
             area_level=preview_level,
             is_anomaly=spec.is_anomaly or oc > 0,
-            rule_names=rule_names,
+            rule_names=pool_names,
             gate_area_name=self._area_display_name(gate.owner_area_id) if gate else None,
             reason=self._evolution_reason(self._current_profile()),
             rerolls_left=self._pending_rerolls_left,
@@ -230,6 +252,10 @@ class ExtensionMixin:
 
         attach_extension(self.current_area, extension, gate,
                          self.world.rng_service, self.world)
+
+        attach_extension(self.current_area, extension, gate,
+                         self.world.rng_service, self.world)
+        self._restamp_gates()
 
         if overcharge > 0:
             newly = self.codex.record("overcharge_entered", amount=1)

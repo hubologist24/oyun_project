@@ -62,6 +62,11 @@ class WorldValidator:
 
         if not _int(spec.room_count) or not (MIN_ROOM_COUNT <= spec.room_count <= MAX_ROOM_COUNT):
             errors.append(f"room_count must be an int in [{MIN_ROOM_COUNT}, {MAX_ROOM_COUNT}]")
+        
+        st = getattr(spec, "size_tier", -1)
+        if not _int(st) or not (-1 <= st <= 2):
+            errors.append("size_tier must be an int in [-1, 2]")
+        
         for attr in ("map_cols", "map_rows"):
             v = getattr(spec, attr)
             if not _int(v) or not (MIN_MAP_DIM <= v <= MAX_MAP_DIM):

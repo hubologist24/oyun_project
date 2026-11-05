@@ -21,6 +21,7 @@ PlayerProfile) instead of just profile.main_damage directly. This adds:
 """
 import random as random_module
 from typing import Optional, Set
+from core import rng
 from world.extension import ExtensionSpec
 from world.extension_templates import get_modifier_template
 from world.loot_rules import LootRules
@@ -41,6 +42,8 @@ DAMAGE_AFFINITY_MODIFIERS = {
     "lightning": ["storm_conductive"],
     "fire": ["ashen_frailty"],
 }
+
+SIZE_TIER_WEIGHTS = (4, 3, 2)   # small / medium / large
 
 DEFAULT_MODIFIER_POOL = ["chaos_ascendancy", "storm_conductive", "ashen_frailty",
                          "corrupted_flesh", "brittle_bones"]
@@ -99,10 +102,16 @@ class ProceduralWorldGenerator(WorldGenerator):
         #         + D.get_int("area_level_bonus")
         #         + min(3, len(profile.trophies)))  
 
-        area_level = max(1, profile.level + rng.randint(0, 3)
-                 + D.get_int("area_level_bonus")
-                 + min(3, len(profile.trophies))
-                 + hints.difficulty_nudge)
+        #area_level = max(1, profile.level + rng.randint(0, 3)
+        #         + D.get_int("area_level_bonus")
+        #         + min(3, len(profile.trophies))
+        #         + hints.difficulty_nudge)
+        
+        #area_level = min(area_level, profile.level + 10)
+        from core.difficulty import D
+
+        area_level = min(profile.level + D.get_int("area_level_bonus"),
+                        profile.level + 10)
 
         biome = self._choose_biome(hints, rng)
 
@@ -117,7 +126,9 @@ class ProceduralWorldGenerator(WorldGenerator):
             is_anomaly=False,
             world_modifiers=modifiers,
             boss_template_id="personalized",
-            room_count=rng.randint(6, 9),
+            #room_count=rng.randint(6, 9),
+            room_count=rng.randint(5, 7),
+            size_tier=_roll_size_tier(rng),
             enemy_behavior_bias=self._build_enemy_bias(hints, rng),
         )
 
@@ -138,7 +149,10 @@ class ProceduralWorldGenerator(WorldGenerator):
             is_anomaly=True,
             world_modifiers=modifiers,
             boss_template_id="personalized",
-            room_count=rng.randint(4, 6),
+            room_count=rng.randint(4, 5),
+            size_tier=rng.choice([0, 1]),
+            enemy_behavior_bias=self._build_enemy_bias(hints, rng),
+
         )
 
     # ---------------- biome selection ----------------
@@ -293,3 +307,6 @@ class ProceduralWorldGenerator(WorldGenerator):
         }
         base = names.get(biome, biome.replace("_", " ").title())
         return base if index <= len(names) else f"{base} ({index})"
+
+def _roll_size_tier(rng):
+    return rng.choices([0, 1, 2], weights=SIZE_TIER_WEIGHTS, k=1)[0]

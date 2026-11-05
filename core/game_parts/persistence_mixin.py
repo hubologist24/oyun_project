@@ -121,6 +121,8 @@ class PersistenceMixin:
                              self.world.rng_service, self.world)
             self._on_map_expanded(ext.extension_id)
 
+        self._restamp_gates()
+
         self._apply_shrine_persistence()
 
         self.packs.reset()

@@ -19,6 +19,7 @@ PROGRAMMATIC_TIERS = {
     "fork_count":           {"T1": [1, 1], "T2": [1, 2], "T3": [2, 3]},
     "pierce_count":         {"T1": [1, 1], "T2": [1, 2], "T3": [2, 3]},
     "chain_count":          {"T1": [1, 1], "T2": [1, 2], "T3": [2, 3]},
+     "ricochet_count":       {"T1": [1, 1], "T2": [1, 2], "T3": [2, 3]},   # NEW
     # Melee on-hit proc chances (%) — always round numbers so displays are clean
     "proc_chain_lightning": {"T1": [10.0, 10.0], "T2": [15.0, 15.0], "T3": [20.0, 20.0]},
     "proc_siphon":          {"T1": [3.0,  3.0],  "T2": [5.0,  5.0],  "T3": [8.0,  8.0]},

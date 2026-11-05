@@ -69,6 +69,9 @@
       "applies_to": ["weapon", "armor"],
       "modifier": "movement_speed",
       "damage_type": null
-    }
+    },
+
+    { "id": "of_venom",    "name": "of Venom",    "applies_to": ["weapon"], "modifier": "poison_damage", "damage_type": "poison" },
+{ "id": "of_the_leech","name": "of the Leech","applies_to": ["weapon"], "modifier": "bleed_damage",  "damage_type": "bleed"  }
   ]
 }

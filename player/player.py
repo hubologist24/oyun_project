@@ -106,13 +106,23 @@ class Player:
 
 
     def _ranged_weapon(self):
-        from items.modifiers import RANGED_SUBTYPES
+        from items.modifiers import ALL_RANGED_SUBTYPES
         weapon = self.equipped.get("weapon")
         if weapon is None:
             return None
-        if getattr(weapon, "weapon_subtype", None) not in RANGED_SUBTYPES:
+        if getattr(weapon, "weapon_subtype", None) not in ALL_RANGED_SUBTYPES:
             return None
         return weapon
+
+
+    def ranged_ricochet_bonus(self) -> int:
+        w = self._ranged_weapon()
+        if w is None:
+            return 0
+        bonus = int(round(self._sum_other_bonus_from_equipped("ricochet_count", w)))
+        if self.has_keystone("trick_shot"):
+            bonus += 2
+        return max(0, min(bonus, 8))
 
     def _melee_small_weapon(self):
         from items.modifiers import MELEE_SMALL_SUBTYPES

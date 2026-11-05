@@ -37,6 +37,12 @@ KEYSTONES = {
         "desc": "Melee hits gain +10% chance to trigger Sparkstrike, "
                 "Siphoning, or Shattering procs.",
     },
+
+        "trick_shot": {
+        "name": "Trick Shot",
+        "desc": "+2 ricochets on guns. Ricochets seek random nearby enemies "
+                "or fire at wild angles.",
+    },
 }
 
 

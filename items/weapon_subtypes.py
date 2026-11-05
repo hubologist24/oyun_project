@@ -27,6 +27,7 @@ class AttackProfile:
     attack_cooldown_multiplier: float = 1.0
     damage_multiplier: float = 1.0
     display_pattern: str = ""
+    base_ricochets: int = 0  
 
 
 class WeaponSubtypes:
@@ -80,6 +81,7 @@ class WeaponSubtypes:
             attack_cooldown_multiplier=float(p.get("attack_cooldown_multiplier", 1.0)),
             damage_multiplier=float(p.get("damage_multiplier", 1.0)),
             display_pattern=entry.get("attack_pattern", ""),
+            base_ricochets=int(p.get("base_ricochets", 0))
         )
 
 
