@@ -253,8 +253,8 @@ class ExtensionMixin:
         attach_extension(self.current_area, extension, gate,
                          self.world.rng_service, self.world)
 
-        attach_extension(self.current_area, extension, gate,
-                         self.world.rng_service, self.world)
+        #attach_extension(self.current_area, extension, gate,
+        #                 self.world.rng_service, self.world)
         self._restamp_gates()
 
         if overcharge > 0:

@@ -2,6 +2,7 @@ import math
 import pygame
 from dataclasses import asdict
 
+from core import game
 import core.config as config
 #from history.nemesis import Nemesis, NemesisRegistry, make_name, taunt_for
 from enemies.enemy import spawn_basic_enemy
@@ -38,6 +39,8 @@ class NemesisManager:
     def __init__(self, game):
         self.game = game
         self.registry = NemesisRegistry()
+        from history.nemesis_learning import NemesisLearning   # NEW
+        self.learning = NemesisLearning(game)
         self.reset_transient()
 
     def reset_transient(self):
@@ -171,32 +174,54 @@ class NemesisManager:
     # ---------------- promotion / scaling ----------------
     def _apply(self, enemy, nem):
         if not hasattr(enemy, "_nem_base"):
-            enemy._nem_base = (enemy.max_hp, enemy.damage)
-        bhp, bdmg = enemy._nem_base
+            enemy._nem_base = {
+                "hp": enemy.max_hp,
+                "damage": enemy.damage,
+                "speed": enemy.speed,
+                "behavior": getattr(enemy, "behavior", None),
+                "resistances": dict(enemy.resistances),
+            }
+        base = enemy._nem_base
 
-        # Generation drives power; grudge gives a small nudge so non-evolving
-        # kills still feel like *something* changed (just not a full evolution).
         scale = 1 + 0.3 * (nem.generation - 1) + 0.05 * nem.grudge
-
         pers = PERSONALITIES.get(nem.personality, {})
-        hp_mult = pers.get("hp_mult", 1.0)
-        dmg_mult = pers.get("damage_mult", 1.0)
+        hp_mult    = pers.get("hp_mult", 1.0)
+        dmg_mult   = pers.get("damage_mult", 1.0)
         speed_mult = pers.get("speed_mult", 1.0)
 
         enemy.nemesis = nem
         enemy.name = nem.display()
         enemy.is_elite = True
-        enemy.max_hp = int(bhp * 2.2 * scale * hp_mult)
+        enemy.max_hp = int(base["hp"] * 2.2 * scale * hp_mult)
         enemy.hp = enemy.max_hp
-        enemy.damage = int(bdmg * 1.4 * scale * dmg_mult)
+        enemy.damage = int(base["damage"] * 1.4 * scale * dmg_mult)
+        enemy.speed = base["speed"] * speed_mult
+        enemy.resistances = dict(base["resistances"])
+        if base["behavior"] is not None:
+            enemy.behavior = base["behavior"]
         enemy.damage_type = nem.damage_type
         enemy.resistances[nem.damage_type] = 0.3
         enemy.xp_reward = 60 * nem.generation
         enemy._aggro_range = 700
         enemy.width = enemy.height = max(enemy.width, 34)
         enemy.alive = True
-        if hasattr(enemy, "speed"):
-            enemy.speed *= speed_mult
+
+        # ← NEW: re-apply every adaptation earned so far (from the fresh base)
+        from history.nemesis_learning import ADAPTATIONS
+        for adap_name in nem.adaptations:
+            mutate = ADAPTATIONS.get(adap_name, {}).get("mutate")
+            if mutate:
+                try:
+                    mutate(enemy)
+                except Exception as ex:
+                    print(f"[nemesis] reapply '{adap_name}' failed: {ex}")
+
+        # Only newly-qualified adaptations get applied by apply_to now.
+        lines = self.learning.apply_to(nem, enemy)
+        if lines:
+            self.game._show_message(f"{nem.short()} has adapted to your techniques!",
+                                    duration=3.5)
+            self.game._say(nem.short(), " ".join(lines), 5.0)
 
     def _build_boss(self, x, y, nem, rid):
         from enemies.boss_factory import build_personalized_boss_template
@@ -224,10 +249,17 @@ class NemesisManager:
         g = self.game
         nem.world_boss = True
         nem.archetype = self._rng().choice(["dash_predator", "berserker", "reflector"])
-        boss = self._build_boss(enemy.x, enemy.y, nem, getattr(enemy, "region_id", "starting_area"))
+        boss = self._build_boss(enemy.x, enemy.y, nem,
+                                getattr(enemy, "region_id", "starting_area"))
         if enemy in g.current_area.enemies:
             g.current_area.enemies.remove(enemy)
         g.current_area.bosses.append(boss)
+
+        # NEW
+        lines = self.learning.apply_to(nem, boss)
+        if lines:
+            g._say(nem.short(), " ".join(lines), 5.0)
+
         g._show_message(f"{nem.short()} has become a WORLD BOSS!", duration=5.0)
 
     # ---------------- death / rewards ----------------
@@ -283,10 +315,57 @@ class NemesisManager:
         g._show_message(f"NEMESIS SLAIN: {nem.name}! Trophy earned "
                         f"(+3% {nem.damage_type} res, +5 life).", duration=6.0)
         g._say(nem.short(), "This... is not... the end.", 4.0)
+
+        opts = [
+        {"id": "execute", "name": "Execute",
+         "desc": "End them permanently. +5 max HP."},
+        {"id": "spare", "name": "Spare",
+         "desc": "They will return, with new cunning."},
+        {"id": "consume", "name": "Consume",
+         "desc": f"Absorb their {nem.damage_type} essence: +10 HP, +5% resist."},
+        ]
+        def _pick(opt):
+            self._handle_final_choice(nem, opt["id"])
+        self.game.choice_menu.enqueue(
+            f"{nem.short()} lies defeated",
+            opts, _pick,
+            subtitle="How will you end this rivalry?",
+            accent=(255, 140, 60),
+            immediate=True,
+        )
+        
+
         g.event_bus.emit("nemesis_slain", name=nem.name, generation=gen_at_kill)
 
         newly = g.codex.record("nemesis_slain")
         g._handle_codex_unlocks(newly)
+
+    def _handle_final_choice(self, nem, choice):
+        g = self.game
+        if choice == "execute":
+            nem.status = "dead"
+            g.player.base_stats.max_hp += 5
+            g.player.recalc_stats()
+            g._show_message(
+                f"{nem.short()} is erased from history. You feel stronger (+5 max HP).",
+                duration=4.0)
+        elif choice == "spare":
+            nem.status = "pending"
+            nem.respawn_at = self._now() + RESPAWN_DELAY
+            nem.personality = pick_personality(self._rng())
+            g._show_message(
+                f"You spare {nem.short()}. They will return, changed.",
+                duration=4.0)
+        elif choice == "consume":
+            nem.status = "dead"
+            dt = nem.damage_type
+            g.player.base_stats.max_hp += 10
+            g.player.base_stats.resistances[dt] = \
+                g.player.base_stats.resistances.get(dt, 0.0) + 0.05
+            g.player.recalc_stats()
+            g._show_message(
+                f"You consume {nem.short()}'s essence (+10 HP, +5% {dt} resist).",
+                duration=4.0)
 
     # ---------------- per-frame ----------------
     def _in_play(self):
@@ -365,13 +444,17 @@ class NemesisManager:
                     g._show_message(f"{e.nemesis.short().upper()} IS NEAR", duration=2.5)
             # Nemesis escape: if badly hurt, might flee to come back angrier
             for e in self._in_play():
-                if (not getattr(e, "is_boss", False)
-                        and not getattr(e, "_escape_checked", False)
-                        and e.hp > 0 and e.hp < e.max_hp * ESCAPE_HP_FRACTION):
+                if getattr(e, "is_boss", False):
+                    continue
+                if (not getattr(e, "_escape_checked", False)
+                        and 0 < e.hp < e.max_hp * ESCAPE_HP_FRACTION):
                     e._escape_checked = True
                     chance = ESCAPE_BASE_CHANCE + ESCAPE_PER_GEN * (e.nemesis.generation - 1)
                     if self._rng().random() < chance:
                         self._nemesis_escape(e)
+                elif (getattr(e, "_escape_checked", False)
+                    and e.hp >= e.max_hp * ESCAPE_HP_FRACTION):
+                    e._escape_checked = False 
 
         # signature nova: telegraphed ground circle in the killing damage type
         for e in self._in_play():

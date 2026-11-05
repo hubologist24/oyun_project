@@ -112,9 +112,9 @@ class CodexManager:
 
     # ---------- event recording ----------
     def record(self, event_type, amount=1, context=None):
-        """Returns list of newly unlocked achievement ids."""
         context = context or {}
         newly = []
+        tech_changed = False
 
         for aid, ach in ACHIEVEMENTS.items():
             if aid in self.unlocked:
@@ -127,11 +127,12 @@ class CodexManager:
 
         if event_type == "kinetic_technique":
             name = context.get("name")
-
             if name in KINETIC_TECHNIQUES_ALL:
                 self.technique_uses[name] += 1
-
+                tech_changed = True
             if name:
+                if name not in self.techniques_discovered:
+                    tech_changed = True
                 self.techniques_discovered.add(name)
                 if (self.techniques_discovered >= KINETIC_TECHNIQUES_ALL
                         and "technique_master" not in self.unlocked):
@@ -150,12 +151,8 @@ class CodexManager:
             self.unlocked.add("pressure_survivor")
             newly.append("pressure_survivor")
 
-        #if newly:
-        #    self.save()
-        #self.save()
-        #return newly
         self._writes += 1
-        if newly or self._writes % 10 == 0:
+        if newly or tech_changed or self._writes % 10 == 0:   # <-- include tech_changed
             self.save()
         return newly
 

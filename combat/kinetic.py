@@ -30,6 +30,8 @@ TECHNIQUES = {
     "heavy_reversal": ("HEAVY REVERSAL", (255, 160, 80)),
 }
 
+WEAPON_MASTERY_THRESHOLDS = (10, 30, 75)
+
 MASTERY_EFFECTS = {
     "reverse_slash":  [{"stagger": 0.8}, {"stagger": 1.0, "expose": 2.0}, {"stagger": 1.3, "expose": 3.0}],
     "dash_strike":    [{"slow": (1.5, 0.6)}, {"stagger": 0.4}, {"expose": 2.5}],
@@ -60,6 +62,7 @@ class KineticTracker:
         self._cd = {}
         self.stats = Counter()
         self.discovered = set()
+        self.weapon_technique_stats = Counter()
 
     def restore_from_log(self, event_log):
         """Rebuild discovered techniques from the persisted event log."""
@@ -193,6 +196,15 @@ class KineticTracker:
             self.stats[t] += 1
             self._effect(t, target)
             g.event_bus.emit("kinetic_technique", name=t)
+
+            subtype = self._subtype(g.player)
+            if subtype:
+                before = self.mastery_tier_for(subtype)
+                self.weapon_technique_stats[(subtype, t)] += 1
+                after = self.mastery_tier_for(subtype)
+                if after > before:
+                    g.event_bus.emit("weapon_mastery_up", subtype=subtype, tier=after)
+
             if t not in self.discovered:
                 self.discovered.add(t)
                 g._show_message(f"Technique discovered: {label}!", duration=3.0)
@@ -229,3 +241,9 @@ class KineticTracker:
         for i in range(min(self.game.codex.mastery_tier(t), len(tiers))):
             out.update(tiers[i])
         return out
+
+    def mastery_tier_for(self, subtype):
+        if not subtype:
+            return 0
+        total = sum(c for (s, _), c in self.weapon_technique_stats.items() if s == subtype)
+        return sum(1 for t in WEAPON_MASTERY_THRESHOLDS if total >= t)

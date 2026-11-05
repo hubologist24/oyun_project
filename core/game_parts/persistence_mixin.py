@@ -124,6 +124,7 @@ class PersistenceMixin:
         self._restamp_gates()
 
         self._apply_shrine_persistence()
+        self._ensure_home_shrines()
 
         self.packs.reset()
         self.terrain.reset()

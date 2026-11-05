@@ -30,12 +30,19 @@ class AmbientMixin:
 
     def _fire_ambient_event(self):
         rng = self.world.rng_service.get_stream("ambient_events")
-        events = [
+
+        if self._is_home_region():
+            events = [
+            ("merchant",   self._ambient_merchant,   3),
+            ("blessing",   self._ambient_blessing,   2),
+            ]
+        else:
+            events = [
             ("merchant",   self._ambient_merchant,   3),
             ("ambush",     self._ambient_ambush,     3),
             ("blessing",   self._ambient_blessing,   2),
             ("blood_moon", self._ambient_blood_moon, 1),
-        ]
+            ]
         weights = [e[2] for e in events]
         chosen = rng.choices(events, weights=weights, k=1)[0]
         chosen[1](rng)

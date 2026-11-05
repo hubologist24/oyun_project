@@ -2,6 +2,8 @@
 from dataclasses import dataclass, field
 import core.config as config
 
+from combat.diminishing import rating_to_armor, rating_to_resist
+
 @dataclass
 class Stats:
     max_hp: int = config.PLAYER_BASE_HP
@@ -72,8 +74,6 @@ def compute_effective_stats(base: Stats, equipped_items: list) -> Stats:
         resistances=dict(base.resistances),
         crit_chance=base.crit_chance,
         attack_speed_bonus=base.attack_speed_bonus,
-        # NEW: carry character attributes through so requirement checks
-        # see the leveled-up values, not the dataclass defaults.
         strength=base.strength,
         dexterity=base.dexterity,
         intelligence=base.intelligence,
@@ -81,11 +81,14 @@ def compute_effective_stats(base: Stats, equipped_items: list) -> Stats:
 
     weapon = None
     movement_speed_pct = 0.0
+    armor_rating = 0
+    resist_rating: dict[str, float] = {}
+
     for item in equipped_items:
         if item is None:
             continue
         eff.base_damage += getattr(item, "damage_bonus", 0)
-        eff.armor += getattr(item, "armor_bonus", 0)
+        armor_rating += getattr(item, "armor_bonus", 0)
 
         life_bonus = item.other_bonus("life") if hasattr(item, "other_bonus") else 0
         eff.max_hp += int(life_bonus)
@@ -99,14 +102,26 @@ def compute_effective_stats(base: Stats, equipped_items: list) -> Stats:
         mv = item.other_bonus("movement_speed") if hasattr(item, "other_bonus") else 0
         movement_speed_pct += mv
 
+        # Accumulate resist AFFIX values as a rating; convert once below.
         if hasattr(item, "_resist_bonus"):
             for dtype, val in item._resist_bonus.items():
-                eff.resistances[dtype] = eff.resistances.get(dtype, 0.0) + val / 100.0
+                resist_rating[dtype] = resist_rating.get(dtype, 0.0) + val
 
         if item.slot == "weapon":
             weapon = item
 
-    eff.speed = base.speed * (1.0 + movement_speed_pct / 100.0)     
+    # --- Diminishing conversions -------------------------------------------
+    # Item armor is a rating; base armor (level-ups, etc.) stays flat.
+    eff.armor = base.armor + rating_to_armor(armor_rating)
+
+    # Item resist affixes are ratings; codex/perk/world-rule additions are
+    # applied later as flat fractions and are *not* run through the ladder.
+    for dtype, rating in resist_rating.items():
+        eff.resistances[dtype] = (
+            eff.resistances.get(dtype, 0.0) + rating_to_resist(rating)
+        )
+
+    eff.speed = base.speed * (1.0 + movement_speed_pct / 100.0)
 
     if weapon is not None and hasattr(weapon, "primary_damage_type"):
         eff.primary_damage_type = weapon.primary_damage_type()

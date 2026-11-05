@@ -215,9 +215,21 @@ class PackManager:
                     m.apply_stagger(1.2)
                 m.pack_speed_mult = 1.0
                 m.pack_damage_mult = 1.0
-                m.pack_commander_shield = 0.0            # NEW
+                m.pack_commander_shield = 0.0
                 if not getattr(m, "nemesis", None):
                     m._aggro_range = m._pack_base_aggro
+
+            # NEW: weak survivors flee
+            survivors = [m for m in pack.members if m.alive]
+            rng = g.world.rng_service.get_stream("pack_flee")
+            fled = 0
+            for m in survivors:
+                if m.hp < m.max_hp * 0.5 and rng.random() < 0.6:
+                    self._flee_member(m)
+                    fled += 1
+            if fled:
+                g._show_message(f"{fled} enemies flee in terror!",
+                                 duration=2.0)
 
         sacs = [s for s in pack.rules.get("sacrificer", []) if s.alive and s is not enemy]
         if sacs and enemy.behavior == "swarmer":
@@ -301,6 +313,16 @@ class PackManager:
         role = next(iter(pack.rules))
         self._msg_cd = self.clock + 8.0
         self.game._show_message(ROLE_INFO[role][2], duration=2.5)
+
+
+    def _flee_member(self, enemy):
+        g = self.game
+        enemy.alive = False
+        enemy._fled = True
+        g.damage_numbers.spawn(enemy.x, enemy.y - 40, "FLEEING!", (180, 180, 200))
+        if enemy in g.current_area.enemies:
+            g.current_area.enemies.remove(enemy)
+        g.event_bus.emit("enemy_fled", name=enemy.name)
 
     # ---------------- drawing ----------------
     def draw(self, surface, camera):

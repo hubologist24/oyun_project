@@ -38,13 +38,16 @@ from core.game_parts.ambient_mixin import AmbientMixin
 from core.game_parts.persistence_mixin import PersistenceMixin
 from core.game_parts.debug_mixin import DebugMixin
 
+from core.game_parts.perfect_dodge_mixin import PerfectDodgeMixin
+from core.game_parts.home_mixin import HomeMixin
+
 import math
 from world import swing_fx
 
 
 class Game(InputMixin, DrawMixin, CombatMixin, LootMixin, ExtensionMixin,
            ProgressionMixin, PressureMixin, AmbientMixin,
-           PersistenceMixin, DebugMixin):
+           PersistenceMixin, DebugMixin,HomeMixin,PerfectDodgeMixin):
 
 
     def __init__(self, slot_id="1",starting_level=None):
@@ -104,6 +107,9 @@ class Game(InputMixin, DrawMixin, CombatMixin, LootMixin, ExtensionMixin,
         self._info_font = pygame.font.SysFont("consolas", 14)
         self._info_font_b = pygame.font.SysFont("consolas", 16, bold=True)
         self.damage_numbers = DamageNumbers()
+
+        self._init_perfect_dodge()
+
         self.dialogue = None
 
         self.reactions = ReactionSystem(self)
@@ -171,7 +177,12 @@ class Game(InputMixin, DrawMixin, CombatMixin, LootMixin, ExtensionMixin,
 
     def run(self):
         while self.running:
-            dt = self.clock.tick(config.FPS) / 1000.0
+            #dt = self.clock.tick(config.FPS) / 1000.0
+            real_dt = self.clock.tick(config.FPS) / 1000.0
+            real_dt = min(real_dt, 0.1)          # avoid spiral of death after tab-out
+            dt = real_dt * self._current_timescale()
+            self._tick_perfect_dodge(real_dt)
+            self._tick_home_region(dt)
             self._handle_events()
             self._update(dt)
             self._draw()
@@ -286,6 +297,9 @@ class Game(InputMixin, DrawMixin, CombatMixin, LootMixin, ExtensionMixin,
                 continue
             enemy.update(dt, self.player, self.current_area.tilemap, self.event_bus,
                          world_rules=world_rules)
+            if enemy._flee_flag:
+                enemy._flee_flag = False
+                self._on_enemy_fled(enemy)
 
         if self.player.alive:
             for boss in self.current_area.bosses:

@@ -143,6 +143,58 @@ class CombatMixin:
                 best, best_d = b, d
         return best
 
+
+    def _try_wall_slam(self, target, techniques, world_rules):
+        """If the player just did a dash_strike and the target is pinned between
+        the player and a wall, deal a bonus physical hit and stagger."""
+        if "dash_strike" not in techniques:
+            return False
+        if getattr(target, "is_boss", False):
+            return False  # bosses are too heavy to be pinned
+
+        from combat.combat import _enemy_category
+        from combat.damage import resolve_damage
+
+        dx = target.x - self.player.x
+        dy = target.y - self.player.y
+        d = math.hypot(dx, dy) or 1.0
+        nx, ny = dx / d, dy / d
+
+        check_dist = max(target.width, target.height) * 0.5 + config.TILE_SIZE * 0.6
+        check_x = target.x + nx * check_dist
+        check_y = target.y + ny * check_dist
+
+        tm = self.current_area.tilemap
+        ts = config.TILE_SIZE
+        col = int(check_x // ts)
+        row = int(check_y // ts)
+        if not tm.is_wall(col, row):
+            return False
+
+        slam_base = max(4, int(target.max_hp * 0.06))
+        dmg = resolve_damage(slam_base, "physical", None,
+                            target_resistances=target.resistances,
+                            world_rules=world_rules,
+                            target_category=_enemy_category(target),
+                            source_category="player")
+        target.take_damage(dmg)
+        if hasattr(target, "apply_stagger"):
+            target.apply_stagger(1.8)
+
+        self.damage_numbers.spawn(target.x, target.y - 70, "WALL SLAM!", (255, 180, 80))
+        self.crit_bursts.append({"x": target.x, "y": target.y, "radius": 90,
+                                "life": 0.4, "max_life": 0.4, "color": (255, 180, 80)})
+        self.camera.shake(magnitude=6, duration=0.2)
+        self.event_bus.emit("skill_used", skill="wall_slam", damage=dmg,
+                            target=target.name, damage_type="physical",
+                            weapon_name=None, is_crit=False)
+
+        if not target.alive:
+            if getattr(target, "is_boss", False):
+                self._on_boss_killed(target)
+            else:
+                self._on_enemy_killed(target)
+        return True
   
 
     def _live_attack_targets(self):
@@ -154,6 +206,16 @@ class CombatMixin:
         if (self.player.has_keystone("executioner") and getattr(target, "max_hp", 0)
                 and target.hp < target.max_hp * 0.3):
             damage_multiplier *= 1.5
+
+        if self._consume_perfect_dodge_counter():
+            damage_multiplier *= 1.5
+            self.damage_numbers.spawn(self.player.x, self.player.y - 70,
+                                    "COUNTER!", (255, 240, 120))
+            self.crit_bursts.append({
+                "x": self.player.x, "y": self.player.y, "radius": 60,
+                "life": 0.3, "max_life": 0.3, "color": (255, 240, 120),
+            })
+
 
         techniques = list(techniques or [])
         pierce = "dash_strike" in techniques
@@ -180,10 +242,21 @@ class CombatMixin:
             if getattr(target, "phase_just_changed", False):
                 target.phase_just_changed = False
                 self._trigger_phase_transition(target)
+
+            if getattr(target, "just_broke", False):
+                target.just_broke = False
+                self._show_message(f"{target.name} is BROKEN! Strike now!", duration=1.5)
+                self.crit_bursts.append({
+                    "x": target.x, "y": target.y, "radius": 85,
+                    "life": 0.45, "max_life": 0.45, "color": (255, 200, 60),
+                })
+            
             self.event_bus.emit("boss_attempt_damage")
 
             if is_melee and dmg > 0:
                 self._try_melee_procs(target, dmg, world_rules)
+            
+            
 
             if not target.alive:
                 self._on_boss_killed(target)
@@ -197,14 +270,25 @@ class CombatMixin:
             if target.alive:
                 self.reactions.on_hit(target, dmg, self.player, world_rules)
 
+            #if is_melee and dmg > 0:
+            #    self._try_melee_procs(target, dmg, world_rules)
+
             if is_melee and dmg > 0:
+                self._try_wall_slam(target, techniques, world_rules)
                 self._try_melee_procs(target, dmg, world_rules)
-            
+
+            if getattr(target, "just_broke", False):
+                target.just_broke = False
+                self._show_message(f"{target.name} is BROKEN! Strike now!", duration=1.5)
+                self.crit_bursts.append({
+                    "x": target.x, "y": target.y, "radius": 85,
+                    "life": 0.45, "max_life": 0.45, "color": (255, 200, 60),
+                })
+
             if not target.alive:
                 self._on_enemy_killed(target)
 
     def _trigger_phase_transition(self, boss):
-        """Hitstop + shake + audio cue + screen ring. Pure feel."""
         self._trigger_hitstop(0.18)
         self.camera.shake(magnitude=10, duration=0.35)
         audio.play("evolution")
@@ -218,8 +302,87 @@ class CombatMixin:
             "life": 0.55, "max_life": 0.55,
             "color": (255, 90, 200),
         })
+        self._alter_boss_arena(boss)   # NEW
+
         if not getattr(boss, "is_nemesis", False):
             self._say(boss.name, boss_phase_line(boss.phase_index), 3.0)
+
+
+    def _alter_boss_arena(self, boss):
+        """On phase change, boss paints the arena with hazards of its element."""
+        dtype = getattr(boss, "damage_type", "physical")
+        surface_kind = {
+            "fire": "fire",
+            "cold": "ice",
+            "lightning": "static",
+            "chaos": "blight",
+            "poison": "blight",
+            "bleed": "rot",
+            "physical": "rot",
+        }.get(dtype)
+        if surface_kind is None:
+            return
+
+        rng = self.world.rng_service.get_stream("boss_arena")
+        count = 1 + min(2, boss.phase_index)
+        for _ in range(count):
+            angle = rng.uniform(0, math.tau)
+            dist = rng.uniform(120, 280)
+            x = boss.x + math.cos(angle) * dist
+            y = boss.y + math.sin(angle) * dist
+            self.terrain.add_surface(
+                x, y, 80, surface_kind, 8.0,
+                power=max(6, int(boss.max_hp * 0.02)),
+            )
+        self._show_message(f"The arena warps around {boss.name}!", duration=2.0)
+
+
+    def _execute_combo_finisher(self, world_rules):
+        """Triggered at combo_count >= 10. Weapon-shaped AoE burst. Resets combo."""
+        from combat.combat import player_attack_enemy
+
+        weapon = self.player.equipped.get("weapon")
+        subtype = getattr(weapon, "weapon_subtype", None) if weapon else None
+
+        radius = 160
+        dmg_mult = 1.8
+        stagger = 0.6
+        color = (255, 180, 255)
+
+        if subtype == "greatsword":
+            radius, dmg_mult, stagger = 180, 2.5, 1.2
+        elif subtype == "sword":
+            dmg_mult, stagger = 2.2, 0.5
+        elif subtype in ("bow", "gun", "short_wand", "long_wand"):
+            radius, dmg_mult, stagger = 200, 1.8, 0.3
+
+        self.camera.shake(magnitude=8, duration=0.3)
+        self._trigger_hitstop(0.10)
+        self.crit_bursts.append({
+            "x": self.player.x, "y": self.player.y, "radius": radius,
+            "life": 0.5, "max_life": 0.5, "color": color,
+        })
+        self.damage_numbers.spawn(self.player.x, self.player.y - 80,
+                                "FINISHER!", color)
+        audio.play("evolution")
+
+        for t in self._live_attack_targets():
+            if math.hypot(t.x - self.player.x, t.y - self.player.y) > radius:
+                continue
+            dmg = player_attack_enemy(self.player, t, self.event_bus,
+                                    world_rules=world_rules,
+                                    damage_multiplier=dmg_mult)
+            if stagger and hasattr(t, "apply_stagger"):
+                t.apply_stagger(stagger)
+            self.damage_numbers.spawn(t.x, t.y - 25, str(dmg), color)
+            if t.alive:
+                self.reactions.on_hit(t, dmg, self.player, world_rules)
+            if not t.alive:
+                if getattr(t, "is_boss", False):
+                    self._on_boss_killed(t)
+                else:
+                    self._on_enemy_killed(t)
+    
 
     def _try_attack(self):
         if not self.player.alive or not self.player.can_attack():
@@ -254,6 +417,13 @@ class CombatMixin:
                              self.player.facing, profile)
 
         targets = self._live_attack_targets()
+        if self.player.combo_count >= 10:
+            # FINISHER consumes the combo
+            self._execute_combo_finisher(world_rules)
+            self.player.combo_count = 0
+            self.player.combo_timer = 0.0
+            return
+
         hits = find_arc_targets(self.player, targets, profile)
         if not profile.hits_all:
             hits = hits[:1]
@@ -261,6 +431,16 @@ class CombatMixin:
         if hits:
             self.player.combo_count += 1
             self.player.combo_timer = 2.0
+            if self.player.combo_count == 10:
+                self._show_message(
+                    "FINISHER READY! Next attack unleashes your weapon.",
+                    duration=2.5)
+                self.crit_bursts.append({
+                    "x": self.player.x, "y": self.player.y, "radius": 90,
+                    "life": 0.4, "max_life": 0.4,
+                    "color": (255, 210, 120),
+                })
+
         combo_mult = 1.0 + min(self.player.combo_count, 10) * 0.06
 
         if hits and self.player.combo_count % 5 == 0 and self.player.has_keystone("rhythm"):
@@ -273,7 +453,8 @@ class CombatMixin:
             if self.kinetic.is_intercept(target):
                 techs.append("intercept")
             self._apply_player_hit(target, world_rules,
-                                   profile.damage_multiplier * combo_mult, techs,is_melee=True)
+                                   profile.damage_multiplier * combo_mult,
+                                   techs, is_melee=True)
 
     def _update_player_projectiles(self, dt):
         area = self.current_area

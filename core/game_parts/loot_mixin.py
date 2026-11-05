@@ -90,6 +90,12 @@ class LootMixin:
                 break
         self._show_message("The guardian summons minions!", duration=1.5)
 
+    def _on_enemy_fled(self, enemy):
+        if enemy in self.current_area.enemies:
+            self.current_area.enemies.remove(enemy)
+        self.damage_numbers.spawn(enemy.x, enemy.y - 40, "FLED!", (180, 180, 200))
+        self.event_bus.emit("enemy_fled", name=enemy.name)
+
     # ---------------- kills ----------------
     def _on_enemy_killed(self, enemy, _depth=0):
         if enemy not in self.current_area.enemies:
@@ -318,6 +324,7 @@ class LootMixin:
         rng = self.world.rng_service.get_stream("boss_loot")
         self._roll_boss_loot(boss, lvl, rules, rng, world_boss=False)
         self.world.cleared_regions.add(rid)
+        self._on_region_pacified_home(rid)
 
     def _pickup_loot(self):
         px, py = self.player.x, self.player.y

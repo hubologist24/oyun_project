@@ -266,3 +266,18 @@ AMBIENT_EVENT_SAFE_ROOM_PROTECTION = True   # don't fire while in safe room
 
 SAVES_DIR = "saves"
 SHARED_STASH_FILE = "shared_stash.json"
+
+# ---------------------------------------------------------------------------
+# AI intelligence (see enemies/ai_intelligence.py, enemies/boss_ai.py)
+# ---------------------------------------------------------------------------
+AI_MOB_INTELLIGENCE_ENABLED = True
+AI_MOB_PUNISH_WINDOWS       = True   # hit player after their dash/attack
+AI_MOB_PREDICTIVE_AIM       = True   # ranged mobs lead their shots
+AI_MOB_FLANKING             = True   # approach from an off-angle
+AI_MOB_RETREAT              = True   # low-HP pack members back off
+AI_MOB_ATTACK_JITTER        = True   # don't dogpile on the same frame
+
+AI_BOSS_DIRECTOR_ENABLED    = True   # top-level boss tactic chooser
+AI_BOSS_FEINTS              = True   # telegraph → cancel to bait a dodge
+AI_BOSS_COMBOS              = True   # chain follow-up on a landed hit
+AI_BOSS_TACTIC_SWITCH       = True   # adapt to kiter / rusher / jumpy player

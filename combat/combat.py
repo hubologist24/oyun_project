@@ -29,7 +29,14 @@ def player_attack_enemy(player, enemy, event_bus, world_rules=None,
     from core.difficulty import D
     base_amount *= D.get("player_damage_mult")
 
-    is_crit = stats.crit_chance > 0.0 and rng.random() < stats.crit_chance
+    #is_crit = stats.crit_chance > 0.0 and rng.random() < stats.crit_chance
+
+    _guaranteed = getattr(player, "guaranteed_crit_timer", 0) > 0
+    is_crit = _guaranteed or (stats.crit_chance > 0.0
+    and rng.random() < stats.crit_chance)
+    if _guaranteed:
+        player.guaranteed_crit_timer = 0.0
+
     if is_crit:
         base_amount *= CRIT_MULTIPLIER
 
@@ -79,7 +86,8 @@ def enemy_attack_player(enemy, player, event_bus, world_rules=None,
     conversion_rules = world_rules.conversion_rules_for("enemy") if world_rules else None
 
     base_amount = (getattr(enemy, "damage", 0) * damage_multiplier
-                   * getattr(enemy, "pack_damage_mult", 1.0))
+                   * getattr(enemy, "pack_damage_mult", 1.0)
+                    * getattr(enemy, "personality_damage_mult", 1.0))
     
     from combat.damage import level_damage_mult
     base_amount *= level_damage_mult(player.progression.level,

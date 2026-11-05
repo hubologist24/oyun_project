@@ -57,6 +57,25 @@ REACTION_SURFACE = {
     "toxic_ignition": ("fire", 80, 5.0),
 }
 
+TRIPLE_REACTIONS = {
+    frozenset(("fire", "cold", "lightning")):     "shatterstorm",
+    frozenset(("physical", "chaos", "fire")):     "soulburn",
+    frozenset(("poison", "fire", "chaos")):       "toxic_warp",
+    frozenset(("physical", "cold", "lightning")): "frozen_rupture",
+}
+TRIPLE_LABELS = {
+    "shatterstorm":   "SHATTERSTORM",
+    "soulburn":       "SOULBURN",
+    "toxic_warp":     "TOXIC WARP",
+    "frozen_rupture": "FROZEN RUPTURE",
+}
+TRIPLE_COLORS = {
+    "shatterstorm":   (200, 240, 255),
+    "soulburn":       (255, 100, 180),
+    "toxic_warp":     (140, 255, 100),
+    "frozen_rupture": (180, 200, 255),
+}
+
 
 class ReactionSystem:
     def __init__(self, game):
@@ -73,6 +92,7 @@ class ReactionSystem:
         self._zones = []
         self._chain = {}
         self._echo_queue = []
+        self._pending_triple = {}
 
     # ---------------- aura plumbing ----------------
     def _entry(self, target):
@@ -90,7 +110,10 @@ class ReactionSystem:
                 if a.damage_type and a.damage_type not in types:
                     types.append(a.damage_type)
         rules = (list(world_rules.conversion_rules_for("player")) if world_rules else [])
-        rules += player.item_conversion_rules()
+        #rules += player.item_conversion_rules()
+        icr = getattr(player, "item_conversion_rules", None)   # NEW
+        if icr is not None:                                     # NEW
+            rules += icr() 
         for r in rules:
             if r.from_type in types and r.to_type not in types:
                 types.append(r.to_type)
@@ -157,18 +180,39 @@ class ReactionSystem:
     def _apply_aura(self, target, dtype, hit_damage):
         target = self.game.packs.redirect_aura(target)
         e = self._entry(target)
+
+        # ---- triple-reaction upgrade window (bypasses ICD) ----
+        pending = self._pending_triple.get(id(target))
+        if pending and pending["expiry"] > self.clock:
+            combined = pending["types"] | {dtype}
+            if len(combined) == 3:
+                triple = TRIPLE_REACTIONS.get(frozenset(combined))
+                if triple:
+                    del self._pending_triple[id(target)]
+                    e["types"].clear()
+                    e["cd"] = self.clock + REACTION_ICD
+                    self._fire_triple(triple, target, hit_damage)
+                    return triple
+
         if self.clock < e["cd"]:
             return None
+
         e["types"][dtype] = self.clock + REACTION_WINDOW
         for other, expiry in list(e["types"].items()):
             if other == dtype or expiry < self.clock:
                 continue
             name = REACTIONS.get(frozenset((dtype, other)))
-            if name:
-                e["types"].clear()
-                e["cd"] = self.clock + REACTION_ICD
-                self._fire(name, target, hit_damage)
-                return name
+            if not name:
+                continue
+            # remember which pair fired, so a third element can upgrade to a triple
+            self._pending_triple[id(target)] = {
+                "types": {dtype, other},
+                "expiry": self.clock + 1.0,
+            }
+            e["types"].clear()
+            e["cd"] = self.clock + REACTION_ICD
+            self._fire(name, target, hit_damage)
+            return name
         return None
 
     def _drop_zone(self, target, hit, player, world_rules):
@@ -333,6 +377,45 @@ class ReactionSystem:
         if not echo and g.player.has_keystone("resonance"):
             self._echo_queue.append({"t": 0.5, "name": name, "target": target, "hit": hit * 0.5})
 
+    def _fire_triple(self, name, target, hit):
+        g = self.game
+        color = TRIPLE_COLORS[name]
+        label = TRIPLE_LABELS[name]
+        base = max(6, int(hit * 2.0))
+        g.damage_numbers.spawn(target.x, target.y - 70, label, color)
+        self._ring(target.x, target.y, 150, color, life=0.5)
+
+        if name == "shatterstorm":
+            for o in [target] + self._nearby(target, 150):
+                self._hurt(o, base * 1.8, "cold", color)
+                self._hurt(o, base * 1.2, "lightning", color)
+                if hasattr(o, "apply_stagger"):
+                    o.apply_stagger(1.0)
+                g.terrain.add_surface(o.x, o.y, 80, "ice", 5.0, power=base)
+
+        elif name == "soulburn":
+            self._add_dot(target, "chaos", base * 1.2, 5.0, spread=True)
+            self._add_dot(target, "fire", base * 0.8, 4.0)
+            heal = max(2, int(g.player.effective_stats.max_hp * 0.05))
+            g.player.effective_stats.hp = min(
+                g.player.effective_stats.max_hp,
+                g.player.effective_stats.hp + heal)
+            g.damage_numbers.spawn(g.player.x, g.player.y - 34,
+                                    f"+{heal}", (90, 255, 120))
+
+        elif name == "toxic_warp":
+            for o in [target] + self._nearby(target, 120):
+                self._add_dot(o, "poison", base * 1.0, 6.0, spread=True)
+                self._hurt(o, base * 0.8, "chaos", color)
+            g.terrain.add_surface(target.x, target.y, 120, "blight", 8.0, power=base)
+
+        elif name == "frozen_rupture":
+            for o in [target] + self._nearby(target, 130):
+                self._hurt(o, base * 1.5, "physical", color)
+                if hasattr(o, "apply_slow"):
+                    o.apply_slow(2.5, 0.5)
+            self._ring(target.x, target.y, 170, color, life=0.6)
+
     # ---------------- per-frame ----------------
     def tick(self, dt):
         self.clock += dt
@@ -347,6 +430,10 @@ class ReactionSystem:
         for k, c in list(self._chain.items()):
             if c["until"] <= self.clock or not c["target"].alive:
                 del self._chain[k]
+
+        for k, p in list(self._pending_triple.items()):
+            if p["expiry"] <= self.clock:
+                del self._pending_triple[k]
 
         for d in list(self._dots):
             t = d["target"]

@@ -75,8 +75,10 @@ class Nemesis:
     grudge: int = 0                       # kills since last evolution (forces evolve at 3)
     escapes: int = 0                      # times this nemesis fled a fight
     personality: str = "aggressive"       # key into PERSONALITIES
+    
 
     stolen_item: dict = field(default_factory=dict)
+    adaptations: list = field(default_factory=list)   # NEW
 
     def short(self):
         return self.name.split(",")[0]

@@ -8,6 +8,12 @@ import random
 import core.config as config
 import math
 
+from enemies.ai_intelligence import (
+    PlayerObserver, intel_tier_for, attack_jitter,
+    flank_offset_point, wants_retreat,
+    _enabled as _ai_enabled,
+)
+
 
 from core.difficulty import D, area_difficulty_mult
 
@@ -50,12 +56,23 @@ class Enemy:
         self.affixes = []
 
         self.behavior = behavior
+
+        self.personality = "brave"
+        self.personality_damage_mult = 1.0
+        self._flee_flag = False
+
         self._strafe_dir = 1 if random.random() < 0.5 else -1
         self._strafe_timer = 0.0
         self._ranged_timer = 1.2
         self.projectiles = []
 
         self.stagger_timer = 0.0
+
+        self.posture = 0.0
+        self.posture_max = 100.0
+        self.broken_timer = 0.0
+        self.just_broke = False
+
         self.slow_timer = 0.0
         self.slow_factor = 1.0
 
@@ -81,8 +98,17 @@ class Enemy:
 
         # Telegraph state (brute slam / frost nova)
         self._telegraph_timer = 0.0
+        
+
         self._telegraph_pos = None
         self._telegraph_action = None
+
+        # --- AI intelligence state ---
+        self._observer = PlayerObserver()
+        self._intel_tier = intel_tier_for(behavior, is_elite)
+        self._flank_side = 1 if random.random() < 0.5 else -1
+        self._retreat_mode = False
+        self._retreat_reengage = 0.0
 
     _affix_font = None
 
@@ -92,6 +118,12 @@ class Enemy:
                             self.width, self.height)
 
     def take_damage(self, amount: int,source=None):
+
+        if self.broken_timer > 0:
+            amount = int(amount * 1.5)
+        if self.stagger_timer > 0:
+            self.apply_posture(15)
+
         if self.pack is not None:
             self.pack.alerted = True
 
@@ -126,25 +158,60 @@ class Enemy:
 
     def apply_stagger(self, duration):
         self.stagger_timer = max(self.stagger_timer, duration)
+        self.apply_posture(25)
+
+
+    def apply_posture(self, amount):
+        if self.broken_timer > 0:
+            return
+        self.posture += amount
+        if self.posture >= self.posture_max:
+            self.posture = 0.0
+            self.broken_timer = 2.5
+            self.just_broke = True
+            self.apply_slow(2.5, 0.5)
 
     def apply_slow(self, duration, factor=0.5):
         self.slow_timer = max(self.slow_timer, duration)
         self.slow_factor = factor
 
     def interrupt(self):
-        """Cancels the enemy's current attack windup."""
         self._attack_timer = max(self._attack_timer, 1.0)
         self._ranged_timer = max(self._ranged_timer, 1.5)
-        self.apply_stagger(0.3)        
+        self.apply_stagger(0.3)
+        self.apply_posture(20)       
 
     def update(self, dt, player, tilemap, event_bus, world_rules=None):
         self._world_rules = world_rules
 
+        if _ai_enabled():
+            self._observer.update(dt, player)
+
         if self.hit_flash_timer > 0:
             self.hit_flash_timer -= dt
 
+        if self.broken_timer > 0:
+            self.broken_timer -= dt
+
         if not self.alive:
             return
+
+        if self.personality == "berserker":
+            self.personality_damage_mult = (
+                1.4 if self.hp < self.max_hp * 0.5 else 1.0)
+        elif self.personality == "opportunist":
+            hp_frac = (player.effective_stats.hp
+                    / max(1, player.effective_stats.max_hp))
+            self.personality_damage_mult = 1.3 if hp_frac < 0.5 else 1.0
+        elif self.personality == "coward" and player.alive:
+            if self.hp < self.max_hp * 0.3:
+                has_commander = (
+                    self.pack is not None
+                    and any(m.alive and m.pack_role == "commander"
+                            for m in self.pack.members))
+                if not has_commander:
+                    self._flee_flag = True
+                    return
 
         if "regenerating" in self.affixes and self.hp < self.max_hp:
             self.hp = min(self.max_hp, self.hp + self.max_hp * 0.04 * dt)
@@ -235,8 +302,9 @@ class Enemy:
             return
         from combat.combat import enemy_attack_player
         enemy_attack_player(self, player, event_bus, world_rules=self._world_rules)
-        self._attack_timer = config.ENEMY_CONTACT_DAMAGE_COOLDOWN * D.get("enemy_attack_cooldown_mult")
-        # vampiric heals on hit
+        self._attack_timer = (config.ENEMY_CONTACT_DAMAGE_COOLDOWN
+                              * D.get("enemy_attack_cooldown_mult")
+                              * attack_jitter())
         if "vampiric" in self.affixes:
             self.hp = min(self.max_hp, self.hp + int(self.damage * 0.5))
 
@@ -267,7 +335,10 @@ class Enemy:
             if math.hypot(player.x - pos[0], player.y - pos[1]) <= radius:
                 enemy_attack_player(self, player, event_bus,
                                     world_rules=self._world_rules)
-        self._attack_timer = config.ENEMY_CONTACT_DAMAGE_COOLDOWN * D.get("enemy_attack_cooldown_mult")
+        
+        self._attack_timer = (config.ENEMY_CONTACT_DAMAGE_COOLDOWN
+                              * D.get("enemy_attack_cooldown_mult")
+                              * attack_jitter())
 
     def game_current_targets_of_opportunity(self):
         # No direct game ref — return an empty iterable. Enemies in a pack
@@ -295,6 +366,14 @@ class Enemy:
             frac = max(0.0, self.hp / self.max_hp)
             pygame.draw.rect(surface, config.COLOR_HP_BAR_FG,
                             (bx, by, int(bar_w * frac), bar_h))
+
+        if self.posture > 0 or self.broken_timer > 0:
+            bar_w, bar_h = self.width, 3
+            bx, by = rect.x, rect.y - 16
+            pygame.draw.rect(surface, (40, 20, 10), (bx, by, bar_w, bar_h))
+            frac = 1.0 if self.broken_timer > 0 else self.posture / self.posture_max
+            color = (255, 200, 60) if self.broken_timer > 0 else (200, 140, 60)
+            pygame.draw.rect(surface, color, (bx, by, int(bar_w * frac), bar_h))
 
         for proj in self.projectiles:
             p = camera.world_to_screen((proj["x"], proj["y"]))
@@ -341,31 +420,81 @@ class Enemy:
             self.y = ny
 
 
-    
+
+        
+    def _count_nearby_allies(self) -> int:
+        if self.pack is None:
+            return 0
+        return sum(1 for m in self.pack.members
+                   if m is not self and m.alive
+                   and math.hypot(m.x - self.x, m.y - self.y) < 300.0)
+
+    def _maybe_retreat(self, dt, player, tilemap, dist) -> bool:
+        """If wounded with allies nearby, back away for a beat.  Returns True if
+        the retreat path handled this frame (caller should return)."""
+        if self._intel_tier < 2:
+            return False
+        if not wants_retreat(self.hp, self.max_hp, self._count_nearby_allies()):
+            self._retreat_mode = False
+            return False
+        self._retreat_mode = True
+        if dist < 20:
+            return False
+        # If very far, stop retreating and re-engage
+        if dist > 420:
+            self._retreat_mode = False
+            return False
+        away_x = self.x - player.x
+        away_y = self.y - player.y
+        self._step_toward(dt, tilemap, away_x, away_y, 1.3)
+        return True
 
 
     def _tick_chaser(self, dt, player, tilemap, dist, dx, dy, event_bus):
+        if self._maybe_retreat(dt, player, tilemap, dist):
+            return
         if dist < self._aggro_range and dist > 34:
-            self._step_toward(dt, tilemap, dx, dy, 1.0)
+            # Smart enemies flank when they're mid-range
+            if (self._intel_tier >= 2
+                    and getattr(config, "AI_MOB_FLANKING", True)
+                    and 100 < dist < 260):
+                fx, fy = flank_offset_point(self.x, self.y,
+                                             player.x, player.y,
+                                             self._flank_side)
+                self._step_toward(dt, tilemap, fx - self.x, fy - self.y, 1.0)
+            else:
+                self._step_toward(dt, tilemap, dx, dy, 1.0)
         elif dist <= 34:
             self._contact_attack(player, event_bus)
 
-
     def _tick_ambusher(self, dt, player, tilemap, dist, dx, dy, event_bus):
-        # Dormant until the player commits to the room, then lunges fast.
         if dist > 220:
             return
+        # True ambush: burst in the punish window
+        if (self._intel_tier >= 2 and self._observer.in_punish_window()
+                and dist < 160):
+            self._step_toward(dt, tilemap, dx, dy, 2.5)
+            if dist <= 40:
+                self._contact_attack(player, event_bus)
+            return
         if dist > 60:
-            self._step_toward(dt, tilemap, dx, dy, 0.4)   # creep
+            self._step_toward(dt, tilemap, dx, dy, 0.4)
         elif dist > 34:
-            self._step_toward(dt, tilemap, dx, dy, 2.2)   # lunge
+            self._step_toward(dt, tilemap, dx, dy, 2.2)
         else:
             self._contact_attack(player, event_bus)
 
-
     def _tick_circler(self, dt, player, tilemap, dist, dx, dy, event_bus):
-        # Prefers mid-range; strafes to stay there.
         if dist > self._aggro_range:
+            return
+        if self._maybe_retreat(dt, player, tilemap, dist):
+            return
+        # Punish window: circle INWARD for a quick strike
+        if (self._intel_tier >= 2 and self._observer.in_punish_window()
+                and 40 < dist < 140):
+            self._step_toward(dt, tilemap, dx, dy, 1.8)
+            if dist <= 45:
+                self._contact_attack(player, event_bus)
             return
         if dist > 160:
             self._step_toward(dt, tilemap, dx, dy, 1.0)
@@ -374,14 +503,14 @@ class Enemy:
         else:
             perp_x, perp_y = -dy, dx
             self._step_toward(dt, tilemap, perp_x * self._strafe_dir,
-                            perp_y * self._strafe_dir, 1.0)
+                              perp_y * self._strafe_dir, 1.0)
         if dist <= 40:
             self._contact_attack(player, event_bus)
 
-
     def _tick_ranged(self, dt, player, tilemap, dist, dx, dy, event_bus):
-        # Kites: backs off under 160, closes past 300, else strafes and fires.
         if dist > self._aggro_range + 60:
+            return
+        if self._maybe_retreat(dt, player, tilemap, dist):
             return
         if dist < 160:
             self._step_toward(dt, tilemap, -dx, -dy, 1.1)
@@ -390,11 +519,25 @@ class Enemy:
         else:
             perp_x, perp_y = -dy, dx
             self._step_toward(dt, tilemap, perp_x * self._strafe_dir,
-                            perp_y * self._strafe_dir, 0.9)
+                              perp_y * self._strafe_dir, 0.9)
         if dist <= 380 and self._ranged_timer <= 0:
-            self._fire_bolt(dx, dy, dist)
-            #self._ranged_timer = 1.6
-            self._ranged_timer = 1.6 * D.get("enemy_attack_cooldown_mult")
+            if (self._intel_tier >= 2
+                    and getattr(config, "AI_MOB_PREDICTIVE_AIM", True)):
+                # Lead the shot: predict where the player will be when
+                # the projectile arrives.
+                lead = dist / 260.0
+                px, py = self._observer.predict_player_position(player, lead)
+                self._fire_bolt_at(px, py)
+            else:
+                self._fire_bolt(dx, dy, dist)
+            self._ranged_timer = (1.6 * D.get("enemy_attack_cooldown_mult")
+                                  * attack_jitter())
+
+    def _fire_bolt_at(self, target_x, target_y):
+        dx = target_x - self.x
+        dy = target_y - self.y
+        dist = math.hypot(dx, dy) or 1.0
+        self._fire_bolt(dx, dy, dist)
 
 
     def _fire_bolt(self, dx, dy, dist):
@@ -407,7 +550,7 @@ class Enemy:
             "x": self.x, "y": self.y,
             "vx": dx / dist * speed,
             "vy": dy / dist * speed,
-            "damage": int(self.damage * self.pack_damage_mult),
+            "damage": int(self.damage * self.pack_damage_mult * self.personality_damage_mult),
             "life": 3.0,
         })
 
@@ -444,6 +587,17 @@ BEHAVIOR_TABLE = [
     ("brute",     8, 2.5, 1.5, 65.0),    # slow tank, hits hard
     ("swarmer",  14, 0.45, 0.6, 135.0),
 ]
+
+PERSONALITY_POOL = [
+    ("brave", 50), ("coward", 20), ("berserker", 15),
+    ("opportunist", 10), ("swift", 5),
+]
+PERSONALITY_PREFIX = {
+    "brave": "", "coward": "Skittish ", "berserker": "Frenzied ",
+    "opportunist": "Cunning ", "swift": "Swift ",
+}
+
+
 NAME_POOL = {
     "chaser":   ["Feral Rat", "Bandit", "Wild Wolf", "Skeleton"],
     "ambusher": ["Lurker", "Cave Spider", "Stalker"],
@@ -494,13 +648,24 @@ def spawn_basic_enemy(x, y, rng, area_level=1, force_behavior=None,behavior_bias
     if is_elite:
         k = 2 if (area_level >= 6 and rng.random() < 0.35) else 1
         affixes = rng.sample(ELITE_AFFIXES, k)
-    name = f"{affixes[0].title()} {base_name}" if affixes else base_name
+
+    personality = rng.choices(
+        [p[0] for p in PERSONALITY_POOL],
+        weights=[p[1] for p in PERSONALITY_POOL], k=1)[0]
+    #name = f"{affixes[0].title()} {base_name}" if affixes else base_name
+    prefix = PERSONALITY_PREFIX.get(personality, "")
+    name = f"{affixes[0].title()} {prefix}{base_name}" if affixes else f"{prefix}{base_name}"
 
     base_xp = 18 if is_elite else 10
     xp = int(base_xp * (1.18 ** (area_level - 1)))
+    #en = Enemy(x, y, name=name, hp=hp, damage=dmg, armor=area_level,
+    #           speed=speed, xp_reward=xp if is_elite else 10,
+    #           is_elite=is_elite, area_level=area_level, behavior=behavior)
+
     en = Enemy(x, y, name=name, hp=hp, damage=dmg, armor=area_level,
-               speed=speed, xp_reward=xp if is_elite else 10,
-               is_elite=is_elite, area_level=area_level, behavior=behavior)
+           speed=speed, xp_reward=xp,
+           is_elite=is_elite, area_level=area_level, behavior=behavior)
+    
     en._aggro_range = int(en._aggro_range * D.get("enemy_aggro_mult"))
     if behavior == "brute":
         en.width = en.height = 40
@@ -516,4 +681,8 @@ def spawn_basic_enemy(x, y, rng, area_level=1, force_behavior=None,behavior_bias
     if "shielded" in affixes:
         en.shield_hp = int(en.max_hp * 0.4)
     en.affixes = affixes
+    en.personality = personality
+    if personality == "swift":
+        en.speed *= 1.25
+        en.max_hp = en.hp = int(en.hp * 0.85)
     return en

@@ -17,6 +17,9 @@ from combat.damage import resolve_damage
 
 from dataclasses import replace
 
+from enemies.boss_ai import BossAIDirector
+import core.config as config
+
 from core.difficulty import D
 
 
@@ -112,6 +115,8 @@ class Boss:
         self._facing = pygame.Vector2(0, 1)
         self.projectiles = []
 
+        self._director = BossAIDirector(self)
+
 
     @staticmethod
     def _scaled(t):
@@ -152,10 +157,16 @@ class Boss:
             self._state = "recover"
             self._state_timer = 0.7
 
+    #def _hit_player(self, player, dmg, event_bus):
+    #    if player.take_damage(dmg, cause=self.damage_type):
+    #        event_bus.emit("player_hit", source=self.name, damage=dmg,
+    #                    damage_type=self.damage_type)
+
     def _hit_player(self, player, dmg, event_bus):
         if player.take_damage(dmg, cause=self.damage_type):
             event_bus.emit("player_hit", source=self.name, damage=dmg,
-                        damage_type=self.damage_type)
+                           damage_type=self.damage_type)
+            self._director.on_hit_landed()
 
     def _update_phase(self):
         if not self.alive:
@@ -226,41 +237,58 @@ class Boss:
 
         phase = self.current_phase
 
+        self._director.update(dt, player, dist)
+
         if self._state == "idle":
             if self._cooldown_timer <= 0 and dist < 420:
                 self._choose_action(dist, phase)
         elif self._state == "telegraph":
             self._state_timer -= dt
+
+            # Feint: cancel if player dodged during the wind-up
+            if self._director.should_cancel_telegraph(player):
+                self._state = "recover"
+                self._state_timer = 0.15   # very short - feint punishes dodge
+                return
+
             if self._state_timer <= 0:
                 self._execute_attack(player, event_bus, phase, world_rules)
         elif self._state == "recover":
             self._state_timer -= dt
             if self._state_timer <= 0:
+                # Combo chain: immediately launch a follow-up attack
+                if self._director.consume_chain() and dist < 420:
+                    self._choose_action(dist, phase)
+                    self._cooldown_timer = 0.0
+                    return
                 self._state = "idle"
                 self._cooldown_timer = phase.attack_cooldown
 
     def _choose_action(self, dist_to_player, phase: BossPhaseConfig):
         from core import audio
-        if phase.enables_blink and random.random() < 0.28:
-            self._state = "telegraph"
-            self._pending_action = "blink"
+
+        weights = self._director.pick_action_weights(dist_to_player, phase)
+        actions = list(weights.keys())
+        w = list(weights.values())
+        action = random.choices(actions, weights=w, k=1)[0]
+
+        self._state = "telegraph"
+        self._pending_action = action
+
+        if action == "blink":
             self._state_timer = phase.telegraph_time_blink
-            audio.play("telegraph_dash")   # same low ominous cue
-        elif phase.enables_dash and dist_to_player > 90 and random.random() < 0.45:
-            self._state = "telegraph"
-            self._pending_action = "dash"
+            audio.play("telegraph_dash")
+        elif action == "dash":
             self._state_timer = phase.telegraph_time_dash
             audio.play("telegraph_dash")
-        elif dist_to_player > 150:
-            self._state = "telegraph"
-            self._pending_action = "ranged"
+        elif action == "ranged":
             self._state_timer = 0.45
             audio.play("telegraph_ranged")
-        else:
-            self._state = "telegraph"
-            self._pending_action = "melee"
+        else:  # melee
             self._state_timer = phase.telegraph_time_melee
             audio.play("telegraph_melee")
+
+        self._director.on_telegraph_started(action)
 
     def _execute_attack(self, player, event_bus, phase: BossPhaseConfig, world_rules):
         action = getattr(self, "_pending_action", "melee")

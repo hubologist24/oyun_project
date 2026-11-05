@@ -18,6 +18,7 @@ class ProgressionMixin:
         self.event_bus.subscribe("attacker_info", self.nemesis.on_attacker_info)
         self.event_bus.subscribe("area_entered", self.nemesis.on_area_entered)
         self.event_bus.subscribe("kinetic_technique", self._on_kinetic_technique)
+        self.event_bus.subscribe("weapon_mastery_up", self._on_weapon_mastery_up)
 
     def _on_kinetic_technique(self, name=None, **kw):
         if not name:
@@ -31,6 +32,21 @@ class ProgressionMixin:
                                duration=3.5)
         if newly:
             self._handle_codex_unlocks(newly)
+
+    def _on_weapon_mastery_up(self, subtype=None, tier=0, **kw):
+        if not subtype or tier <= 0:
+            return
+        self.player.weapon_mastery[subtype] = max(
+            self.player.weapon_mastery.get(subtype, 0), tier)
+        self.player.recalc_stats()
+        self._show_message(
+            f"WEAPON MASTERY: {subtype.replace('_', ' ').title()} Tier {tier}!",
+            duration=4.0)
+        self.crit_bursts.append({
+            "x": self.player.x, "y": self.player.y, "radius": 110,
+            "life": 0.6, "max_life": 0.6, "color": (255, 220, 120),
+        })
+        audio.play("evolution")
 
     def _on_level_up(self, level):
         audio.play("level_up")

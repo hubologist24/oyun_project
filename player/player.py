@@ -16,6 +16,8 @@ from items.weapon_subtypes import WeaponSubtypes
 from player.perks import apply_perks_to_stats, KEYSTONES
 from combat.damage import ConversionRule
 
+from combat.diminishing import rating_to_int
+
 
 class Player:
     def __init__(self, x: float, y: float, event_bus,codex_manager=None):
@@ -63,8 +65,12 @@ class Player:
         self.combo_count = 0
         self.combo_timer = 0.0
 
+        self.guaranteed_crit_timer = 0.0
+
         self.perks = {}          # perk_id -> stack count
         self.keystones = []      # chosen keystone ids
+
+        self.weapon_mastery = {}
 
         self.alive = True
         self.trophies = []
@@ -102,6 +108,21 @@ class Player:
         self._dash_charges = min(self._dash_charges, self._dash_max_charges)
 
         self.effective_stats.hp = int(self.effective_stats.max_hp * old_hp_ratio)
+
+        for subtype, tier in self.weapon_mastery.items():
+            if tier <= 0:
+                continue
+            if subtype == "sword":
+                self.effective_stats.crit_chance += 0.02 * tier
+            elif subtype == "greatsword":
+                self.effective_stats.armor += 5 * tier
+            elif subtype == "bow":
+                self.effective_stats.attack_speed_bonus += 0.04 * tier
+            elif subtype in ("short_wand", "long_wand"):
+                for d in ("fire", "cold", "lightning", "chaos"):
+                    self.effective_stats.resistances[d] = \
+                        self.effective_stats.resistances.get(d, 0.0) + 0.02 * tier
+
         self.effective_stats.clamp_hp()
 
 
@@ -115,14 +136,7 @@ class Player:
         return weapon
 
 
-    def ranged_ricochet_bonus(self) -> int:
-        w = self._ranged_weapon()
-        if w is None:
-            return 0
-        bonus = int(round(self._sum_other_bonus_from_equipped("ricochet_count", w)))
-        if self.has_keystone("trick_shot"):
-            bonus += 2
-        return max(0, min(bonus, 8))
+    
 
     def _melee_small_weapon(self):
         from items.modifiers import MELEE_SMALL_SUBTYPES
@@ -143,35 +157,49 @@ class Player:
                 total += it.other_bonus(modifier_id)
         return total
 
+    
+    def ranged_ricochet_bonus(self) -> int:
+        w = self._ranged_weapon()
+        if w is None:
+            return 0
+        rating = self._sum_other_bonus_from_equipped("ricochet_count", w)
+        if self.has_keystone("trick_shot"):
+            rating += 2
+        rating += getattr(self, "weapon_mastery", {}).get("gun", 0)
+        return rating_to_int("ricochet_count", rating)
+
     def ranged_fork_bonus(self) -> int:
         w = self._ranged_weapon()
         if w is None:
             return 0
-        bonus = int(round(self._sum_other_bonus_from_equipped("fork_count", w)))
-        bonus += self.perks.get("forking_shot", 0)
+        rating = self._sum_other_bonus_from_equipped("fork_count", w)
+        rating += self.perks.get("forking_shot", 0)
         if self.has_keystone("eldritch_barrage"):
-            bonus += 1
-        return max(0, min(bonus, 5))
+            rating += 1
+        return rating_to_int("fork_count", rating)
 
     def ranged_pierce_bonus(self) -> int:
         w = self._ranged_weapon()
         if w is None:
             return 0
-        bonus = int(round(self._sum_other_bonus_from_equipped("pierce_count", w)))
-        bonus += self.perks.get("piercing_eye", 0)
+        rating = self._sum_other_bonus_from_equipped("pierce_count", w)
+        rating += self.perks.get("piercing_eye", 0)
         if self.has_keystone("eldritch_barrage"):
-            bonus += 1
-        return max(0, min(bonus, 5))
+            rating += 1
+        return rating_to_int("pierce_count", rating)
 
     def ranged_chain_bonus(self) -> int:
         w = self._ranged_weapon()
         if w is None:
             return 0
-        bonus = int(round(self._sum_other_bonus_from_equipped("chain_count", w)))
-        bonus += self.perks.get("linked_aim", 0)
+        rating = self._sum_other_bonus_from_equipped("chain_count", w)
+        rating += self.perks.get("linked_aim", 0)
         if self.has_keystone("eldritch_barrage"):
-            bonus += 1
-        return max(0, min(bonus, 5))
+            rating += 1
+        return rating_to_int("chain_count", rating)
+    
+
+    
 
     def melee_proc_chance(self, proc_id: str) -> float:
         """Returns probability (0.0 - 1.0) for a melee-small proc."""
@@ -392,15 +420,32 @@ class Player:
         ok, _ = self.meets_requirements(item)
         if not ok:
             return False
+
         target_slot = slot or resolve_equip_slot(item.slot, self.equipped)
         if target_slot is None:
             return False
+
+        from items.equipment_slots import ITEM_SLOT_TO_EQUIP_SLOTS
+        allowed = ITEM_SLOT_TO_EQUIP_SLOTS.get(item.slot, [])
+        if target_slot not in allowed:
+            return False                                # ← B2: reject wrong slot
+
         old = self.equipped.get(target_slot)
-        #self.inventory.remove_item(item)
+        item_in_inventory = item.item_id in self.inventory.items_by_id
+
+        # Free one inventory slot first (if the new item came from inventory),
+        # so the swapped item always has somewhere to go.
+        if item_in_inventory:
+            self.inventory.remove_item(item)
+
         if old is not None:
-            self.inventory.add_item(old)
+            if not self.inventory.add_item(old):
+                # Old item has nowhere to go → abort and roll back.
+                if item_in_inventory:
+                    self.inventory.add_item(item)
+                return False                            # ← B1: don't lose old item
+
         self.equipped[target_slot] = item
-        self.inventory.remove_item(item)
         self.recalc_stats()
         self.event_bus.emit("item_equipped", item_id=item.item_id, slot=target_slot)
         return True
@@ -440,6 +485,7 @@ class Player:
             },
             "perks": dict(self.perks),
             "keystones": list(self.keystones),
+            "weapon_mastery": dict(self.weapon_mastery)
         }
 
 
@@ -453,9 +499,16 @@ class Player:
                 return
         self._burns.append({"dtype": dtype, "dps": dps, "left": 3.0, "acc": 0.0})
 
+    #def apply_slow(self, duration=2.0, factor=0.6):
+    #    self.slow_timer = max(self.slow_timer, duration)
+    #    self.slow_factor = min(self.slow_factor, factor) if self.slow_timer > 0 else factor
+
     def apply_slow(self, duration=2.0, factor=0.6):
+        if self.slow_timer > 0:
+            self.slow_factor = min(self.slow_factor, factor)   # stronger wins
+        else:
+            self.slow_factor = factor                          # fresh
         self.slow_timer = max(self.slow_timer, duration)
-        self.slow_factor = min(self.slow_factor, factor) if self.slow_timer > 0 else factor
 
     def apply_stagger(self, duration=0.35):
         if self._stagger_icd > 0:
@@ -476,10 +529,14 @@ class Player:
     def tick_status(self, dt):
         if self.slow_timer > 0:
             self.slow_timer -= dt
+            if self.slow_timer <= 0:
+                self.slow_factor = 1.0
         if self.stagger_timer > 0:
             self.stagger_timer -= dt
         if self._stagger_icd > 0:
             self._stagger_icd -= dt
+        if self.guaranteed_crit_timer > 0:
+            self.guaranteed_crit_timer -= dt
         for b in list(self._burns):
             b["left"] -= dt
             b["acc"] += dt
@@ -493,8 +550,10 @@ class Player:
     def reset_status(self):
         self._burns.clear()
         self.slow_timer = 0.0
+        self.slow_factor = 1.0    
         self.stagger_timer = 0.0
         self._stagger_icd = 0.0
+        self.guaranteed_crit_timer = 0.0
 
     def heal_to_full(self):
         self.effective_stats.hp = self.effective_stats.max_hp
@@ -545,6 +604,12 @@ class Player:
         perks_d = d.get("perks", {})
         p.perks = {str(k): int(v) for k, v in perks_d.items()} if isinstance(perks_d, dict) else {}
         ks_d = d.get("keystones", [])
+
+        wm_d = d.get("weapon_mastery", {})
+        p.weapon_mastery = {str(k): int(v) for k, v in wm_d.items()} \
+            if isinstance(wm_d, dict) else {}
+
+
         p.keystones = [k for k in ks_d if k in KEYSTONES] if isinstance(ks_d, list) else []
         
         p.recalc_stats()
@@ -557,6 +622,7 @@ class Player:
         #       codex_manager=codex_manager)
 
         p.effective_stats.clamp_hp()
+        p.alive = p.effective_stats.hp > 0
 
 
 
