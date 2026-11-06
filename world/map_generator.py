@@ -19,6 +19,8 @@ DENSITY_PER_BRACKET        = 0.15
 DENSITY_CAP                = 0.60
 MAP_GROWTH_PER_EXTRA_ROOM  = 0.25
 
+ROOM_SPACING = 3   # min empty tiles between rooms (was effectively 1)
+
 
 def _carve_h(grid, x0, x1, y):
     rows = len(grid)
@@ -136,9 +138,11 @@ def generate_dungeon_grid(rng: random.Random, cols=50, rows=38, room_count=6,
 
             candidate = (x0, y0, x1, y1)
             overlaps = any(
-                not (x1 < rx0 - 1 or x0 > rx1 + 1 or y1 < ry0 - 1 or y0 > ry1 + 1)
+                not (x1 < rx0 - ROOM_SPACING or x0 > rx1 + ROOM_SPACING
+                     or y1 < ry0 - ROOM_SPACING or y0 > ry1 + ROOM_SPACING)
                 for (rx0, ry0, rx1, ry1) in rooms
             )
+
             if overlaps:
                 continue
 
@@ -152,9 +156,23 @@ def generate_dungeon_grid(rng: random.Random, cols=50, rows=38, room_count=6,
         return ((x0 + x1) // 2, (y0 + y1) // 2)
 
     # Connect every room to the previous one with an L-shaped corridor.
-    for i in range(1, len(rooms)):
-        cx0, cy0 = room_center(rooms[i - 1])
-        cx1, cy1 = room_center(rooms[i])
+    #for i in range(1, len(rooms)):
+    #    cx0, cy0 = room_center(rooms[i - 1])
+    #    cx1, cy1 = room_center(rooms[i])
+    #    if rng.random() < 0.5:
+    #        _carve_h(grid, cx0, cx1, cy0)
+    #        _carve_v(grid, cy0, cy1, cx1)
+    #    else:
+    #        _carve_v(grid, cy0, cy1, cx0)
+    #        _carve_h(grid, cx0, cx1, cy1)
+
+    # West -> east ordering: start room is westmost, boss/gate room eastmost.
+    # This kills most zig-zag/crossing corridors.
+    rooms.sort(key=lambda r: (r[0], r[1]))
+
+    def connect(a, b):
+        cx0, cy0 = room_center(a)
+        cx1, cy1 = room_center(b)
         if rng.random() < 0.5:
             _carve_h(grid, cx0, cx1, cy0)
             _carve_v(grid, cy0, cy1, cx1)
@@ -162,7 +180,55 @@ def generate_dungeon_grid(rng: random.Random, cols=50, rows=38, room_count=6,
             _carve_v(grid, cy0, cy1, cx0)
             _carve_h(grid, cx0, cx1, cy1)
 
+    for i in range(1, len(rooms)):
+        connect(rooms[i - 1], rooms[i])
+    # occasional loop so the map isn't a pure line
+    for i in range(2, len(rooms) - 1):      # never touches the last (gate) room
+        if rng.random() < 0.25:
+            connect(rooms[i - 2], rooms[i])
+
     return grid, rooms
+
+    return grid, rooms
+
+def pick_wall_gate(grid, room, sides=("e", "s")):
+    """Returns (col, row, side). The tile is a WALL tile on the room's boundary,
+    inside a solid wall segment, with floor directly inside the room.
+    Falls back to an interior tile (old behaviour) only if no wall spot exists."""
+    rows = len(grid)
+    cols = len(grid[0]) if rows else 0
+    x0, y0, x1, y1 = room
+    cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
+
+    def wall(c, r):
+        return 0 <= r < rows and 0 <= c < cols and grid[r][c] == 1
+
+    def floor(c, r):
+        return 0 <= r < rows and 0 <= c < cols and grid[r][c] == 0
+
+    for side in sides:
+        cands = []
+        if side == "e":
+            c = x1
+            if c + 1 < cols:
+                for r in range(y0 + 1, y1 - 1):
+                    if (wall(c, r) and wall(c, r - 1) and wall(c, r + 1)
+                            and floor(c - 1, r)):
+                        cands.append((abs(r - cy), r, c))
+        else:  # "s"
+            r = y1
+            if r + 1 < rows:
+                for c in range(x0 + 1, x1 - 1):
+                    if (wall(c, r) and wall(c - 1, r) and wall(c + 1, r)
+                            and floor(c, r - 1)):
+                        cands.append((abs(c - cx), r, c))
+        if cands:
+            cands.sort()
+            _, r, c = cands[0]
+            return c, r, side
+
+    c, r = _pick_gate_tile(grid, room)
+    return c, r, "e"
 
 
 def build_procedural_area(rng, area_level, cols=50, rows=38,
@@ -194,37 +260,18 @@ def build_procedural_area(rng, area_level, cols=50, rows=38,
     tilemap = TileMap(grid)
 
     start_room = rooms[0]
-    boss_room_rect = rooms[-1] if (boss_room and len(rooms) >= 2) else None
+    last_idx = len(rooms) - 1
+    boss_room_rect = rooms[last_idx] if (boss_room and len(rooms) >= 2) else None
 
-    reserved = {0}
-    if boss_room_rect is not None:
-        reserved.add(len(rooms) - 1)
-
-
-    available = [i for i in range(len(rooms)) if i not in reserved]
-    gate_room_index = available[0] if available else len(rooms) - 1
+    # Exit gate lives on the wall of the FINAL room (the boss arena when there
+    # is a boss), so "kill guardian -> door opens" is spatially obvious.
+    gate_room_index = last_idx if len(rooms) >= 2 else 0
     gate_room_rect = rooms[gate_room_index]
-    gate_tile_col, gate_tile_row = _pick_gate_tile(tilemap.grid, gate_room_rect)
+    gate_tile_col, gate_tile_row, gate_side = pick_wall_gate(tilemap.grid, gate_room_rect)
 
-    #available = [i for i in range(len(rooms)) if i not in reserved]
-    #if available:
-        # Normal case -- a genuinely separate gate room exists.
-    #    gate_room_index = available[0]
-    #    gate_room_rect = rooms[gate_room_index]
-    #    gx0, gy0, gx1, gy1 = gate_room_rect
-    #    gate_tile_col = (gx0 + gx1) // 2
-    #    gate_tile_row = (gy0 + gy1) // 2
-    #else:
-        # Degenerate case -- reuse the last room, but place the gate
-        # off-center so it never shares a tile with spawn/boss.
-    #    gate_room_index = len(rooms) - 1
-    #    gate_room_rect = rooms[gate_room_index]
-    #    gx0, gy0, gx1, gy1 = gate_room_rect
-    #    gate_tile_col = gx0 + max(1, (gx1 - gx0) // 4)
-    #    gate_tile_row = gy0 + max(1, (gy1 - gy0) // 4)
-
-    enemy_room_indices = [i for i in range(len(rooms))
-                          if i not in reserved and i != gate_room_index]
+    enemy_room_indices = [i for i in range(len(rooms)) if i not in (0, last_idx)]
+    if not enemy_room_indices:
+        enemy_room_indices = list(range(1, len(rooms))) or [0]
     enemy_rooms = [rooms[i] for i in enemy_room_indices]
 
     return {
@@ -236,6 +283,7 @@ def build_procedural_area(rng, area_level, cols=50, rows=38,
         "gate_room_index": gate_room_index,
         "gate_tile_col": gate_tile_col,
         "gate_tile_row": gate_tile_row,
+        "gate_side": gate_side,
         "enemy_rooms": enemy_rooms,
         "area_level": area_level,
     }

@@ -67,15 +67,22 @@ class World:
     def gates_in_area(self, area_id: str) -> list:
         return [g for g in self.gates if g.owner_area_id == area_id]
 
-    def pick_next_gate(self, rng, eligible=None):
-        candidates = self.closed_gates()
-        if eligible is not None:
-            candidates = [g for g in candidates if eligible(g)]
-        if not candidates:
+    def frontier_gate(self):
+        """The ONE gate that evolution uses next: the closed gate of the newest area."""
+        closed = self.closed_gates()
+        if not closed:
             return None
-        starting_candidates = [g for g in candidates if g.is_starting_gate]
-        pool = starting_candidates if starting_candidates else candidates
-        return rng.choice(pool)
+        starting = [g for g in closed if g.is_starting_gate]
+        if starting:
+            return starting[0]
+        order = {e.extension_id: i for i, e in enumerate(self.extensions)}
+        return max(closed, key=lambda g: (order.get(g.owner_area_id, -1), g.gate_id))
+
+    def pick_next_gate(self, rng, eligible=None):
+        g = self.frontier_gate()
+        if g is None or (eligible is not None and not eligible(g)):
+            return None        # frontier guardian still alive -> locked hint
+        return g
 
     def open_gate_to(self, gate, extension_id):
         """Commit a previously-picked gate. Safe no-op on None/already-open."""

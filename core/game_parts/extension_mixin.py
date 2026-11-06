@@ -42,18 +42,9 @@ class ExtensionMixin:
         return WorldExtensionGenerator(backend=procedural, fallback_backend=procedural)
 
     def _starting_gate_site(self):
-        """East side of the gate room, off the entry corridor and the altar,
-        with an open 3x3 around it so the door never blocks a path."""
-        from world.map_generator import _pick_gate_tile
+        from world.map_generator import pick_wall_gate
         area = self.starting_area
-        grid = area.tilemap.grid
-        x0, y0, x1, y1 = area.gate_room
-        c, r = x1 - 2, (y0 + y1) // 2
-        ok = all(grid[r + dr][c + dc] == 0
-                 for dr in (-1, 0, 1) for dc in (-1, 0, 1))
-        if not ok:
-            c, r = _pick_gate_tile(grid, area.gate_room)
-        return c, r, "e"
+        return pick_wall_gate(area.tilemap.grid, area.gate_room) 
 
     def _restamp_gates(self):
         for g in self.world.gates:
@@ -380,10 +371,26 @@ class ExtensionMixin:
         return self.world.pick_next_gate(rng, eligible=None if debug else self._gate_unlocked)
 
     def _locked_hint(self):
-        for g in self.world.closed_gates():
-            if not self._gate_unlocked(g):
-                return f"Defeat the guardian of {self._area_display_name(g.owner_area_id)} to unseal more gates."
+        g = self.world.frontier_gate()
+        if g is not None and not self._gate_unlocked(g):
+            return (f"Defeat the guardian of {self._area_display_name(g.owner_area_id)} "
+                    f"to unseal its gate.")
         return "The world has no sealed door left to open."
+
+
+    def _guide_target(self):
+        """(x, y, label) in world pixels for the pointer arrow, or None."""
+        g = self.world.frontier_gate()
+        if g is None:
+            return None
+        ts = config.TILE_SIZE
+        if self._gate_unlocked(g):
+            return ((g.tile_col + 0.5) * ts, (g.tile_row + 0.5) * ts, "Sealed gate")
+        for b in self.current_area.bosses:
+            if (b.alive and not getattr(b, "is_nemesis", False)
+                    and getattr(b, "region_id", None) == g.owner_area_id):
+                return (b.x, b.y, "Guardian")
+        return None
 
     def _teleport_to_region(self, rid):
         pos = self.current_area.region_start.get(rid)

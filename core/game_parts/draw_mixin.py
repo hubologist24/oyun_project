@@ -6,6 +6,8 @@ import pygame
 import core.config as config
 from core.game_parts.constants import PRESSURE_COLORS
 
+from ui.objective_pointer import draw_objective_pointer
+
 
 class DrawMixin:
 
@@ -57,6 +59,17 @@ class DrawMixin:
 
         boss_for_hud = self._nearest_boss()
         self.damage_numbers.draw(self.screen, self.camera)
+        #self.hud.draw(self.screen, self.player, boss=boss_for_hud, message=self.message)
+
+        if not (self.evolution_banner.visible or self.profile_screen.visible
+                or self.gateway_menu.visible or self.inventory_ui.visible
+                or self.choice_menu.visible):
+            target = self._guide_target()
+            if target:
+                draw_objective_pointer(self.screen, self.camera,
+                                        self.player.x, self.player.y,
+                                        *target)
+
         self.hud.draw(self.screen, self.player, boss=boss_for_hud, message=self.message)
 
         self._draw_dialogue()
