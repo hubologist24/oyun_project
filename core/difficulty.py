@@ -93,9 +93,11 @@ def area_difficulty_mult(area_level: int) -> float:
 def area_loot_mult(area_level: int) -> float:
     """Drop-chance multiplier for items/orbs/stones. +5% per level past 5,
     capped at 4x."""
-    return min(4.0, 1.0 + max(0, area_level - 5) * 0.05)
+    #return min(4.0, 1.0 + max(0, area_level - 5) * 0.05)
+    return min(5.0, 1.0 + max(0, area_level - 5) * 0.08)   # was 0.05 / cap 4
 
 
 def area_quality_mult(area_level: int) -> float:
     """Rarity/affix-count bias multiplier. +3% per level past 5, capped at 3x."""
-    return min(3.0, 1.0 + max(0, area_level - 5) * 0.03)
+    #return min(3.0, 1.0 + max(0, area_level - 5) * 0.03)
+    return min(4.0, 1.0 + max(0, area_level - 5) * 0.06)   # was 0.03 / cap 3

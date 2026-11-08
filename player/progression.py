@@ -5,9 +5,15 @@ make item level / area level reference it without touching Player.
 import core.config as config
 
 
+#def xp_required_for_level(level: int) -> int:
+#    """XP required to go from `level` to `level+1`."""
+#    return int(config.XP_CURVE_BASE * (config.XP_CURVE_GROWTH ** (level - 1)))
+
 def xp_required_for_level(level: int) -> int:
-    """XP required to go from `level` to `level+1`."""
-    return int(config.XP_CURVE_BASE * (config.XP_CURVE_GROWTH ** (level - 1)))
+    base = config.XP_CURVE_BASE * (config.XP_CURVE_GROWTH ** (level - 1))
+    bracket = 1.0 + (level // 10) * config.XP_LEVEL_BRACKET_BONUS
+    early = 1.0 - max(0, config.XP_EARLY_LEVEL_THRESHOLD - level) * config.XP_EARLY_LEVEL_DISCOUNT
+    return max(1, int(base * bracket * early))
 
 
 class Progression:

@@ -7,10 +7,10 @@ from world.tilemap import DOOR_OPEN, DOOR_CLOSED, WALL, FLOOR
 from enemies.enemy import spawn_basic_enemy
 from enemies.boss import Boss, BossTemplate
 
-ENEMY_TILES_PER_MOB = 24     # lower = denser!!!!
-ENEMY_DENSITY_CAP   = 2.0
-ENEMY_ROOM_MAX      = 12
-GATE_SAFE_TILES     = 4
+ENEMY_TILES_PER_MOB = 14          #24 lower = denser!!!!
+ENEMY_DENSITY_CAP   =  3.5           #2.0
+ENEMY_ROOM_MAX      =  20              #12
+GATE_SAFE_TILES     =  4             #4
 
 GAP    = 4    # empty tiles between the gate and the new extension's bounding box
 MARGIN = 2    # required clearance around the extension's bounding box

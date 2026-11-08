@@ -50,7 +50,8 @@ LEVEL_SPEC = {
         "boss_room": (30, 16, 44, 30),
         "gate_room": (16, 16, 26, 24),   # NEW: dedicated small room for the starting gate
     },
-    "enemy_counts": {"arena_a": 8, "arena_b": 11, "arena_c": 10},
+    #"enemy_counts": {"arena_a": 8, "arena_b": 11, "arena_c": 10},
+    "enemy_counts": {"arena_a": 14, "arena_b": 16, "arena_c": 15},  
     "loot_spots": 6,
 }
 

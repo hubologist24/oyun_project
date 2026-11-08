@@ -105,12 +105,24 @@ class LootMixin:
         self.packs.on_member_killed(enemy)
         self.terrain.on_enemy_killed(enemy)
 
+        #diff = self.player.progression.level - enemy.area_level
+        #if diff <= 2:
+        #    xp_mult = min(1.3, 1.0 + 0.05 * max(0, -diff))   # slight bonus for punching up
+        #else:
+        #    xp_mult = max(0.1, 1.0 - 0.15 * (diff - 2))      # grey-out farming
+        #gained = max(1, int(enemy.xp_reward * xp_mult))
+
         diff = self.player.progression.level - enemy.area_level
-        if diff <= 2:
-            xp_mult = min(1.3, 1.0 + 0.05 * max(0, -diff))   # slight bonus for punching up
-        else:
-            xp_mult = max(0.1, 1.0 - 0.15 * (diff - 2))      # grey-out farming
+        if diff < 0:                              # enemy ABOVE you
+            xp_mult = min(2.5, 1.15 + 0.10 * (-diff - 1))
+        elif diff == 0:                           # SAME level → bonus
+            xp_mult = 1.15
+        elif diff <= 2:                           # 1–2 below
+            xp_mult = 1.0 - 0.10 * diff           # 0.90, 0.80
+        else:                                     # way below
+            xp_mult = max(0.05, 0.80 - 0.20 * (diff - 2))
         gained = max(1, int(enemy.xp_reward * xp_mult))
+
         self.player.gain_xp(gained)
         self.damage_numbers.spawn(enemy.x, enemy.y - 45, f"+{gained} XP", (110, 180, 255))
 

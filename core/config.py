@@ -23,8 +23,14 @@ PLAYER_ATTACK_RANGE = 56
 PLAYER_ATTACK_COOLDOWN = 0.45  # seconds
 PLAYER_INVULN_ON_HIT = 0.35
 
-XP_CURVE_BASE = 40
-XP_CURVE_GROWTH = 1.35
+#XP_CURVE_BASE = 40
+#XP_CURVE_GROWTH = 1.35
+
+XP_CURVE_BASE = 100              # was 40
+XP_CURVE_GROWTH = 1.18           # was 1.35 — now matches enemy XP growth
+XP_LEVEL_BRACKET_BONUS = 0.10    # NEW: +10% required XP per 10 levels
+XP_EARLY_LEVEL_THRESHOLD = 5     # NEW: levels below this get a discount
+XP_EARLY_LEVEL_DISCOUNT = 0.10   #
 
 # Enemy
 ENEMY_CONTACT_DAMAGE_COOLDOWN = 0.65
