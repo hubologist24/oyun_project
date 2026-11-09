@@ -4,6 +4,8 @@ from world.expansion import attach_extension,  stamp_door
 from world.extension_generator import WorldExtensionGenerator
 from ui.world_evolution import WorldEvolutionBanner
 
+import math
+
 
 class ExtensionMixin:
 
@@ -41,27 +43,66 @@ class ExtensionMixin:
         print("[Game] Using ProceduralWorldGenerator only.")
         return WorldExtensionGenerator(backend=procedural, fallback_backend=procedural)
 
-    def _starting_gate_site(self):
+    def _starting_gate_site(self, room_name="gate_room"):
         from world.map_generator import pick_wall_gate
         area = self.starting_area
-        return pick_wall_gate(area.tilemap.grid, area.gate_room) 
+        room = getattr(area, room_name, None) or area.gate_room
+        return pick_wall_gate(area.tilemap.grid, room)
 
     def _restamp_gates(self):
         for g in self.world.gates:
             stamp_door(self.current_area, g)
 
     def _ensure_starting_gate_registered(self):
+        from world.gate_seals import SEAL_BOSS
         existing = self.world.gates_in_area("starting_area")
-        if existing:
-            for g in existing:
-                # Move old center gates, but never one that already has a corridor.
-                if g.is_starting_gate and not g.is_open():
-                    g.tile_col, g.tile_row, g.side = self._starting_gate_site()
-                stamp_door(self.starting_area, g)
-            return
-        c, r, side = self._starting_gate_site()
-        gate = self.world.register_starting_gate(0, c, r, side)
-        stamp_door(self.starting_area, gate)
+
+        classic  = next((g for g in existing if g.is_starting_gate), None)
+        gate_50  = next((g for g in existing
+                        if g.seal.get("target_boss") == "The Ancient Guardian"), None)
+        gate_100 = next((g for g in existing
+                        if g.seal.get("target_boss") == "The Hollow Warden"), None)
+
+        # --- classic gate: level requirement removed ---
+        if classic is None:
+            # legacy saves: repurpose any seal-less starting gate as the classic one
+            legacy = next((g for g in existing
+                        if not g.seal.get("target_boss")), None)
+            if legacy is not None:
+                legacy.is_starting_gate = True
+                classic = legacy
+            else:
+                c, r, side = self._starting_gate_site("gate_room")
+                classic = self.world.register_starting_gate(
+                    0, c, r, side, level_requirement=0, is_starting=True)
+
+        # normalize the classic gate regardless of how it was obtained
+        if not classic.seal:
+            from world.gate_seals import build_seal, SEAL_BOSS
+            rng = self.world.rng_service.get_stream("gate_seal")
+            classic.seal = build_seal(SEAL_BOSS, 1, rng, is_starting=True)
+        classic.level_requirement = 0
+        stamp_door(self.starting_area, classic)
+        
+        classic.level_requirement = 0
+        stamp_door(self.starting_area, classic)
+
+        # --- level-50 trial gate ---
+        if gate_50 is None:
+            c, r, side = self._starting_gate_site("gate_room_50")
+            gate_50 = self.world.register_starting_gate(
+                1, c, r, side, level_requirement=50,
+                target_boss="The Ancient Guardian",
+                 is_starting=False)
+        stamp_door(self.starting_area, gate_50)
+
+        # --- level-100 trial gate ---
+        if gate_100 is None:
+            c, r, side = self._starting_gate_site("gate_room_100")
+            gate_100 = self.world.register_starting_gate(
+                2, c, r, side, level_requirement=100,
+                target_boss="The Hollow Warden", is_starting=False)
+        stamp_door(self.starting_area, gate_100)
 
     # ---------------- overcharge ----------------
     def _apply_overcharge_to_spec(self, spec, overcharge):
@@ -359,9 +400,14 @@ class ExtensionMixin:
                                    f"(Area Lvl {ext.spec.area_level})", duration=3.0)
 
     def _gate_unlocked(self, gate):
-        """A region's gate is usable only once that region's boss is dead."""
-        if gate.owner_area_id == "starting_area":
-            return True
+        if gate is None:
+            return False
+        if gate.level_requirement > self.player.progression.level:
+            return False
+        seal = getattr(gate, "seal", None)
+        if seal:
+            return bool(seal.get("ready"))
+        # legacy fallback
         return not any(b.alive and not getattr(b, "is_nemesis", False)
                        and getattr(b, "region_id", None) == gate.owner_area_id
                        for b in self.current_area.bosses)
@@ -372,25 +418,200 @@ class ExtensionMixin:
 
     def _locked_hint(self):
         g = self.world.frontier_gate()
-        if g is not None and not self._gate_unlocked(g):
-            return (f"Defeat the guardian of {self._area_display_name(g.owner_area_id)} "
-                    f"to unseal its gate.")
+        if g is None:
+            return "The world has no sealed door left to open."
+        if g.level_requirement > self.player.progression.level:
+            return (f"The ancient gate is sealed until level "
+                    f"{g.level_requirement} (you are "
+                    f"{self.player.progression.level}).")
+        seal = getattr(g, "seal", None)
+        if seal and not seal.get("ready"):
+            return f"Gate sealed: {seal.get('desc','?')}  {self._seal_progress_text(seal)}"
         return "The world has no sealed door left to open."
 
 
     def _guide_target(self):
-        """(x, y, label) in world pixels for the pointer arrow, or None."""
         g = self.world.frontier_gate()
         if g is None:
             return None
+        if g.level_requirement > self.player.progression.level:
+            ts = config.TILE_SIZE
+            return ((g.tile_col + 0.5) * ts, (g.tile_row + 0.5) * ts,
+                    f"Level {g.level_requirement} gate")
+        seal = getattr(g, "seal", None)
+        if seal and seal.get("type") == "boss" and not seal.get("ready"):
+            for b in self.current_area.bosses:
+                if (b.alive and not getattr(b, "is_nemesis", False)
+                        and getattr(b, "region_id", None) == g.owner_area_id
+                        and not getattr(b, "dormant", False)):
+                    return (b.x, b.y, "Guardian")
         ts = config.TILE_SIZE
-        if self._gate_unlocked(g):
-            return ((g.tile_col + 0.5) * ts, (g.tile_row + 0.5) * ts, "Sealed gate")
-        for b in self.current_area.bosses:
-            if (b.alive and not getattr(b, "is_nemesis", False)
-                    and getattr(b, "region_id", None) == g.owner_area_id):
-                return (b.x, b.y, "Guardian")
-        return None
+        label = seal.get("label", "Gate") if seal else "Gate"
+        return ((g.tile_col + 0.5) * ts, (g.tile_row + 0.5) * ts, label)
+
+
+
+    def _seal_progress_text(self, seal):
+        from world.gate_seals import seal_progress_text
+        return seal_progress_text(seal)
+
+    def _player_near_gate(self, gate, radius):
+        ts = config.TILE_SIZE
+        gx = gate.tile_col * ts + ts / 2
+        gy = gate.tile_row * ts + ts / 2
+        return math.hypot(self.player.x - gx, self.player.y - gy) < radius
+
+    def _tick_gate_seals(self, dt):
+
+        # Ancient Guardian awakens at level 50
+        if (self.current_area_id == "starting_area"
+                and self.player.progression.level >= 50):
+            ancient = getattr(self.starting_area, "ancient_guardian", None)
+            if ancient is not None and ancient.dormant:
+                ancient.dormant = False
+                if ancient not in self.current_area.bosses:
+                    self.current_area.bosses.append(ancient)
+                self._show_message(
+                    "The Ancient Guardian STIRS — a presence older than the world awakens!",
+                    duration=5.0)
+
+
+        if not self.player.alive:
+            return
+        rid = self.current_area_id
+        for gate in self.world.gates_in_area(rid):
+            seal = getattr(gate, "seal", None)
+            if not seal or seal.get("ready"):
+                continue
+            #if gate.level_requirement > self.player.progression.level:
+            #    continue
+            self._update_seal_progress(gate, seal, dt)
+
+    def _update_seal_progress(self, gate, seal, dt):
+        st = seal["type"]
+        if st == "exploration":
+            frac = self.exploration.fraction_for(gate.owner_area_id)
+            seal["progress"] = frac
+            if frac >= seal["target"]:
+                self._complete_seal(gate, seal)
+        elif st == "bargain":
+            if self._player_near_gate(gate, 220):
+                need = seal["target"] - seal["progress"]
+                if need > 0 and self.player.extension_stones > 0:
+                    pay = min(self.player.extension_stones, need)
+                    self.player.extension_stones -= pay
+                    seal["progress"] += pay
+                    self._show_message(
+                        f"Gate accepts {pay} Extension Stone(s) "
+                        f"[{seal['progress']}/{seal['target']}]", duration=2.5)
+                    if seal["progress"] >= seal["target"]:
+                        self._complete_seal(gate, seal)
+        elif st == "trial":
+            if self._player_near_gate(gate, 500):
+                seal["timer"] = max(0.0, (seal["timer"] or 0.0) - dt)
+                if seal["timer"] <= 0.0:
+                    seal["progress"] = 0
+                    seal["timer"] = seal["timer_max"]
+                    self._show_message("Trial failed. Timer reset.", duration=2.0)
+        elif st == "survival":
+            if self._player_near_gate(gate, 420):
+                seal["wave_timer"] = (seal.get("wave_timer") or 0.0) - dt
+                if seal["wave_timer"] <= 0:
+                    self._spawn_survival_wave(gate)
+                    seal["wave_timer"] = 7.0
+        elif st == "corruption":
+            if self._player_near_gate(gate, 800):
+                dmg = max(1, int(self.player.effective_stats.max_hp * 0.015 * dt))
+                self.player.effective_stats.hp = max(
+                    1, self.player.effective_stats.hp - dmg)
+        elif st == "shrines":
+            used = sum(1 for sid in self.world.used_shrines
+                       if sid.startswith(gate.owner_area_id + ":"))
+            seal["progress"] = used
+            if used >= seal["target"]:
+                self._complete_seal(gate, seal)
+
+    def _spawn_survival_wave(self, gate):
+        from enemies.enemy import spawn_basic_enemy
+        rid = gate.owner_area_id
+        ext = self.world.get_extension(rid)
+        lvl = ext.spec.area_level if ext else max(2, self.player.progression.level)
+        rng = self.world.rng_service.get_stream(f"seal_wave:{rid}")
+        tm = self.current_area.tilemap
+        ts = config.TILE_SIZE
+        gx = gate.tile_col * ts + ts / 2
+        gy = gate.tile_row * ts + ts / 2
+        n = min(4, 2 + lvl // 4)
+        for _ in range(n):
+            for _try in range(15):
+                ang = rng.uniform(0, math.tau)
+                dist = rng.uniform(200, 320)
+                x, y = gx + math.cos(ang) * dist, gy + math.sin(ang) * dist
+                import pygame
+                if tm.collides_rect(pygame.Rect(int(x - 14), int(y - 14), 28, 28)):
+                    continue
+                e = spawn_basic_enemy(x, y, rng, area_level=lvl)
+                e.region_id = rid
+                e.is_seal_add = True
+                e._pack_checked = True
+                self.current_area.enemies.append(e)
+                break
+        self._show_message("The seal's wardens rise...", duration=1.5)
+
+    def _complete_seal(self, gate, seal):
+        seal["ready"] = True
+        self._show_message(
+            f"✦ {seal['label']} SEAL BROKEN ✦  {gate.owner_area_id.replace('_',' ').title()}",
+            duration=4.0)
+        self.event_bus.emit("gate_unsealed", gate_id=gate.gate_id)
+        self.crit_bursts.append({
+            "x": (gate.tile_col + 0.5) * config.TILE_SIZE,
+            "y": (gate.tile_row + 0.5) * config.TILE_SIZE,
+            "radius": 140, "life": 0.8, "max_life": 0.8,
+            "color": (255, 220, 120),
+        })
+
+    def _advance_seal_on_kill(self, enemy):
+        rid = self.current_area_id
+        for gate in self.world.gates_in_area(rid):
+            seal = getattr(gate, "seal", None)
+            if not seal or seal.get("ready"):
+                continue
+            #if gate.level_requirement > self.player.progression.level:
+            #    continue
+            st = seal["type"]
+            advance = False
+            if st == "purge":
+                advance = True
+            elif st == "elite_hunt" and enemy.is_elite:
+                advance = True
+            elif st == "survival" and self._player_near_gate(gate, 420):
+                advance = True
+            elif st == "trial" and self._player_near_gate(gate, 500):
+                advance = True
+            elif st == "corruption" and self._player_near_gate(gate, 800):
+                advance = True
+            if advance:
+                seal["progress"] += 1
+                if seal["progress"] >= seal["target"]:
+                    self._complete_seal(gate, seal)
+
+    def _advance_seal_on_boss(self, boss):
+        rid = getattr(boss, "region_id", self.current_area_id)
+        for gate in self.world.gates_in_area(rid):
+            seal = getattr(gate, "seal", None)
+            if not seal or seal.get("ready"):
+                continue
+            st = seal["type"]
+            if st == "boss":
+                target = seal.get("target_boss")
+                if target and boss.name != target:
+                    continue                                  # ← per-gate filtering
+                seal["progress"] = 1
+                self._complete_seal(gate, seal)
+            elif st == "hunt_nemesis" and getattr(boss, "nemesis", None):
+                seal["progress"] = 1
+                self._complete_seal(gate, seal)
 
     def _teleport_to_region(self, rid):
         pos = self.current_area.region_start.get(rid)

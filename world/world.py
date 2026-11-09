@@ -7,6 +7,8 @@ from world.gate import Gate, next_gate_id, reset_gate_id_counter
 import core.config as config
 
 from world.modifier_pool import ModifierPool, load_catalog
+from world.gate_seals import roll_seal_type, build_seal
+
 
 
 class World:
@@ -24,36 +26,35 @@ class World:
         self.modifier_pool = ModifierPool()
 
     # ---------------- gate management ----------------
-    def register_starting_gate(self, room_index: int, tile_col: int, tile_row: int, side="e") -> Gate:
-        """Called once at game startup to register the starting area's
-        reserved (closed) gate slot."""
+    def register_starting_gate(self, room_index, tile_col, tile_row, side="e",
+                           level_requirement=100, target_boss=None,
+                           is_starting=True):
+        from world.gate_seals import SEAL_BOSS, build_seal
+        rng = self.rng_service.get_stream("gate_seal")
+        seal = build_seal(SEAL_BOSS, area_level=1, rng=rng,
+                        is_starting=True, target_boss=target_boss)
         gate = Gate(
             gate_id=next_gate_id(),
             owner_area_id="starting_area",
-            room_index=room_index,
-            tile_col=tile_col,
-            tile_row=tile_row,
-            state="closed",
-            is_starting_gate=True,
-            side=side
+            room_index=room_index, tile_col=tile_col, tile_row=tile_row,
+            state="closed", is_starting_gate=is_starting, side=side,
+            seal=seal, level_requirement=level_requirement,
         )
         self.gates.append(gate)
         return gate
 
-    def register_extension_gate(
-        self, extension_id: str, room_index: int, tile_col: int, tile_row: int, side="e"
-    ) -> Gate:
-        """Called when a new extension is built (ensure_built) to reserve
-        ITS fresh closed gate slot, per spec's 'reserving expansion slots'
-        requirement."""
+    def register_extension_gate(self, extension_id, room_index, tile_col, tile_row,
+                                 side="e", area_level=1):
+        from world.gate_seals import roll_seal_type, build_seal
+        rng = self.rng_service.get_stream(f"gate_seal:{extension_id}")
+        seal_type = roll_seal_type(rng, area_level=area_level)
+        seal = build_seal(seal_type, area_level, rng)
         gate = Gate(
             gate_id=next_gate_id(),
             owner_area_id=extension_id,
-            room_index=room_index,
-            tile_col=tile_col,
-            tile_row=tile_row,
-            state="closed",
-            side=side
+            room_index=room_index, tile_col=tile_col, tile_row=tile_row,
+            state="closed", side=side,
+            seal=seal,
         )
         self.gates.append(gate)
         return gate

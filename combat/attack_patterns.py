@@ -10,7 +10,20 @@ weapon's subtype is the only input that decides the attack type.
 import math
 import pygame
 
+from dataclasses import replace
+
 from items.weapon_subtypes import AttackProfile, WeaponSubtypes
+
+ARC_CAP = {
+    "long_wand":  130.0,
+    "greatsword": 130.0,
+    "short_wand": 120.0,
+}
+RANGE_MULT = {
+    "long_wand":  0.85,
+    "greatsword": 0.90,
+    "short_wand": 0.90,
+}
 
 
 DEFAULT_UNARMED_PROFILE = AttackProfile(
@@ -24,15 +37,18 @@ DEFAULT_UNARMED_PROFILE = AttackProfile(
 )
 
 
-def resolve_attack_profile(player) -> AttackProfile:
-    """
-    Returns the AttackProfile for the player's current weapon.
-    Falls back to a bare-fist profile if no weapon is equipped.
-    """
+def resolve_attack_profile(player):
     weapon = player.equipped.get("weapon")
     subtype = getattr(weapon, "weapon_subtype", None) if weapon else None
     if subtype and WeaponSubtypes.is_valid(subtype):
-        return WeaponSubtypes.attack_profile(subtype)
+        p = WeaponSubtypes.attack_profile(subtype)
+        cap = ARC_CAP.get(subtype)
+        if cap and p.arc_degrees > cap:
+            p = replace(p, arc_degrees=cap)
+        rm = RANGE_MULT.get(subtype)
+        if rm:
+            p = replace(p, range=p.range * rm)
+        return p
     return DEFAULT_UNARMED_PROFILE
 
 
@@ -110,6 +126,10 @@ class PlayerProjectile:
                            self.radius * 2, self.radius * 2)
 
     def update(self, dt: float):
+        speed = math.hypot(self.vx, self.vy)
+        if speed <= 1e-9:                     # ← add
+            self.alive = False
+            return
         step = math.hypot(self.vx, self.vy) * dt
         self.x += self.vx * dt
         self.y += self.vy * dt

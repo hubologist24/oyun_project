@@ -341,7 +341,7 @@ class ReactionSystem:
         elif name == "hemorrhage":
             self._add_dot(target, "bleed", base * 0.4, 4.0, stack=True)
         elif name == "overload":
-            for o in self._nearby(target, 100):
+            for o in self._nearby(target, 75):
                 self._hurt(o, base * 0.9, "lightning", color)
             self._hurt(target, base * 0.9, "lightning", color)
         elif name == "entropy_frost":
@@ -365,7 +365,7 @@ class ReactionSystem:
             for d in stacks:
                 self._dots.remove(d)
             total = base * 1.2 + pool
-            for o in self._nearby(target, 100):
+            for o in self._nearby(target, 80):
                 self._hurt(o, total * 0.5, "fire", color)
             self._hurt(target, total, "fire", color)
 
@@ -386,7 +386,7 @@ class ReactionSystem:
         self._ring(target.x, target.y, 150, color, life=0.5)
 
         if name == "shatterstorm":
-            for o in [target] + self._nearby(target, 150):
+            for o in [target] + self._nearby(target, 120):
                 self._hurt(o, base * 1.8, "cold", color)
                 self._hurt(o, base * 1.2, "lightning", color)
                 if hasattr(o, "apply_stagger"):
@@ -410,7 +410,7 @@ class ReactionSystem:
             g.terrain.add_surface(target.x, target.y, 120, "blight", 8.0, power=base)
 
         elif name == "frozen_rupture":
-            for o in [target] + self._nearby(target, 130):
+            for o in [target] + self._nearby(target, 100):
                 self._hurt(o, base * 1.5, "physical", color)
                 if hasattr(o, "apply_slow"):
                     o.apply_slow(2.5, 0.5)

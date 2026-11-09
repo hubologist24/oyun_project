@@ -44,8 +44,11 @@ class SaveManager:
         game_state["version"] = config.SAVE_VERSION
         game_state["saved_at"] = time.time()
         os.makedirs(self._slot_dir(), exist_ok=True)
-        with open(self._state_path(), "w") as f:
+        path = self._state_path()
+        tmp  = path + ".tmp"                              # ← atomic
+        with open(tmp, "w") as f:
             json.dump(game_state, f, indent=2)
+        os.replace(tmp, path)
         self._update_meta(game_state)
 
     def load(self):
@@ -178,17 +181,10 @@ class SaveManager:
 
     @classmethod
     def delete_slot(cls, slot_id, saves_dir=None):
+        import shutil                                     # ← handle subdirs
         saves_dir = saves_dir or config.SAVES_DIR
         slot_dir = os.path.join(saves_dir, f"slot_{slot_id}")
         if not os.path.isdir(slot_dir):
             return False
-        for entry in os.listdir(slot_dir):
-            try:
-                os.remove(os.path.join(slot_dir, entry))
-            except OSError:
-                pass
-        try:
-            os.rmdir(slot_dir)
-        except OSError:
-            pass
-        return True
+        shutil.rmtree(slot_dir, ignore_errors=True)
+        return not os.path.exists(slot_dir)

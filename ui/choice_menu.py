@@ -69,6 +69,8 @@ class ChoiceMenu:
         if not self._is_armed():
             return True  # swallow early input
         n = len(self._cur["options"])
+        if n == 0:                       # ← add
+            return True
         if pygame.K_1 <= key <= pygame.K_9:
             self._pick(key - pygame.K_1)
         elif key == pygame.K_LEFT:

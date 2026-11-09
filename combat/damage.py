@@ -101,33 +101,7 @@ def level_damage_mult(player_level: int, enemy_level: int) -> float:
     return min(1.25, 1.0 + 0.03 * (-diff))
 
 
-def resolve_damage_sil(base_amount: float, damage_type: str, source_stats,
-                   target_armor: float = 0.0,
-                   world_rules=None, conversion_rules: List[ConversionRule] = None,
-                   target_resistances: Dict[str, float] = None,
-                   target_category: str = "all") -> int:
-    resistances = dict(target_resistances) if target_resistances else {}
-    if target_armor:
-        resistances.setdefault("armor_flat", target_armor)
 
-    # B4: fold resistance_modifier deltas in before mitigation runs.
-    resistances = _apply_resistance_modifiers(resistances, world_rules, target_category)
-
-    instances = [DamageInstance(amount=base_amount, damage_type=damage_type)]
-    instances = apply_conversion(instances, conversion_rules)
-    instances = apply_modifiers(instances, source_stats)
-    instances = apply_resistance(instances, resistances)
-
-    # "taken" applies to the target's category.
-    instances = apply_world_rules(instances, world_rules,
-                                  target_category=target_category, direction="taken")
-    # B4: "dealt" now actually runs. Rules with target="all" apply to any
-    # damage instance (e.g. "Conductive Water" lightning surge).
-    instances = apply_world_rules(instances, world_rules,
-                                  target_category="all", direction="dealt")
-
-    total = sum(i.amount for i in instances)
-    return max(1, int(round(total)))
 
 
 def resolve_damage_breakdown(base_amount, damage_type, source_stats,

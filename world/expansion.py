@@ -148,8 +148,9 @@ def attach_extension(area, ext, gate, rng_service, world):
     if own:
         own[0].room_index, own[0].tile_col, own[0].tile_row, own[0].side = gi, gate_tc, gate_tr, gside
     else:
-        world.register_extension_gate(ext.extension_id, gi, gate_tc, gate_tr, gside)
-
+        #world.register_extension_gate(ext.extension_id, gi, gate_tc, gate_tr, gside)
+        world.register_extension_gate(ext.extension_id, gi, gate_tc, gate_tr,
+                                       gside, area_level=ext.spec.area_level)
     def shift(r):
         return (r[0] + off_c, r[1] + off_r, r[2] + off_c, r[3] + off_r)
 

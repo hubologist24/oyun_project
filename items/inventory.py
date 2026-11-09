@@ -34,6 +34,8 @@ class Inventory:
         return None
 
     def add_item(self, item, cell: Optional[Tuple[int, int]] = None) -> bool:
+        if item.item_id in self.items_by_id:     # ← reject duplicate
+            return False
         if cell is not None:
             if cell in self.grid or not (0 <= cell[0] < self.cols and 0 <= cell[1] < self.rows):
                 return False
@@ -62,6 +64,9 @@ class Inventory:
 
     def move_item(self, from_cell: Tuple[int, int], to_cell: Tuple[int, int]) -> bool:
         if from_cell not in self.grid:
+            return False
+        c, r = to_cell
+        if not (0 <= c < self.cols and 0 <= r < self.rows):   # ← bounds check
             return False
         moving_id = self.grid[from_cell]
         displaced_id = self.grid.get(to_cell)
@@ -104,6 +109,8 @@ class Inventory:
                 item.item_id = _allocate_id()
             seen_ids.add(item.item_id)
             cell = (entry["col"], entry["row"])
+            if cell in inv.grid:                  # ← skip cell collision
+                continue
             inv.grid[cell] = item.item_id
             inv.items_by_id[item.item_id] = item
         return inv

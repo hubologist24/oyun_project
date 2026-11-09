@@ -98,6 +98,7 @@ class Enemy:
 
         # Telegraph state (brute slam / frost nova)
         self._telegraph_timer = 0.0
+        self._time_since_damage = 999.0
         
 
         self._telegraph_pos = None
@@ -118,6 +119,7 @@ class Enemy:
                             self.width, self.height)
 
     def take_damage(self, amount: int,source=None):
+        self._time_since_damage = 0.0
 
         if self.broken_timer > 0:
             amount = int(amount * 1.5)
@@ -196,6 +198,12 @@ class Enemy:
         if not self.alive:
             return
 
+        self._time_since_damage += dt
+        if (self.hp < self.max_hp
+                and self._time_since_damage > 5.0
+                and dist_from_player_placeholder if False else True):
+            pass  # (see below – real check next to `dist` calc)
+
         if self.personality == "berserker":
             self.personality_damage_mult = (
                 1.4 if self.hp < self.max_hp * 0.5 else 1.0)
@@ -220,6 +228,8 @@ class Enemy:
         dx = player.x - self.x
         dy = player.y - self.y
         dist = math.hypot(dx, dy)
+        if self.hp < self.max_hp and self._time_since_damage > 5.0 and dist > 400:
+            self.hp = min(self.max_hp, self.hp + self.max_hp * 0.03 * dt)
 
         # --- telegraph executes when the timer expires ---
         if self._telegraph_timer > 0:

@@ -54,7 +54,8 @@ class Stats:
             primary_damage_type=d.get("primary_damage_type", "physical"),
             armor=d.get("armor", config.PLAYER_BASE_ARMOR),
             speed=d.get("speed", config.PLAYER_SPEED),
-            resistances=d.get("resistances", {}),
+            #resistances=d.get("resistances", {}),
+            resistances=dict(d.get("resistances", {})),
             crit_chance=d.get("crit_chance", 0.05),
             attack_speed_bonus=d.get("attack_speed_bonus", 0.0),
             strength=d.get("strength", 5),
@@ -125,6 +126,6 @@ def compute_effective_stats(base: Stats, equipped_items: list) -> Stats:
 
     if weapon is not None and hasattr(weapon, "primary_damage_type"):
         eff.primary_damage_type = weapon.primary_damage_type()
-
+    eff.max_hp = max(1, eff.max_hp)                    # ← floor before clamp
     eff.clamp_hp()
     return eff

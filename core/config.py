@@ -220,7 +220,7 @@ DIFFICULTY_PRESETS = {
 
 # ---------------- DIFFICULTY ----------------
 # Master slider 0..100 (0 = original game). Change this and re-test.
-DIFFICULTY_PERCENT = 30
+DIFFICULTY_PERCENT = 60
 # Or use a named preset instead (overrides the percent):
 # "original" | "easy" | "normal" | "hard" | "brutal" | "nightmare"
 DIFFICULTY_PRESET = None
@@ -229,8 +229,8 @@ DIFFICULTY_PRESET = None
 # e.g. hard enemies/bosses but generous loot:
 DIFFICULTY_GROUP_PERCENT = {
      "loot": 70,
-      "boss": 70,
-      "enemy": 40,
+      "boss": 100,
+      "enemy": 70,
        "world": 70,
 }
 # Per-knob percent (beats group):
@@ -243,7 +243,7 @@ DIFFICULTY_OVERRIDES = {
 }
 
 # --- Adaptive difficulty (optional) ---
-DIFFICULTY_ADAPTIVE = False          # off by default, preserves existing saves
+DIFFICULTY_ADAPTIVE = True          # off by default, preserves existing saves
 DIFFICULTY_ADAPTIVE_MIN = 0
 DIFFICULTY_ADAPTIVE_MAX = 100
 DIFFICULTY_ADAPTIVE_UP = 2           # % gained per flawless boss

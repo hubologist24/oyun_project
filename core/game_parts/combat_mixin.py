@@ -202,6 +202,66 @@ class CombatMixin:
         targets.extend(b for b in self.current_area.bosses if b.alive)
         return targets
 
+    def _proc_sword_lightning(self, target, damage, world_rules):
+        """Swords launch chain lightning from the struck target.
+        Scales with ranged pierce / fork / chain bonuses so the sword
+        benefits from both melee and projectile gear."""
+        from combat.combat import _enemy_category
+        from combat.damage import resolve_damage
+
+        player = self.player
+        pierce = player.ranged_pierce_bonus()
+        fork   = player.ranged_fork_bonus()
+        chain  = player.ranged_chain_bonus()
+
+        base_dmg = max(2, int(damage * 0.35))
+        extra_targets = 1 + pierce + fork     # minimum +1, grows with stats
+        radius = 180.0 + chain * 20.0
+        jumps = chain
+        hit = {id(target)}
+
+        def bolt(fx, fy, remaining_jumps, dmg_mult):
+            if len(hit) > 14:
+                return
+            cands = []
+            for e in list(self.current_area.enemies) + list(self.current_area.bosses):
+                if not e.alive or id(e) in hit:
+                    continue
+                d = math.hypot(e.x - fx, e.y - fy)
+                if d <= radius:
+                    cands.append((d, e))
+            cands.sort(key=lambda p: p[0])
+            for _, t in cands[:extra_targets]:
+                if id(t) in hit:
+                    continue
+                hit.add(id(t))
+                dmg = resolve_damage(max(1, int(base_dmg * dmg_mult)),
+                                     "lightning", None,
+                                     target_resistances=t.resistances,
+                                     world_rules=world_rules,
+                                     target_category=_enemy_category(t),
+                                     source_category="player")
+                t.take_damage(dmg)
+                self.damage_numbers.spawn(t.x, t.y - 40, f"{dmg}⚡",
+                                          (200, 220, 255))
+                self.crit_bursts.append({
+                    "x": t.x, "y": t.y, "radius": 42,
+                    "life": 0.2, "max_life": 0.2, "color": (200, 220, 255),
+                })
+                if getattr(t, "just_broke", False):
+                    t.just_broke = False
+                    self._show_message(f"{t.name} is BROKEN!", duration=1.2)
+                if not t.alive:
+                    if getattr(t, "is_boss", False):
+                        self._on_boss_killed(t)
+                    else:
+                        self._on_enemy_killed(t)
+                if remaining_jumps > 0:
+                    bolt(t.x, t.y, remaining_jumps - 1, dmg_mult * 0.7)
+
+        bolt(target.x, target.y, jumps, 1.0)
+        self.damage_numbers.spawn(target.x, target.y - 66, "ARC", (255, 240, 120))
+
     def _apply_player_hit(self, target, world_rules, damage_multiplier=1.0, techniques=None,is_melee=False):
         if (self.player.has_keystone("executioner") and getattr(target, "max_hp", 0)
                 and target.hp < target.max_hp * 0.3):
@@ -253,8 +313,14 @@ class CombatMixin:
             
             self.event_bus.emit("boss_attempt_damage")
 
+            #if is_melee and dmg > 0:
+            #    self._try_melee_procs(target, dmg, world_rules)
             if is_melee and dmg > 0:
+                self._try_wall_slam(target, techniques, world_rules)
                 self._try_melee_procs(target, dmg, world_rules)
+                weapon = self.player.equipped.get("weapon")
+                if getattr(weapon, "weapon_subtype", None) == "sword":
+                    self._proc_sword_lightning(target, dmg, world_rules)
             
             
 
@@ -273,9 +339,15 @@ class CombatMixin:
             #if is_melee and dmg > 0:
             #    self._try_melee_procs(target, dmg, world_rules)
 
+            #if is_melee and dmg > 0:
+            #    self._try_wall_slam(target, techniques, world_rules)
+            #    self._try_melee_procs(target, dmg, world_rules)
             if is_melee and dmg > 0:
                 self._try_wall_slam(target, techniques, world_rules)
                 self._try_melee_procs(target, dmg, world_rules)
+                weapon = self.player.equipped.get("weapon")
+                if getattr(weapon, "weapon_subtype", None) == "sword":
+                    self._proc_sword_lightning(target, dmg, world_rules)
 
             if getattr(target, "just_broke", False):
                 target.just_broke = False
@@ -494,8 +566,14 @@ class CombatMixin:
 
                 proj.hit_ids.add(id(target))
                 techs = self.kinetic.projectile_techniques(proj)
+                #self._apply_player_hit(target, proj.world_rules,
+                #                       proj.damage_multiplier, techs)
+
+                traveled = proj.max_range - proj.remaining_range
+                falloff = 1.0 - min(0.6, (traveled / proj.max_range) * 0.6)
                 self._apply_player_hit(target, proj.world_rules,
-                                       proj.damage_multiplier, techs)
+                                       proj.damage_multiplier * falloff, techs)
+
                 self._projectile_on_hit_effects(proj, target)
 
                 # Chain — redirect the projectile toward nearest unhit target

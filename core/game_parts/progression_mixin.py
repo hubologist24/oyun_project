@@ -56,12 +56,12 @@ class ProgressionMixin:
 
         D.set_player_level(level)
 
-        if level % 5 == 0:
+        if level % 3 == 0:
             self.player.extension_stones += 1
             self._show_message(f"Level {level}! Milestone: +1 Extension Stone  "
                                f"(difficulty {D.label()})", duration=4.0)
 
-        if level % 10 == 0:
+        if level % 15 == 0:
             self._milestone_bonus(level)
 
         self._queue_level_choice(level)
@@ -95,7 +95,7 @@ class ProgressionMixin:
     # ---------------- perks / keystones ----------------
     def _queue_level_choice(self, level):
         rng = self.world.rng_service.get_stream("perk_offer")
-        if level % 10 == 0:
+        if level % 15 == 0:
             opts = roll_keystone_offer(self.player.active_keystones(), rng)
             if opts:
                 self.choice_menu.enqueue(f"KEYSTONE  -  Level {level}", opts, self._pick_keystone,

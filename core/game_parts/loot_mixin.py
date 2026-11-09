@@ -101,6 +101,7 @@ class LootMixin:
         if enemy not in self.current_area.enemies:
             return
         self.current_area.enemies.remove(enemy)
+        self._advance_seal_on_kill(enemy)          # NEW
 
         self.packs.on_member_killed(enemy)
         self.terrain.on_enemy_killed(enemy)
@@ -278,6 +279,7 @@ class LootMixin:
         if getattr(boss, "_death_handled", False):
             return
         boss._death_handled = True
+        self._advance_seal_on_boss(boss)           # NEW
         if getattr(boss, "nemesis", None):
             self.nemesis.on_killed(boss)
             return

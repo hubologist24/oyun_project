@@ -4,11 +4,12 @@ Player entity: position, movement, stats, inventory/equipment, combat.
 import pygame
 import time
 import core.config as config
+from items import item
 from player.stats import Stats, compute_effective_stats
 from player.progression import Progression
 from items.inventory import Inventory
 
-from items.equipment_slots import EQUIPMENT_SLOTS, resolve_equip_slot
+from items.equipment_slots import EQUIPMENT_SLOTS, resolve_equip_slot,ITEM_SLOT_TO_EQUIP_SLOTS
 from items.stash import Stash
 
 from items.weapon_subtypes import WeaponSubtypes
@@ -341,7 +342,8 @@ class Player:
         mult = profile.attack_cooldown_multiplier if profile is not None else 1.0
         #self._attack_cooldown_timer = config.PLAYER_ATTACK_COOLDOWN * mult
         spd = getattr(self.effective_stats, "attack_speed_bonus", 0.0)
-        self._attack_cooldown_timer = config.PLAYER_ATTACK_COOLDOWN * mult / (1.0 + spd)
+        denom = max(0.01, 1.0 + spd)                              # ← no zero-div
+        self._attack_cooldown_timer = config.PLAYER_ATTACK_COOLDOWN * mult / denom
 
     def current_attack_profile(self):
         """Attack pattern is bound to the equipped weapon's subtype.
@@ -378,6 +380,10 @@ class Player:
 
         if not self.alive:
              return False
+
+        amount = int(max(0, amount))                              # ← reject negative
+        if amount <= 0:
+            return False
         
         if self._invuln_timer > 0:
             if self._dash_timer > 0 or self._dash_glance_timer > 0:
@@ -425,7 +431,7 @@ class Player:
         if target_slot is None:
             return False
 
-        from items.equipment_slots import ITEM_SLOT_TO_EQUIP_SLOTS
+        #from items.equipment_slots import ITEM_SLOT_TO_EQUIP_SLOTS
         allowed = ITEM_SLOT_TO_EQUIP_SLOTS.get(item.slot, [])
         if target_slot not in allowed:
             return False                                # ← B2: reject wrong slot
@@ -475,6 +481,7 @@ class Player:
             "x": self.x,
             "y": self.y,
             "base_stats": self.base_stats.to_dict(),
+            "current_hp": self.effective_stats.hp,                # ← add
             "progression": self.progression.to_dict(),
             "inventory": self.inventory.to_dict(),
             "extension_stones": self.extension_stones,
@@ -586,16 +593,23 @@ class Player:
         if isinstance(equipped_d, dict):
             for slot, item_dict in equipped_d.items():
                 if item_dict and slot in p.equipped and isinstance(item_dict, dict):
-                    p.equipped[slot] = Item.from_dict(item_dict)
+                    #p.equipped[slot] = Item.from_dict(item_dict)
+                    #if slot in ITEM_SLOT_TO_EQUIP_SLOTS.get(item.slot, []):   # ← guard
+                    #    p.equipped[slot] = item
+                    loaded = Item.from_dict(item_dict)
+                    #p.equipped[slot] = loaded
+                    if slot in ITEM_SLOT_TO_EQUIP_SLOTS.get(loaded.slot, []):
+                        p.equipped[slot] = loaded
         elif isinstance(equipped_d, list):
-            # Legacy/alternate shape: a list of {"slot": ..., "item": ...}
             for entry in equipped_d:
                 if not isinstance(entry, dict):
                     continue
                 slot = entry.get("slot")
                 item_dict = entry.get("item")
                 if slot in p.equipped and isinstance(item_dict, dict):
-                    p.equipped[slot] = Item.from_dict(item_dict)
+                    loaded = Item.from_dict(item_dict)
+                    if slot in ITEM_SLOT_TO_EQUIP_SLOTS.get(loaded.slot, []):
+                        p.equipped[slot] = loaded
 
         p.extension_stones = int(d.get("extension_stones", 0))
 

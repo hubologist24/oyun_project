@@ -260,6 +260,7 @@ class Game(InputMixin, DrawMixin, CombatMixin, LootMixin, ExtensionMixin,
             self._pickup_loot()
             self._update_current_region()
             self._update_region_pressure(dt)
+            self._tick_gate_seals(dt)
             self._update_roaming_spawns(dt)
             self._tick_ambient_events(dt)
             self.exploration.update(dt, self.current_area_id, self.player.x, self.player.y)

@@ -8,6 +8,8 @@ from core.game_parts.constants import PRESSURE_COLORS
 
 from ui.objective_pointer import draw_objective_pointer
 
+from ui.gate_seal_widget import draw_gate_seal_widget
+
 
 class DrawMixin:
 
@@ -71,6 +73,9 @@ class DrawMixin:
                                         *target)
 
         self.hud.draw(self.screen, self.player, boss=boss_for_hud, message=self.message)
+        
+        draw_gate_seal_widget(self.screen, self,
+                              show_detail=getattr(self, "show_seal_detail", False))
 
         self._draw_dialogue()
 
@@ -146,6 +151,33 @@ class DrawMixin:
             pygame.draw.circle(self.screen, (255, 220, 120), pos, proj.radius)
             pygame.draw.circle(self.screen, (255, 255, 255), pos, proj.radius, 1)
 
+    def _short_modifier_effect(self, mod):
+        for rule in mod.get("rules", []):
+            t = rule.get("type")
+            if t == "damage_taken_multiplier":
+                tgt = rule.get("target", "all")
+                dt  = rule.get("damage_type") or "all"
+                m   = rule.get("multiplier", 1.0)
+                sign = "↑" if m > 1 else "↓"
+                return f"{tgt} takes {sign}{int(abs(m-1)*100)}% {dt}"
+            if t == "damage_dealt_multiplier":
+                dt = rule.get("damage_type") or "all"
+                m  = rule.get("multiplier", 1.0)
+                sign = "↑" if m > 1 else "↓"
+                return f"{dt} dmg {sign}{int(abs(m-1)*100)}%"
+            if t == "conversion":
+                return f"{rule['from_type']}→{rule['to_type']} {int(rule['percent']*100)}%"
+            if t == "resistance_modifier":
+                dt = rule.get("damage_type", "?")
+                d  = rule.get("delta", 0.0)
+                sign = "+" if d > 0 else ""
+                return f"{dt} resist {sign}{int(d*100)}%"
+            if t == "tier_override":
+                return f"{rule.get('modifier','?')} tiers shifted"
+            if t == "on_kill_effect":
+                return f"on kill: {rule.get('effect','?')}"
+        return "world rule"
+
     # ---------------------------------------------------------------- CHANGED
     def _draw_region_info(self):
         rid = self.current_area_id
@@ -175,26 +207,29 @@ class DrawMixin:
         pool = self.world.modifier_pool
         counts = pool.polarity_counts()
         lines.append((f"World Attunement [{pool.size()}/{pool.ceiling}]  "
-                      f"+{counts['buff']} \u2212{counts['curse']}",
+                      f"({counts['buff']} blessings, {counts['curse']} curses)",
                       (220, 220, 240), True))
 
-        max_shown = 10 if self.show_region_details else 5
+        max_shown = 999 if self.show_region_details else 4
         shown = 0
         for m in pool.modifiers:
             if shown >= max_shown:
                 remaining = pool.size() - shown
                 if remaining > 0:
-                    lines.append((f"  ... and {remaining} more "
-                                  f"(F4 to {'hide' if self.show_region_details else 'expand'})",
+                    lines.append((f"  ... +{remaining} more  (F4 to expand)",
                                   (150, 150, 160), False))
                 break
             pol = m.get("polarity", "neutral")
             color = (150, 230, 150) if pol == "buff" else (230, 140, 140)
-            tag = "+" if pol == "buff" else ("\u2212" if pol == "curse" else "\u00b7")
-            lines.append((f"  {tag} {m.get('name', '?')}", color, False))
+            tag = "+" if pol == "buff" else ("−" if pol == "curse" else "·")
+            name = m.get("name", "?")
             if self.show_region_details:
+                lines.append((f"  {tag} {name}", color, False))
                 for w in textwrap.wrap(m.get("description", ""), 40):
                     lines.append((f"     {w}", (140, 170, 140), False))
+            else:
+                short = self._short_modifier_effect(m)
+                lines.append((f"  {tag} {name}  —  {short}", color, False))
             shown += 1
 
         # --- what THIS region changed (delta in spec.world_modifiers) ---

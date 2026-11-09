@@ -221,6 +221,8 @@ class InputMixin:
             self._show_profile_screen()
         elif key == pygame.K_F7:
             self._debug_print_world_info()
+        elif key == pygame.K_g:
+            self.show_seal_detail = not getattr(self, "show_seal_detail", False)
         elif key == pygame.K_F8:
             self._show_message(f"World Seed: {self.world.world_seed}  |  "
                              f"Time since last ext: {self.world.seconds_since_last_extension():.0f}s")

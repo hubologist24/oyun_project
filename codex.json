@@ -26,10 +26,10 @@
     "reverse_slash"
   ],
   "technique_uses": {
-    "intercept": 2094,
-    "reverse_slash": 734,
+    "intercept": 2172,
+    "reverse_slash": 838,
     "heavy_reversal": 25,
-    "dash_strike": 143,
+    "dash_strike": 182,
     "perfect_range": 118,
     "retreat_shot": 379
   }

@@ -36,6 +36,9 @@ class Gate:
     opened_at: Optional[float] = None   # wall-clock timestamp when opened
     side: str = "e" 
     overcharge_level: int = 0        # NEW
+    
+    seal: dict = field(default_factory=dict)        # NEW
+    level_requirement: int = 0                       # NEW (0 = none)
 
     def open_to(self, extension_id: str):
         import time
@@ -59,6 +62,8 @@ class Gate:
             "opened_at": self.opened_at,
             "side": self.side,
             "overcharge_level": self.overcharge_level,
+            "seal": self.seal,
+            "level_requirement": self.level_requirement,
         }
 
     @staticmethod
@@ -75,6 +80,8 @@ class Gate:
             opened_at=d.get("opened_at"),
             side=d.get("side", "e"),
             overcharge_level=d.get("overcharge_level", 0),
+            seal=d.get("seal", {}) or {},
+            level_requirement=int(d.get("level_requirement", 0)),
         )
 
 

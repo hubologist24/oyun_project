@@ -49,4 +49,6 @@ class RolledAffix:
     def format_line(self) -> str:
         val = round(self.value, 1) if isinstance(self.value, float) else self.value
         pretty_mod = self.modifier.replace("_", " ").title()
-        return f"[{self.tier}] +{val} {pretty_mod}"
+        sign = "+" if val >= 0 else ""   # ← add
+        #return f"[{self.tier}] +{val} {pretty_mod}"
+        return f"[{self.tier}] {sign}{val} {pretty_mod}"

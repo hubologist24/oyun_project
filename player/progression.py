@@ -22,13 +22,15 @@ class Progression:
         self.xp = xp
 
     def lose_xp_progress(self, fraction: float) -> int:
-        """Death penalty: lose a fraction of progress toward the NEXT level.
-        Never removes an already-earned level."""
+        fraction = max(0.0, min(1.0, float(fraction)))   # ← clamp
         lost = int(self.xp * fraction)
         self.xp = max(0, self.xp - lost)
         return lost    
 
     def add_xp(self, amount: int):
+        amount = max(0, int(amount))                      # ← clamp
+        if amount <= 0:
+            return []
         leveled_up = []
         self.xp += amount
         needed = xp_required_for_level(self.level)

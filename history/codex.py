@@ -127,13 +127,10 @@ class CodexManager:
 
         if event_type == "kinetic_technique":
             name = context.get("name")
-            if name in KINETIC_TECHNIQUES_ALL:
+            if name in KINETIC_TECHNIQUES_ALL:               # ← guard everything
                 self.technique_uses[name] += 1
-                tech_changed = True
-            if name:
-                if name not in self.techniques_discovered:
-                    tech_changed = True
                 self.techniques_discovered.add(name)
+                tech_changed = True
                 if (self.techniques_discovered >= KINETIC_TECHNIQUES_ALL
                         and "technique_master" not in self.unlocked):
                     self.unlocked.add("technique_master")

@@ -111,6 +111,8 @@ class Boss:
         self.blink_trails = []
         self.phase_just_changed = False
 
+        self.dormant = False
+
         self._dash_target = pygame.Vector2(x, y)
         self._facing = pygame.Vector2(0, 1)
         self.projectiles = []
@@ -190,6 +192,9 @@ class Boss:
     def update(self, dt, player, event_bus, world_rules=None):
     
         if not self.alive:
+            return
+
+        if getattr(self, "dormant", False):
             return
 
         for trail in self.blink_trails:
@@ -361,6 +366,9 @@ class Boss:
 
     def draw(self, surface, camera):
         import core.config as config
+
+        if getattr(self, "dormant", False):
+            return
 
     # Blink trails first so the boss renders on top of its own wake.
         for trail in self.blink_trails:

@@ -41,7 +41,7 @@ def _carve_corridor_v(grid, y0, y1, x):
 
 LEVEL_SPEC = {
     "cols": 46,
-    "rows": 34,
+    "rows": 44,
     "rooms": {
         "start": (2, 2, 12, 12),
         "arena_a": (16, 2, 28, 12),
@@ -49,6 +49,8 @@ LEVEL_SPEC = {
         "arena_c": (2, 16, 14, 28),
         "boss_room": (30, 16, 44, 30),
         "gate_room": (16, 16, 26, 24),   # NEW: dedicated small room for the starting gate
+        "gate_room_50":  (2, 32, 14, 42),          # NEW
+        "gate_room_100": (30, 32, 44, 42), 
     },
     #"enemy_counts": {"arena_a": 8, "arena_b": 11, "arena_c": 10},
     "enemy_counts": {"arena_a": 14, "arena_b": 16, "arena_c": 15},  
@@ -69,12 +71,15 @@ class Level:
         for (x0, y0, x1, y1) in rooms.values():
             _carve_room(grid, x0, y0, x1, y1)
 
+        # Unpack all room coordinates here
         sx0, sy0, sx1, sy1 = rooms["start"]
         ax0, ay0, ax1, ay1 = rooms["arena_a"]
         bx0, by0, bx1, by1 = rooms["arena_b"]
         cx0, cy0, cx1, cy1 = rooms["arena_c"]
         bossx0, bossy0, bossx1, bossy1 = rooms["boss_room"]
         gx0, gy0, gx1, gy1 = rooms["gate_room"]
+        g50x0, g50y0, g50x1, g50y1 = rooms["gate_room_50"]
+        g100x0, g100y0, g100x1, g100y1 = rooms["gate_room_100"]
 
         mid_y = (sy0 + sy1) // 2
         _carve_corridor_h(grid, sx1 - 1, ax0 + 1, mid_y)
@@ -90,16 +95,41 @@ class Level:
         gy_mid = (gy0 + gy1) // 2
         _carve_corridor_h(grid, cx1 - 1, gx0 + 1, gy_mid)
 
+        # gate_room_50 is reached from arena_c
+        cx_mid = (cx0 + cx1) // 2
+        _carve_corridor_v(grid, cy1 - 1, g50y0 + 1, cx_mid)
+
+        # gate_room_100 is reached from the boss_room
+        boss_mid = (bossx0 + bossx1) // 2
+        _carve_corridor_v(grid, bossy1 - 1, g100y0 + 1, boss_mid)
+
         self.tilemap = TileMap(grid)
         self.enemies = []
         self.loot_drops = []
 
         self._spawn_enemies()
+        
+        # Main Boss in boss_room
         boss = Boss(*self._room_center(rooms["boss_room"]), BossTemplate.hollow_warden())
         boss.region_id = "starting_area"
         self.bosses = [boss]
+
+        # Ancient Guardian now stands inside gate_room_50
+        ts = config.TILE_SIZE
+        ancient = AncientGuardian(
+            ((g50x0 + g50x1) / 2) * ts,
+            ((g50y0 + g50y1) / 2) * ts
+        )
+        ancient.region_id = "starting_area"
+        ancient.dormant = True
+        self.ancient_guardian = ancient
+
         self.start_pos = self._room_center(rooms["start"])
+        
+        # Store room references
         self.gate_room = rooms["gate_room"]
+        self.gate_room_50 = rooms["gate_room_50"]
+        self.gate_room_100 = rooms["gate_room_100"]
 
         self.region_rects = []          # [(region_id, pygame.Rect in tiles)]
         self.tile_region = {}           # (col,row) -> region_id for carved corridors
@@ -228,7 +258,30 @@ class Level:
             pygame.draw.circle(surface, drop["item"].rarity_color(), pos, 8)
             pygame.draw.circle(surface, (0, 0, 0), pos, 8, 1)
 
-
+# Add new class above build_level:
+class AncientGuardian(Boss):
+    def __init__(self, x, y):
+        from enemies.boss import BossTemplate, BossPhaseConfig
+        template = BossTemplate(
+            name="The Ancient Guardian",
+            max_hp=9000, armor=60,
+            melee_damage=90, ranged_damage=60, dash_damage=130,
+            damage_type="physical",
+            resistances={"armor_flat": 60, "chaos": 0.25},
+            phases=[
+                BossPhaseConfig(hp_threshold=1.0, attack_cooldown=1.0),
+                BossPhaseConfig(hp_threshold=0.6, enables_dash=True,
+                                attack_cooldown=0.8, armor_effectiveness=0.6),
+                BossPhaseConfig(hp_threshold=0.25, enables_dash=True,
+                                enables_blink=True, attack_cooldown=0.5,
+                                armor_effectiveness=0.4,
+                                blink_arrival_damage_ratio=0.8,
+                                enrage_vulnerability_after_dash=1.8),
+            ],
+        )
+        super().__init__(x, y, template)
+        self.dormant = True
+        self.is_ancient = True
 
 def build_level(rng_service) -> Level:
     stream = rng_service.get_stream("starting_area")
