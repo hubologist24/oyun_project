@@ -23,7 +23,7 @@ import itertools
 _gate_id_counter = itertools.count(1)
 
 
-@dataclass
+@dataclass(eq=False)
 class Gate:
     gate_id: int
     owner_area_id: str          # which area this gate physically sits in

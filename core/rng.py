@@ -24,3 +24,7 @@ class RNGService:
     def derive_child(self, parent_stream: str, child_key) -> "random.Random":
         name = f"{parent_stream}:{child_key}"
         return self.get_stream(name)
+
+    def fresh_stream(self, name: str) -> random.Random:
+        """A new Random seeded deterministically — not cached, state-independent."""
+        return random.Random(self._derive_seed(self.world_seed, name))

@@ -47,12 +47,11 @@ class ExtensionSpec:
             "room_count": self.room_count,
             "map_cols": self.map_cols,
             "map_rows": self.map_rows,
-            "loot_rules": self.loot_rules,
-            "boss_personalization": self.boss_personalization,
+            "loot_rules": copy.deepcopy(self.loot_rules),
+            "boss_personalization": copy.deepcopy(self.boss_personalization),
             "overcharge_level": self.overcharge_level,
-            "enemy_behavior_bias": self.enemy_behavior_bias,
-            #size_tier: int = -1 
-             "size_tier": self.size_tier,          # in to_dict
+            "enemy_behavior_bias": copy.deepcopy(self.enemy_behavior_bias),
+            "size_tier": self.size_tier,
         }
 
     @staticmethod
@@ -62,7 +61,8 @@ class ExtensionSpec:
             extension_name=d["extension_name"],
             area_level=d["area_level"],
             biome=d.get("biome", "unknown"),
-            is_anomaly=d.get("is_anomaly", False),
+            #is_anomaly=d.get("is_anomaly", False),
+            is_anomaly = _coerce_bool(d.get("is_anomaly", False)),
             world_modifiers=copy.deepcopy(d.get("world_modifiers", [])),
             boss_template_id=d.get("boss_template_id"),
             room_count=d.get("room_count", 6),
@@ -82,7 +82,8 @@ class Extension:
     def __init__(self, spec: ExtensionSpec, extension_seed: int, created_at: float = None):
         self.spec = spec
         self.extension_seed = extension_seed
-        self.created_at = created_at or time.time()
+        #self.created_at = created_at or time.time()
+        self.created_at = time.time() if created_at is None else created_at
         self.area = None  # built lazily via ensure_built()
         #self.rule_set = WorldRuleSet(
         #    modifiers=[WorldModifier.from_dict(m) for m in spec.world_modifiers]
@@ -94,14 +95,11 @@ class Extension:
         return self.spec.extension_id
 
     def ensure_built(self, rng_service, world=None):
-        """
-        Builds the area lazily if not already generated.
-        The `world` parameter is kept for signature compatibility.
-        """
         if self.area is not None:
             return self.area
         from world.map_generator import build_procedural_area
-        stream = rng_service.derive_child("world", f"extension:{self.extension_id}:area")
+        stream = rng_service.fresh_stream(
+            f"world:extension:{self.extension_id}:area")
         self.area = build_procedural_area(
             stream, area_level=self.spec.area_level,
             cols=self.spec.map_cols, rows=self.spec.map_rows,
@@ -122,3 +120,11 @@ class Extension:
     def from_dict(d):
         spec = ExtensionSpec.from_dict(d["spec"])
         return Extension(spec, d["extension_seed"], created_at=d.get("created_at"))
+
+
+def _coerce_bool(v):
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, str):
+        return v.strip().lower() in ("true", "1", "yes")
+    return bool(v)

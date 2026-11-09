@@ -77,6 +77,8 @@ class LLMWorldGenerator(WorldGenerator):
     def is_available(self) -> bool:
         return self._client is not None
 
+    
+
     def generate_next_extension(self, player_profile: PlayerProfile,
                                  existing_extension_ids: Set[str],
                                  rng) -> Optional[ExtensionSpec]:
@@ -114,7 +116,9 @@ class LLMWorldGenerator(WorldGenerator):
             print(txt[:500] + ("..." if len(txt) > 500 else ""))
 
         parsed = self._parse_json_response(raw_text)
-        if parsed is None:
+        required = {"extension_name", "area_level"}
+        #if parsed is None:
+        if not isinstance(parsed, dict) or not required.issubset(parsed):
             print(f"[LLMWorldGenerator] LLM response was not valid/parseable JSON "
                   f"(provider='{self.provider}').")
             return None
@@ -131,7 +135,8 @@ class LLMWorldGenerator(WorldGenerator):
                 extension_name=str(parsed.get("extension_name", "Unnamed Region")),
                 area_level=int(parsed.get("area_level", player_profile.level + 1)),
                 biome=str(parsed.get("biome", "unknown")),
-                is_anomaly=bool(parsed.get("is_anomaly", False)),
+                #is_anomaly=bool(parsed.get("is_anomaly", False)),
+                is_anomaly = _coerce_bool(parsed.get("is_anomaly", False)),
                 world_modifiers=parsed.get("world_modifiers", []),
                 #boss_template_id=None,
                 boss_template_id="personalized",
@@ -142,24 +147,28 @@ class LLMWorldGenerator(WorldGenerator):
             print(f"[LLMWorldGenerator] Failed to construct ExtensionSpec from parsed JSON: {e}")
             return None
 
-    def _parse_json_response(self, raw_text: str) -> Optional[dict]:
+    def _parse_json_response(self, raw_text):
         if not raw_text:
             return None
         text = raw_text.strip()
         if text.startswith("```"):
-            lines = text.split("\n")
-            lines = [l for l in lines if not l.strip().startswith("```")]
+            lines = [l for l in text.split("\n") if not l.strip().startswith("```")]
             text = "\n".join(lines).strip()
-
         try:
             return json.loads(text)
         except json.JSONDecodeError:
             start = text.find("{")
-            end = text.rfind("}")
-            if start != -1 and end != -1 and end > start:
-                candidate = text[start:end + 1]
-                try:
-                    return json.loads(candidate)
-                except json.JSONDecodeError:
-                    return None
-            return None
+            if start == -1:
+                return None
+            try:
+                obj, _ = json.JSONDecoder().raw_decode(text, start)
+                return obj
+            except json.JSONDecodeError:
+                return None
+
+def _coerce_bool(v):
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            return v.strip().lower() in ("true", "1", "yes")
+        return bool(v)

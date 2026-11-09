@@ -102,11 +102,15 @@ class WorldModifierValidator:
             if not isinstance(r, dict):
                 errors.append(f"rule[{i}] must be a dict"); continue
             t = r.get("type")
-            if t not in SUPPORTED_RULE_TYPES:
-                errors.append(f"rule[{i}] unsupported type '{t}'"); continue
+            #if t not in SUPPORTED_RULE_TYPES:
+            if not isinstance(t, str) or t not in SUPPORTED_RULE_TYPES:
+                errors.append(f"rule[{i}] unsupported type '{t}'"); 
+                continue
 
             if t in ("damage_taken_multiplier", "damage_dealt_multiplier"):
-                if r.get("target", "all") not in VALID_TARGETS:
+                #if r.get("target", "all") not in VALID_TARGETS:
+                target = r.get("target", "all")
+                if not isinstance(target, str) or target not in VALID_TARGETS:
                     errors.append(f"rule[{i}] invalid target")
                 dt = r.get("damage_type")
                 if dt is not None and not DamageTypes.is_valid(dt):
@@ -128,8 +132,11 @@ class WorldModifierValidator:
                     errors.append(f"rule[{i}] invalid scope")
 
             elif t == "tier_override":
-                if r.get("modifier") not in known_mods:
-                    errors.append(f"rule[{i}] unknown tier modifier '{r.get('modifier')}'")
+                mod = r.get("modifier")
+                #if r.get("modifier") not in known_mods:
+                if not isinstance(mod, str) or mod not in known_mods:
+                    #errors.append(f"rule[{i}] unknown tier modifier '{r.get('modifier')}'")
+                    errors.append(f"rule[{i}] unknown tier modifier '{mod}'")
                 tiers = r.get("tiers")
                 if not isinstance(tiers, dict) or not tiers:
                     errors.append(f"rule[{i}] tiers must be a non-empty dict")
@@ -149,12 +156,16 @@ class WorldModifierValidator:
                 if r.get("target", "all") not in VALID_TARGETS:
                     errors.append(f"rule[{i}] invalid target")
                 d = r.get("delta")
-                if not _num(d) or abs(d) > RES_DELTA_LIMIT:
+                #if not _num(d) or abs(d) > RES_DELTA_LIMIT:
+                if not _num(d) or not (abs(d) <= RES_DELTA_LIMIT):
                     errors.append(f"rule[{i}] delta must be within ±{RES_DELTA_LIMIT}")
 
             elif t == "on_kill_effect":
-                if r.get("effect") not in ON_KILL_EFFECTS:
+                eff = r.get("effect")
+                if not isinstance(eff, str) or eff not in ON_KILL_EFFECTS:
                     errors.append(f"rule[{i}] effect must be one of {sorted(ON_KILL_EFFECTS)}")
+                #if r.get("effect") not in ON_KILL_EFFECTS:
+                #    errors.append(f"rule[{i}] effect must be one of {sorted(ON_KILL_EFFECTS)}")
                 if r.get("target", "all") not in (VALID_TARGETS - {"player"}):
                     errors.append(f"rule[{i}] invalid target")
                 if r.get("effect") == "explode":
@@ -186,7 +197,9 @@ class ItemValidator:
         errors = []
         if item_dict.get("slot") not in ItemValidator.VALID_SLOTS:
             errors.append(f"invalid slot '{item_dict.get('slot')}'")
-        for affix in item_dict.get("prefixes", []) + item_dict.get("suffixes", []):
+        #for affix in item_dict.get("prefixes", []) + item_dict.get("suffixes", []):
+        for affix in ((item_dict.get("prefixes") or []) +
+              (item_dict.get("suffixes") or [])):    
             val = affix.get("value")
             if not isinstance(val, (int, float)) or val < 0 or val > ItemValidator.MAX_AFFIX_VALUE:
                 errors.append(f"affix '{affix.get('affix_id')}' has out-of-bounds value {val}")
@@ -232,6 +245,8 @@ class BossValidator:
         if not _num(armor) or not (0 <= armor <= BossValidator.MAX_ARMOR):
             errors.append(f"armor {armor} out of bounds")
         for k, v in (b.get("resistances") or {}).items():
+            if k == "armor_flat":
+                continue
             if not _num(v) or not (-1.0 <= v <= 0.75):
                 errors.append(f"resistance '{k}' {v} out of [-1, 0.75]")
 
@@ -255,7 +270,10 @@ class BossValidator:
                 ae = p.get("armor_effectiveness", 1.0)
                 if not _num(ae) or not (0 <= ae <= 1.0):
                     errors.append(f"phase[{i}] armor_effectiveness must be in [0,1]")
-                if p.get("attack_cooldown", 1.0) < BossValidator.MIN_COOLDOWN:
+
+                cd = p.get("attack_cooldown", 1.0)    
+                #if p.get("attack_cooldown", 1.0) < BossValidator.MIN_COOLDOWN:
+                if not _num(cd) or cd < BossValidator.MIN_COOLDOWN:
                     errors.append(f"phase[{i}] attack_cooldown too low")
                 for tf in ("telegraph_time_melee", "telegraph_time_dash"):
                     if p.get(tf, 0.5) < BossValidator.MIN_TELEGRAPH:

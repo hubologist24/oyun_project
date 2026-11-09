@@ -91,7 +91,8 @@ class WorldExtensionGenerator:
         return ExtensionSpec(
             extension_id=fallback_id,
             extension_name=f"Uncharted Region {index}",
-            area_level=max(1, player_profile.level + 1),
+            #area_level=max(1, player_profile.level + 1),
+            area_level=min(500, max(1, player_profile.level + 1)),
             biome="uncharted",
             is_anomaly=False,
             world_modifiers=[],

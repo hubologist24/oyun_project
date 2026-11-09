@@ -25,8 +25,10 @@ class DamageTypes:
         return cls.load()
 
     @classmethod
-    def is_valid(cls, dtype: str) -> bool:
-        return dtype in cls.load()
+    #def is_valid(cls, dtype: str) -> bool:
+    #    return dtype in cls.load()
+    def is_valid(cls, dtype) -> bool:
+        return isinstance(dtype, str) and dtype in cls.load()
 
 
 PHYSICAL = "physical"

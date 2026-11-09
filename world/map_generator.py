@@ -80,8 +80,10 @@ def enemy_density_mult(area_level):
         lvl 30-39 -> 1.45
         lvl 40+   -> 1.60 (cap)
     """
+    #bracket = area_level // ROOM_BRACKET_SIZE
+    #return 1.0 + min(DENSITY_CAP, bracket * DENSITY_PER_BRACKET)
     bracket = area_level // ROOM_BRACKET_SIZE
-    return 1.0 + min(DENSITY_CAP, bracket * DENSITY_PER_BRACKET)
+    return 1.0 + min(DENSITY_CAP, max(0, bracket) * DENSITY_PER_BRACKET)
 
 
 def _scale_map_for_rooms(cols, rows, extra_rooms):
@@ -189,7 +191,9 @@ def generate_dungeon_grid(rng: random.Random, cols=50, rows=38, room_count=6,
 
     return grid, rooms
 
-    return grid, rooms
+    
+
+
 
 def pick_wall_gate(grid, room, sides=("e", "s")):
     """Returns (col, row, side). The tile is a WALL tile on the room's boundary,
@@ -226,6 +230,16 @@ def pick_wall_gate(grid, room, sides=("e", "s")):
             cands.sort()
             _, r, c = cands[0]
             return c, r, side
+
+
+    # Fallback 1: any wall tile adjacent to a floor near the room
+    for r in range(max(0, y0 - 1), min(rows, y1 + 2)):
+        for c in range(max(0, x0 - 1), min(cols, x1 + 2)):
+            if grid[r][c] == 1:
+                for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    nr, nc = r + dr, c + dc
+                    if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == 0:
+                        return c, r, "e"
 
     c, r = _pick_gate_tile(grid, room)
     return c, r, "e"

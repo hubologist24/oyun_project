@@ -210,7 +210,10 @@ class ProceduralWorldGenerator(WorldGenerator):
         return modifiers
 
     def _build_challenge_modifier(self, hints, rng) -> dict:
+        from combat.damage_types import DamageTypes
         dtype = hints.suggested_challenge_damage_type
+        if not DamageTypes.is_valid(dtype):
+            dtype = "physical"
         delta = round(rng.uniform(0.15, 0.35), 2)
         return {
             "name": f"{dtype.title()}-Warded Denizens",
@@ -230,7 +233,10 @@ class ProceduralWorldGenerator(WorldGenerator):
         damage type -- a new tool rather than a direct nerf reversal,
         per spec: 'The extension creates a problem AND a potential solution.'
         """
+        from combat.damage_types import DamageTypes
         enabling_type = hints.suggested_enabling_damage_type
+        if not DamageTypes.is_valid(enabling_type):
+            enabling_type = "physical"
         return {
             "name": f"Echoes of {enabling_type.title()}",
             "description": f"This region resonates with {enabling_type} energy, "

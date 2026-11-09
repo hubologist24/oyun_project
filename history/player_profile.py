@@ -76,8 +76,12 @@ class PlayerProfile:
 
     @staticmethod
     def from_dict(d):
+        import dataclasses as _dc
         p = PlayerProfile()
-        for k, v in d.items():
-            if hasattr(p, k):
-                setattr(p, k, v)
+        #for k, v in d.items():
+        #    if hasattr(p, k):
+        #        setattr(p, k, v)
+        for f in _dc.fields(PlayerProfile):
+            if f.name in d:
+                setattr(p, f.name, d[f.name])
         return p

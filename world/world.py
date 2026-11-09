@@ -24,6 +24,8 @@ class World:
         self.cleared_regions: set[str] = set()
         self.used_shrines: set[str] = set()
         self.modifier_pool = ModifierPool()
+        from world.gate import reset_gate_id_counter
+        reset_gate_id_counter(1)
 
     # ---------------- gate management ----------------
     def register_starting_gate(self, room_index, tile_col, tile_row, side="e",
@@ -69,7 +71,6 @@ class World:
         return [g for g in self.gates if g.owner_area_id == area_id]
 
     def frontier_gate(self):
-        """The ONE gate that evolution uses next: the closed gate of the newest area."""
         closed = self.closed_gates()
         if not closed:
             return None
@@ -77,7 +78,12 @@ class World:
         if starting:
             return starting[0]
         order = {e.extension_id: i for i, e in enumerate(self.extensions)}
-        return max(closed, key=lambda g: (order.get(g.owner_area_id, -1), g.gate_id))
+        return min(
+            closed,
+            key=lambda g: (g.level_requirement,
+                        -order.get(g.owner_area_id, -1),
+                        g.gate_id),
+        )
 
     def pick_next_gate(self, rng, eligible=None):
         g = self.frontier_gate()
@@ -111,9 +117,16 @@ class World:
 
         # Preserve delta as narrative for the UI; the pool is the source
         # of truth for gameplay. `Extension.rule_set` is intentionally empty.
-        spec.world_modifiers = summary["added"] + [
-            dict(m, _removed=True) for m in summary["removed"]
-        ]
+        #spec.world_modifiers = summary["added"] + [
+        #    dict(m, _removed=True) for m in summary["removed"]
+        #]
+        merged = list(spec.world_modifiers or [])
+        for m in summary["added"]:
+            if m not in merged:
+                merged.append(m)
+        for m in summary["removed"]:
+            merged.append(dict(m, _removed=True))
+        spec.world_modifiers = merged
 
         ext = Extension(spec, extension_seed)
         self.extensions.append(ext)

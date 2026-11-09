@@ -39,7 +39,53 @@ class MockAIWorldGenerator(WorldGenerator):
         self.failure_rate = failure_rate
         self.verbose = verbose
 
-    def generate_next_extension(self, player_profile: PlayerProfile,
+    def generate_next_extension(self, player_profile, existing_extension_ids, rng):
+        prompt = PromptBuilder.build_extension_prompt(player_profile, existing_extension_ids)
+        if self.verbose:
+            print("=== [MockAIWorldGenerator] Prompt that WOULD be sent to an LLM ===")
+            print(prompt[:400] + ("..." if len(prompt) > 400 else ""))
+
+        raw_text = self._fake_llm_response(player_profile, existing_extension_ids, rng)
+
+        if self.verbose:
+            print("=== [MockAIWorldGenerator] Raw 'LLM' response ===")
+            print(raw_text[:400] + ("..." if len(raw_text) > 400 else ""))
+
+        parsed = self._parse_json_response(raw_text)
+        if not isinstance(parsed, dict):
+            print("[MockAIWorldGenerator] Response was not a JSON object.")
+            return None
+
+        required = ("extension_name", "area_level", "world_modifiers")
+        missing = [k for k in required if k not in parsed]
+        if missing:
+            print(f"[MockAIWorldGenerator] Payload missing required fields: {missing}")
+            return None
+
+        try:
+            index = len(existing_extension_ids) + 1
+            extension_id = f"ai_ext_{index}"
+            while extension_id in existing_extension_ids:
+                index += 1
+                extension_id = f"ai_ext_{index}"
+
+            spec = ExtensionSpec(
+                extension_id=extension_id,
+                extension_name=str(parsed.get("extension_name", "Unnamed Region")),
+                area_level=int(parsed.get("area_level", player_profile.level + 1)),
+                biome=str(parsed.get("biome", "unknown")),
+                #is_anomaly=bool(parsed.get("is_anomaly", False)),
+                is_anomaly = _coerce_bool(parsed.get("is_anomaly", False)),
+                world_modifiers=parsed.get("world_modifiers", []),
+                boss_template_id="personalized",
+                room_count=int(parsed.get("room_count", 6)),
+            )
+            return spec
+        except Exception as e:
+            print(f"[MockAIWorldGenerator] Failed to build ExtensionSpec from parsed JSON: {e}")
+            return None
+
+    def generate_next_extension_sil(self, player_profile: PlayerProfile,
                                  existing_extension_ids: Set[str],
                                  rng: random_module.Random) -> Optional[ExtensionSpec]:
         prompt = PromptBuilder.build_extension_prompt(player_profile, existing_extension_ids)
@@ -70,7 +116,8 @@ class MockAIWorldGenerator(WorldGenerator):
                 extension_name=parsed.get("extension_name", "Unnamed Region"),
                 area_level=parsed.get("area_level", player_profile.level + 1),
                 biome=parsed.get("biome", "unknown"),
-                is_anomaly=parsed.get("is_anomaly", False),
+                #is_anomaly=parsed.get("is_anomaly", False),
+                is_anomaly = _coerce_bool(parsed.get("is_anomaly", False)),
                 world_modifiers=parsed.get("world_modifiers", []),
                 #boss_template_id=None,
                 boss_template_id="personalized",
@@ -240,3 +287,10 @@ class MockAIWorldGenerator(WorldGenerator):
                 except json.JSONDecodeError:
                     return None
             return None
+
+def _coerce_bool(v):
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, str):
+        return v.strip().lower() in ("true", "1", "yes")
+    return bool(v)    
