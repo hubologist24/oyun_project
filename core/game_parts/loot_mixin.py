@@ -10,6 +10,8 @@ from core.game_parts.constants import MAX_ON_KILL_DEPTH
 
 from combat.damage import resolve_damage
 
+from world.region_state import RegionState
+
 
 class LootMixin:
 
@@ -26,13 +28,13 @@ class LootMixin:
         self._roam_timer = D.get("roam_interval")
         px, py = self.player.x, self.player.y
 
-        # Mild room-density follow-through: scales with area level/density curve
         area_level = 1
         if self.current_extension_id is not None:
             ext = self.world.get_extension(self.current_extension_id)
             if ext is not None:
                 area_level = ext.spec.area_level
-        roam_cap = int(D.get_int("roam_cap") * min(2.0, area_density_mult(area_level)))
+        roam_cap = int(D.get_int("roam_cap")
+                       * min(2.0, area_density_mult(area_level)))
 
         near = sum(1 for e in self.current_area.enemies
                    if abs(e.x - px) < 1000 and abs(e.y - py) < 1000)
@@ -52,8 +54,11 @@ class LootMixin:
                 continue
             rid = self.current_area.region_at_tile(c, r)
 
-            # Don't feed roamers into a region whose guardian is dead.
             if not self._region_has_living_boss(rid):
+                continue
+
+            rs = self.world.get_region_state(rid)
+            if rs.spawners_destroyed:
                 continue
 
             ext = self.world.get_extension(rid)
@@ -93,8 +98,40 @@ class LootMixin:
     def _on_enemy_fled(self, enemy):
         if enemy in self.current_area.enemies:
             self.current_area.enemies.remove(enemy)
-        self.damage_numbers.spawn(enemy.x, enemy.y - 40, "FLED!", (180, 180, 200))
+        self.damage_numbers.spawn(
+            enemy.x, enemy.y - 40, "FLED!", (180, 180, 200))
         self.event_bus.emit("enemy_fled", name=enemy.name)
+
+        if (enemy.is_elite
+                and not getattr(enemy, "nemesis", None)
+                and not getattr(enemy, "is_spawner", False)
+                and not getattr(enemy, "is_convoy_carrier", False)):
+            self._convert_fled_elite_to_nemesis(enemy)
+
+    def _convert_fled_elite_to_nemesis(self, enemy):
+        from history.nemesis import (
+            Nemesis, make_name, taunt_for, pick_personality,
+        )
+        rng = self.world.rng_service.get_stream("fled_nemesis")
+        nem = Nemesis(
+            name=make_name(enemy.damage_type, rng),
+            damage_type=enemy.damage_type,
+            behavior=enemy.behavior,
+            area_level=enemy.area_level,
+            personality=pick_personality(rng),
+            status="pending",
+            respawn_at=self.world.total_playtime_seconds + 60.0,
+        )
+        nem.taunt = taunt_for(enemy.damage_type, 1, rng)
+        self.nemesis.registry.add(nem)
+
+        rid = getattr(enemy, "region_id", self.current_area_id)
+        rs = self.world.get_region_state(rid)
+        rs.elites_escaped += 1
+
+        self._show_message(
+            f"{enemy.name} escaped — and marked you as prey!",
+            duration=3.5)
 
     # ---------------- kills ----------------
     def _on_enemy_killed(self, enemy, _depth=0):
@@ -102,6 +139,28 @@ class LootMixin:
             return
         self.current_area.enemies.remove(enemy)
         self._advance_seal_on_kill(enemy)          # NEW
+
+        rid_now = getattr(enemy, "region_id", self.current_area_id)
+        if getattr(enemy, "is_spawner", False):
+            remaining = sum(
+                1 for e in self.current_area.enemies
+                if e.alive and getattr(e, "is_spawner", False)
+                and getattr(e, "region_id", None) == rid_now
+            )
+            if remaining == 0:
+                rs = self.world.get_region_state(rid_now)
+                rs.spawners_destroyed = True
+                rs.mark_event_completed("spawner_room")
+                self._show_message(
+                    f"All spawners in {self._area_display_name(rid_now)} "
+                    f"destroyed — roaming spawns suppressed.",
+                    duration=3.5)
+        if getattr(enemy, "is_convoy_carrier", False):
+            rs = self.world.get_region_state(rid_now)
+            rs.convoys_killed += 1
+            rs.mark_event_completed("convoy_hunt")
+            self._show_message(
+                "The convoy's cargo is yours!", duration=3.0)
 
         self.packs.on_member_killed(enemy)
         self.terrain.on_enemy_killed(enemy)
@@ -231,6 +290,94 @@ class LootMixin:
                     if not other.alive:
                         self._on_enemy_killed(other, depth + 1)
 
+
+    def _tick_convoy_escape(self):
+        if self.current_area_id is None:
+            return
+        for carrier in list(self.current_area.enemies):
+            if not getattr(carrier, "is_convoy_carrier", False):
+                continue
+            if not getattr(carrier, "reached_destination", False):
+                continue
+            if not carrier.alive:
+                continue
+            rid = getattr(carrier, "region_id", self.current_area_id)
+            rs = self.world.get_region_state(rid)
+            rs.convoy_escaped = True
+            rs.convoy_respawn_at = self.world.total_playtime_seconds + 90.0
+            self.current_area.enemies.remove(carrier)
+            self._show_message(
+                "The convoy escaped! It will return…", duration=3.0)
+
+    def _tick_convoy_respawn(self):
+        if self.current_area_id is None:
+            return
+        rid = self.current_area_id
+        rs = self.world.get_region_state(rid)
+        if not rs.convoy_escaped:
+            return
+        if self.world.total_playtime_seconds < rs.convoy_respawn_at:
+            return
+        ext = self.world.get_extension(rid)
+        if ext is None:
+            rs.convoy_escaped = False
+            rs.convoy_respawn_at = 0.0
+            return
+        rooms = self.current_area.region_rooms.get(rid, [])
+        types = self.current_area.region_room_types.get(rid, [])
+        if not rooms:
+            rs.convoy_escaped = False
+            rs.convoy_respawn_at = 0.0
+            return
+        from world.expansion import _spawn_convoy
+        n = _spawn_convoy(
+            self.current_area, ext, rid, self.world.rng_service,
+            rooms, types,
+        )
+        rs.convoy_escaped = False
+        rs.convoy_respawn_at = 0.0
+        if n:
+            self._show_message(
+                "The convoy has returned — intercept it!", duration=3.0)
+
+    def _open_shortcut(self, rid):
+        rs = self.world.get_region_state(rid)
+        if rs.shortcut_opened:
+            return False
+        rooms = self.current_area.region_rooms.get(rid, [])
+        if len(rooms) < 2:
+            return False
+        entry, boss_room = rooms[0], rooms[-1]
+        ec = ((entry[0] + entry[2]) // 2, (entry[1] + entry[3]) // 2)
+        bc = ((boss_room[0] + boss_room[2]) // 2,
+              (boss_room[1] + boss_room[3]) // 2)
+        grid = self.current_area.tilemap.grid
+        rows = len(grid)
+        cols = len(grid[0]) if rows else 0
+
+        def carve_col(col, row_range, width=2):
+            for row in range(row_range[0], row_range[1] + 1):
+                for dc in range(width):
+                    c = col + dc
+                    if 0 <= row < rows and 0 <= c < cols:
+                        grid[row][c] = 0
+
+        def carve_row(row, col_range, width=2):
+            for col in range(col_range[0], col_range[1] + 1):
+                for dr in range(width):
+                    r = row + dr
+                    if 0 <= r < rows and 0 <= col < cols:
+                        grid[r][col] = 0
+
+        carve_row(ec[1], (min(ec[0], bc[0]), max(ec[0], bc[0])))
+        carve_col(bc[0], (min(ec[1], bc[1]), max(ec[1], bc[1])))
+
+        rs.shortcut_opened = True
+        self._show_message(
+            f"A shortcut opens in {self._area_display_name(rid)}!",
+            duration=3.0)
+        return True
+    
     def _roll_boss_loot(self, source, level, world_rules, rng,
                         world_boss: bool = False, loot_rules_override=None):
         """Shared loot roll for bosses AND nemesis kills. global_mult scales
@@ -337,8 +484,59 @@ class LootMixin:
         lvl = max(self.player.progression.level, ext.spec.area_level if ext else 3) + 2
         rng = self.world.rng_service.get_stream("boss_loot")
         self._roll_boss_loot(boss, lvl, rules, rng, world_boss=False)
+        #self.world.cleared_regions.add(rid)
+        #self._on_region_pacified_home(rid)
         self.world.cleared_regions.add(rid)
+        removed = self.terrain.clear_region(rid, hostile_only=True)
+        rs = self.world.get_region_state(rid)
+        rs.corruption_cleared = True
+        rs.bosses_killed += 1
+        if removed:
+            self._show_message(
+                f"The region's corruption recedes ({removed} hazard"
+                f"{'s' if removed != 1 else ''} cleared).",
+                duration=3.0)
+
+        self._open_shortcut(rid)
         self._on_region_pacified_home(rid)
+
+
+
+    def _tick_spawner(self, spawner, dt):
+        timer = getattr(spawner, "_add_timer", None)
+        if timer is None:
+            spawner._add_timer = 3.0 + (0.5 * (id(spawner) % 4))
+            return
+        spawner._add_timer = timer - dt
+        if spawner._add_timer > 0:
+            return
+        spawner._add_timer = 4.0
+
+        rid = getattr(spawner, "region_id", self.current_area_id)
+        alive_adds = sum(
+            1 for e in self.current_area.enemies
+            if e.alive and getattr(e, "is_add", False)
+            and getattr(e, "region_id", None) == rid
+        )
+        if alive_adds >= 6:
+            return
+
+        from enemies.enemy import spawn_basic_enemy
+        rng = self.world.rng_service.get_stream(f"spawner_adds:{rid}")
+        try:
+            e = spawn_basic_enemy(
+                spawner.x + rng.randint(-30, 30),
+                spawner.y + 30 + rng.randint(-10, 10),
+                rng, area_level=spawner.area_level,
+                force_behavior="swarmer",
+            )
+            e.region_id = rid
+            e.is_add = True
+            e.xp_reward = 2
+            e._pack_checked = True
+            self.current_area.enemies.append(e)
+        except Exception as ex:
+            print(f"[spawner] add spawn failed: {ex}")
 
     def _pickup_loot(self):
         px, py = self.player.x, self.player.y

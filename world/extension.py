@@ -94,10 +94,14 @@ class Extension:
     def extension_id(self):
         return self.spec.extension_id
 
-    def ensure_built(self, rng_service, world=None):
+    def ensure_built(self, rng_service, world=None, gate=None):
         if self.area is not None:
             return self.area
         from world.map_generator import build_procedural_area
+        seal_type = None
+        if gate is not None:
+            seal = getattr(gate, "seal", None) or {}
+            seal_type = seal.get("type")
         stream = rng_service.fresh_stream(
             f"world:extension:{self.extension_id}:area")
         self.area = build_procedural_area(
@@ -106,8 +110,15 @@ class Extension:
             room_count=self.spec.room_count,
             boss_room=(self.spec.boss_template_id is not None),
             extra_rooms=(self.spec.size_tier if self.spec.size_tier >= 0 else None),
+            biome=self.spec.biome,
+            seal_type=seal_type,
         )
         return self.area
+        #self.area = build_validated_area(rng_service, self.spec, self.extension_id,
+        #                             seal_type=seal_type)
+        # may need to validate with bot in future
+
+    
 
     def to_dict(self):
         return {

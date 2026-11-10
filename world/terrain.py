@@ -43,16 +43,65 @@ class TerrainSystem:
     def clear_hostile(self):
         self.surfaces = [s for s in self.surfaces if s["kind"] not in ("fire", "rot")]
 
+    def clear_region(self, region_id: str, hostile_only: bool = True) -> int:
+        before = len(self.surfaces)
+        if hostile_only:
+            self.surfaces = [
+                s for s in self.surfaces
+                if s.get("region_id") != region_id
+                or s["kind"] not in ("fire", "rot", "blight")
+            ]
+        else:
+            self.surfaces = [
+                s for s in self.surfaces
+                if s.get("region_id") != region_id
+            ]
+        return before - len(self.surfaces)
+    
+    
+    def drain_pending(self, area, region_id: str) -> int:
+        """Add any pending_terrain surfaces for `region_id`.
+
+        Skips surfaces whose coordinates already match an existing surface
+        of the same kind (idempotent across re-entries). Returns the number
+        of surfaces added.
+        """
+        pending = getattr(area, "pending_terrain", None)
+        if not pending:
+            return 0
+        added = 0
+        for p in pending:
+            if p.get("region_id") != region_id:
+                continue
+            exists = any(
+                s["kind"] == p["kind"]
+                and math.hypot(s["x"] - p["x"], s["y"] - p["y"]) < 30
+                for s in self.surfaces
+            )
+            if exists:
+                continue
+            self.add_surface(
+                p["x"], p["y"], p["radius"], p["kind"],
+                p["duration"], power=p.get("power", 6),
+                region_id=region_id,
+            )
+            added += 1
+        return added
+     
     # ---------------- creation / queries ----------------
-    def add_surface(self, x, y, radius, kind, duration, power=6):
+    def add_surface(self, x, y, radius, kind, duration, power=6, region_id=None):
         for s in self.surfaces:
-            if s["kind"] == kind and math.hypot(s["x"] - x, s["y"] - y) < radius * 0.5:
+            if (s["kind"] == kind
+                    and math.hypot(s["x"] - x, s["y"] - y) < radius * 0.5):
                 s["left"] = max(s["left"], duration)
                 s["power"] = max(s["power"], power)
+                if region_id and not s.get("region_id"):
+                    s["region_id"] = region_id
                 return s
         s = {"x": x, "y": y, "r": radius, "kind": kind, "left": duration,
              "power": max(4, power), "arm": KINDS[kind]["arm"],
-             "acc": 0.0, "n": 0, "last_conv": -99.0}
+             "acc": 0.0, "n": 0, "last_conv": -99.0,
+             "region_id": region_id}
         self.surfaces.append(s)
         if len(self.surfaces) > MAX_SURFACES:
             self.surfaces.pop(0)

@@ -4,6 +4,8 @@ from world.expansion import attach_extension,  stamp_door
 from world.extension_generator import WorldExtensionGenerator
 from ui.world_evolution import WorldEvolutionBanner
 
+from world.gate_tiers import GATE_TIERS
+
 import math
 
 
@@ -54,56 +56,53 @@ class ExtensionMixin:
             stamp_door(self.current_area, g)
 
     def _ensure_starting_gate_registered(self):
-        from world.gate_seals import SEAL_BOSS
         existing = self.world.gates_in_area("starting_area")
 
         classic  = next((g for g in existing if g.is_starting_gate), None)
         gate_50  = next((g for g in existing
-                        if g.seal.get("target_boss") == "The Ancient Guardian"), None)
+                        if g.seal.get("target_boss") == "The Ancient Guardian"),
+                        None)
         gate_100 = next((g for g in existing
-                        if g.seal.get("target_boss") == "The Hollow Warden"), None)
+                        if g.seal.get("target_boss") == "The Hollow Warden"),
+                        None)
 
-        # --- classic gate: level requirement removed ---
         if classic is None:
-            # legacy saves: repurpose any seal-less starting gate as the classic one
             legacy = next((g for g in existing
-                        if not g.seal.get("target_boss")), None)
+                          if not g.seal.get("target_boss")), None)
             if legacy is not None:
                 legacy.is_starting_gate = True
                 classic = legacy
             else:
                 c, r, side = self._starting_gate_site("gate_room")
                 classic = self.world.register_starting_gate(
-                    0, c, r, side, level_requirement=0, is_starting=True)
+                    0, c, r, side, level_requirement=0, is_starting=True,
+                    tier="safe", tier_index=0)
 
-        # normalize the classic gate regardless of how it was obtained
         if not classic.seal:
             from world.gate_seals import build_seal, SEAL_BOSS
             rng = self.world.rng_service.get_stream("gate_seal")
             classic.seal = build_seal(SEAL_BOSS, 1, rng, is_starting=True)
         classic.level_requirement = 0
-        stamp_door(self.starting_area, classic)
-        
-        classic.level_requirement = 0
+        classic.tier, classic.tier_index = "safe", 0
         stamp_door(self.starting_area, classic)
 
-        # --- level-50 trial gate ---
         if gate_50 is None:
             c, r, side = self._starting_gate_site("gate_room_50")
             gate_50 = self.world.register_starting_gate(
                 1, c, r, side, level_requirement=50,
-                target_boss="The Ancient Guardian",
-                 is_starting=False)
+                target_boss="The Ancient Guardian", is_starting=False,
+                tier="dangerous", tier_index=2)
+        gate_50.tier, gate_50.tier_index = "dangerous", 2
         stamp_door(self.starting_area, gate_50)
 
-        # --- level-100 trial gate ---
         if gate_100 is None:
             c, r, side = self._starting_gate_site("gate_room_100")
             gate_100 = self.world.register_starting_gate(
                 2, c, r, side, level_requirement=100,
-                target_boss="The Hollow Warden", is_starting=False)
+                target_boss="The Hollow Warden", is_starting=False,
+                tier="extreme", tier_index=3)
+        gate_100.tier, gate_100.tier_index = "extreme", 3
         stamp_door(self.starting_area, gate_100)
-
     # ---------------- overcharge ----------------
     def _apply_overcharge_to_spec(self, spec, overcharge):
         rng = self.world.rng_service.get_stream("overcharge")
@@ -167,34 +166,109 @@ class ExtensionMixin:
 
     # ---------------- extension offer flow ----------------
     def _generate_next_extension(self, mode=config.EXTENSION_MODE_MANUAL):
-        """
-        Two-phase: STAGE a spec and show the offer banner. The world is
-        not mutated until the player accepts (_accept_pending_extension).
-
-        mode: 'manual', 'automatic', or 'debug' (bypasses playtime gate
-        but NOT validation).
-        """
         if self._pending_extension_spec is not None:
             return
-        debug = (mode == config.EXTENSION_MODE_DEBUG)
-        if not debug and self.player.extension_stones <= 0:
-            self._show_message("No Extension Stones left. Bosses and elites may drop more.")
-            return
-        preview_gate = self._pick_gate(debug)
-        if preview_gate is None:
+
+        eligible = self._eligible_gates()
+        if not eligible:
             self._show_message(self._locked_hint(), duration=3.0)
             return
 
+        debug = (mode == config.EXTENSION_MODE_DEBUG)
+        if not debug and self.player.extension_stones <= 0:
+            self._show_message(
+                "No Extension Stones left. Bosses and elites may drop more.")
+            return
+
+        if len(eligible) == 1:
+            self._begin_extension_for_gate(eligible[0], mode)
+        else:
+            self._show_gate_choice_menu(eligible, mode)
+
+    def _eligible_gates(self):
+        return [
+            g for g in self.world.gates_in_area(self.current_area_id)
+            if g.state == "closed" and self._gate_unlocked(g)
+        ]
+
+    def _show_gate_choice_menu(self, gates, mode):
+        entries = []
+        for gate in gates:
+            tier_id = getattr(gate, "tier", "standard") or "standard"
+            tier = GATE_TIERS.get(tier_id, GATE_TIERS["standard"])
+            seal = gate.seal or {}
+            preview_level = max(
+                1, self.player.progression.level + tier["level_offset"])
+            entries.append({
+                "label": f"{tier['dest_prefix']}  (Area Lvl ~{preview_level})",
+                "tier": tier_id,
+                "description": tier["description"],
+                "seal_desc": (
+                    f"Seal: {seal.get('desc', '?')}  "
+                    f"[{self._seal_progress_text(seal)}]"
+                ),
+                "gate": gate,
+                "gate_id": gate.gate_id,
+            })
+
+        self._pending_evolution_mode = mode
+        self.gateway_menu.show(
+            entries,
+            mode="generate",
+            title="CHOOSE YOUR DESTINATION",
+            subtitle="Each gate leads somewhere with different character.",
+            cancellable=True,
+        )
+
+    def _handle_gate_choice(self, gate):
+        if gate is None:
+            return
+        self.gateway_menu.hide()
+        mode = self._pending_evolution_mode or config.EXTENSION_MODE_MANUAL
+        self._begin_extension_for_gate(gate, mode)
+
+    def _begin_extension_for_gate(self, gate, mode):
         existing_ids = {ext.extension_id for ext in self.world.extensions}
         rng = self.world.rng_service.get_stream("extension_selection")
         profile = self._current_profile()
         spec = self.extension_generator.generate(profile, existing_ids, rng)
 
+        self._apply_gate_tier_to_spec(spec, gate, rng)
+
         self._pending_extension_spec = spec
-        self._pending_gate = preview_gate
+        self._pending_gate = gate
         self._pending_evolution_mode = mode
         self._pending_rerolls_left = config.REROLL_CAP
         self._refresh_evolution_banner()
+
+    def _apply_gate_tier_to_spec(self, spec, gate, rng):
+        tier_id = getattr(gate, "tier", "standard") or "standard"
+        tier = GATE_TIERS.get(tier_id, GATE_TIERS["standard"])
+        player_level = self.player.progression.level
+
+        spec.area_level = max(1, player_level + tier["level_offset"])
+
+        if tier_id == "extreme":
+            spec.is_anomaly = True
+
+        if not spec.loot_rules:
+            spec.loot_rules = {}
+        else:
+            spec.loot_rules = dict(spec.loot_rules)
+        spec.loot_rules["rare_chance_multiplier"] = (
+            spec.loot_rules.get("rare_chance_multiplier", 1.0) * tier["loot_mult"])
+        spec.loot_rules["six_mod_chance_multiplier"] = (
+            spec.loot_rules.get("six_mod_chance_multiplier", 1.0)
+            * tier["loot_mult"])
+
+        if not spec.boss_personalization:
+            spec.boss_personalization = {}
+        else:
+            spec.boss_personalization = dict(spec.boss_personalization)
+        spec.boss_personalization["difficulty_bias"] = tier["boss_bias"]
+
+        if tier_id == "safe" and len(spec.world_modifiers) > 1:
+            spec.world_modifiers = spec.world_modifiers[:1]
 
     def _refresh_evolution_banner(self):
         spec = self._pending_extension_spec
@@ -285,8 +359,12 @@ class ExtensionMixin:
         attach_extension(self.current_area, extension, gate,
                          self.world.rng_service, self.world)
 
-        #attach_extension(self.current_area, extension, gate,
-        #                 self.world.rng_service, self.world)
+        self.exploration.register_region_rooms(
+            spec.extension_id,
+            self.current_area.region_rooms.get(spec.extension_id, []),
+            self.current_area.region_secret_rooms.get(spec.extension_id, set()),
+        )
+
         self._restamp_gates()
 
         if overcharge > 0:
@@ -318,7 +396,10 @@ class ExtensionMixin:
 
     def _reroll_pending_extension(self):
         if self._pending_rerolls_left <= 0:
-            self._show_message("No rerolls remaining. Accept or push back.", duration=2.0)
+            self._show_message(
+                "No rerolls remaining. Accept or push back.", duration=2.0)
+            return
+        if self._pending_gate is None:
             return
 
         self._pending_rerolls_left -= 1
@@ -327,12 +408,9 @@ class ExtensionMixin:
         rng = self.world.rng_service.get_stream("extension_selection")
         profile = self._current_profile()
         spec = self.extension_generator.generate(profile, existing_ids, rng)
-
-        preview_gate = self._pick_gate(self._pending_evolution_mode == config.EXTENSION_MODE_DEBUG)
+        self._apply_gate_tier_to_spec(spec, self._pending_gate, rng)
 
         self._pending_extension_spec = spec
-        self._pending_gate = preview_gate
-        # mode intentionally preserved across rerolls.
         self._refresh_evolution_banner()
 
     def _discard_pending_extension(self):
@@ -382,6 +460,7 @@ class ExtensionMixin:
             self._generate_next_extension(mode=config.EXTENSION_MODE_AUTOMATIC)
 
     # ---------------- gates / travel ----------------
+    
     def _update_current_region(self):
         ts = config.TILE_SIZE
         rid = self.current_area.region_at_tile(int(self.player.x // ts),
@@ -390,6 +469,10 @@ class ExtensionMixin:
             return
         self.current_area_id = rid
         self.current_extension_id = None if rid == "starting_area" else rid
+
+        self.terrain.drain_pending(self.current_area, rid)
+        self._on_region_entered(rid)
+
         self.event_bus.emit("area_entered", area_id=rid)
         if rid == "starting_area":
             self._show_message("Entering the Starting Region")
@@ -399,6 +482,46 @@ class ExtensionMixin:
                 self._show_message(f"Entering {ext.spec.extension_name} "
                                    f"(Area Lvl {ext.spec.area_level})", duration=3.0)
 
+
+
+    def _on_region_entered(self, rid):
+        if rid not in self.exploration.region_rooms:
+            rooms = self.current_area.region_rooms.get(rid, [])
+            if rooms:
+                self.exploration.register_region_rooms(
+                    rid, rooms,
+                    self.current_area.region_secret_rooms.get(rid, set()),
+                )
+
+    def _mark_current_room_visited(self):
+        rid = self.current_area_id
+        if rid is None or rid == "starting_area":
+            return
+        ts = config.TILE_SIZE
+        col = int(self.player.x // ts)
+        row = int(self.player.y // ts)
+        idx = self.exploration.room_index_at_tile(rid, col, row)
+        if idx is None:
+            return
+        if self.exploration.mark_room_visited(rid, idx):
+            self._on_room_discovered(rid, idx)
+
+    def _on_room_discovered(self, rid, idx):
+        from world.room_graph import RoomType
+        types = self.current_area.region_room_types.get(rid, [])
+        if idx >= len(types):
+            return
+        if types[idx] == RoomType.SECRET:
+            self._show_message("You discovered a SECRET CHAMBER!", duration=4.0)
+            self.crit_bursts.append({
+                "x": self.player.x, "y": self.player.y,
+                "radius": 140, "life": 0.8, "max_life": 0.8,
+                "color": (200, 220, 255),
+            })
+            self.event_bus.emit("secret_discovered",
+                                region_id=rid, room_index=idx)
+    
+                
     def _gate_unlocked(self, gate):
         if gate is None:
             return False
@@ -577,13 +700,15 @@ class ExtensionMixin:
             seal = getattr(gate, "seal", None)
             if not seal or seal.get("ready"):
                 continue
-            #if gate.level_requirement > self.player.progression.level:
-            #    continue
             st = seal["type"]
             advance = False
             if st == "purge":
                 advance = True
             elif st == "elite_hunt" and enemy.is_elite:
+                advance = True
+            elif st == "destroy_spawners" and getattr(enemy, "is_spawner", False):
+                advance = True
+            elif st == "hunt_convoy" and getattr(enemy, "is_convoy_carrier", False):
                 advance = True
             elif st == "survival" and self._player_near_gate(gate, 420):
                 advance = True

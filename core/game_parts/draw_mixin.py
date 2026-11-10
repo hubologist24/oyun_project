@@ -72,10 +72,12 @@ class DrawMixin:
                                         self.player.x, self.player.y,
                                         *target)
 
-        self.hud.draw(self.screen, self.player, boss=boss_for_hud, message=self.message)
-        
+        self.hud.draw(self.screen, self.player, boss=boss_for_hud,
+                      message=self.message)
+
         draw_gate_seal_widget(self.screen, self,
-                              show_detail=getattr(self, "show_seal_detail", False))
+                              show_detail=getattr(self, "show_seal_detail", False),
+                              multi_gate_hint=self._gate_count_hint())
 
         self._draw_dialogue()
 
@@ -114,6 +116,12 @@ class DrawMixin:
         y = config.SCREEN_HEIGHT - 130
         self.screen.blit(bg, (x, y))
         self.screen.blit(txt, (x + 12, y + 6))
+
+
+    def _gate_count_hint(self):
+        gates = self.world.gates_in_area(self.current_area_id)
+        closed = sum(1 for g in gates if g.state == "closed")
+        return closed if closed > 1 else 0
 
     def _draw_swing_fx(self):
         from world import swing_fx
@@ -271,6 +279,12 @@ class DrawMixin:
         lines.append((f"Explored {self.exploration.fraction_for(rid) * 100:.0f}%   "
                       f"(F4: {'less' if self.show_region_details else 'more'})",
                       (150, 150, 160), False))
+
+        rooms_total = self.exploration.rooms_total_for(rid)
+        if rooms_total > 0:
+            rooms_seen = self.exploration.rooms_discovered_for(rid)
+            lines.append((f"Rooms found: {rooms_seen}/{rooms_total}",
+                          (200, 220, 255), False))
 
         # --- panel ---
         h = 16 + sum(22 if b else 18 for _, _, b in lines)

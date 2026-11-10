@@ -321,6 +321,66 @@ class LootChest(Shrine):
         return "Chest opened: " + (", ".join(got) if got else "empty")
 
 
+
+class VaultChest(Shrine):
+    def draw(self, surface, camera):
+        sx, sy = camera.world_to_screen((self.x, self.y))
+        if self.used:
+            col, lid = (70, 55, 40), (50, 40, 30)
+        else:
+            col, lid = (200, 160, 60), (240, 220, 120)
+        pygame.draw.rect(surface, col, (sx - 14, sy - 8, 28, 18), border_radius=3)
+        pygame.draw.rect(surface, lid, (sx - 14, sy - 12, 28, 8), border_radius=2)
+        pygame.draw.rect(surface, (40, 30, 20), (sx - 3, sy - 4, 6, 10))
+        if not self.used:
+            for i in range(3):
+                a = self.anim * 2 + i * math.tau / 3
+                px = sx + int(math.cos(a) * 18)
+                py = sy - 16 + int(math.sin(a) * 4)
+                pygame.draw.circle(surface, (255, 240, 180), (px, py), 2)
+            pygame.draw.circle(surface, (200, 130, 40), (sx, sy - 16), 3)
+
+    def interact(self, game) -> str:
+        if self.used:
+            return "The vault is empty."
+        player = game.player
+        rng = game.world.rng_service.get_stream(f"vault:{self.area_id}")
+        rules = game._active_world_rules()
+        from items.item_generator import generate_random_item
+        from world.loot_rules import LootRules
+        from core.difficulty import D
+
+        got = []
+        for i in range(2):
+            quality = D.get("loot_quality_mult") * 1.6
+            loot_rules = LootRules(rare_chance_multiplier=quality,
+                                   six_mod_chance_multiplier=quality * 1.2)
+            force = (3, 3) if i == 0 else None
+            loot = generate_random_item(
+                rng, area_level=max(1, player.progression.level + 2),
+                world_context={
+                    "world_rules": rules,
+                    "loot_rules": loot_rules,
+                    "extension_id": self.area_id,
+                },
+                force_affix_counts=force,
+            )
+            if player.inventory.add_item(loot):
+                got.append(loot.display_name)
+                game.event_bus.emit("item_found", item_id=loot.item_id,
+                                    rarity=loot.rarity,
+                                    is_six_mod=loot.is_six_mod())
+            else:
+                game.current_area.loot_drops.append(
+                    {"x": self.x + 30, "y": self.y, "item": loot})
+                got.append(f"{loot.display_name} (dropped)")
+
+        player.extension_stones += 1
+        self.used = True
+        game.world.used_shrines.add(self.unique_id())
+        return f"Vault opened: {', '.join(got)}   (+1 Extension Stone)"
+
+
 # --------------------------------------------------------------------------
 # Rest Shrine (starting safe zone, reusable)
 # --------------------------------------------------------------------------
@@ -334,9 +394,10 @@ class RestShrine(Shrine):
         pygame.draw.circle(surface, (255, 255, 255), (sx, sy), 6)
 
     def interact(self, game) -> str:
+        game.world.used_shrines.add(self.unique_id())   # counts once for the "shrines" seal
         player = game.player
         if player.effective_stats.hp >= player.effective_stats.max_hp:
-            return "You are already at full health."
+            return "The shrine acknowledges you. You are already at full health."
         player.heal_to_full()
         game.terrain.clear_hostile()
         return "You rest at the shrine. Fully healed."
@@ -384,6 +445,10 @@ SHRINE_TYPES = {
         id="stash_chest", display_name="Stash Chest",
         description="Opens your Stash.",
         color=(160, 130, 70), one_use=False),
+         "vault_chest": ShrineDef(
+        id="vault_chest", display_name="Secret Vault",
+        description="A hidden vault containing exceptional loot.",
+        color=(200, 180, 60)),
 }
 
 SHRINE_CLASSES = {
@@ -391,6 +456,7 @@ SHRINE_CLASSES = {
     "loot_chest": LootChest,
     "rest_shrine": RestShrine,
     "stash_chest": StashChest,
+     "vault_chest": VaultChest,
 }
 
 

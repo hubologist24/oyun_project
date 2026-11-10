@@ -51,7 +51,9 @@ class HomeMixin:
         self._spawn_home_shrines(rid)
         self._show_message(
             f"{self._area_display_name(rid)} is pacified. "
-            f"It will shelter you now.", duration=4.0)
+            f"It will shelter you now.", duration=4.0)   
+
+        
 
     def _ensure_home_shrines(self):
         """Call at the end of _load_game so home shrines survive saves."""

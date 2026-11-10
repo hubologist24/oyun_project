@@ -111,6 +111,10 @@ class Enemy:
         self._retreat_mode = False
         self._retreat_reengage = 0.0
 
+        self.is_spawner = False
+        self.is_convoy_carrier = False
+        self._escape_checked = False
+
     _affix_font = None
 
     @property
@@ -220,6 +224,17 @@ class Enemy:
                 if not has_commander:
                     self._flee_flag = True
                     return
+
+
+        if (self.is_elite
+                and not getattr(self, "nemesis", None)
+                and not getattr(self, "_escape_checked", False)
+                and self.hp < self.max_hp * 0.15
+                and self.hp > 0):
+            self._escape_checked = True
+            if random.random() < 0.25:
+                self._flee_flag = True
+                return
 
         if "regenerating" in self.affixes and self.hp < self.max_hp:
             self.hp = min(self.max_hp, self.hp + self.max_hp * 0.04 * dt)
@@ -359,6 +374,20 @@ class Enemy:
 
     def draw(self, surface, camera):
         rect = camera.world_to_screen_rect(self.rect)
+
+        if getattr(self, "is_spawner", False):
+            pygame.draw.rect(surface, (140, 30, 30), rect, border_radius=4)
+            pygame.draw.rect(surface, (255, 100, 100), rect, 2, border_radius=4)
+            if self.hp < self.max_hp:
+                frac = max(0.0, self.hp / self.max_hp)
+                bar_w, bar_h = self.width + 8, 4
+                bx, by = rect.x - 4, rect.y - 10
+                pygame.draw.rect(surface, (40, 10, 10),
+                                 (bx, by, bar_w, bar_h))
+                pygame.draw.rect(surface, (230, 60, 60),
+                                 (bx, by, int(bar_w * frac), bar_h))
+            return
+
         base = config.COLOR_ELITE if self.is_elite else config.COLOR_ENEMY
         tint = {"chaser": (0, 0, 0), "ambusher": (40, 0, 40),
                 "circler": (0, 30, 40), "ranged": (40, 20, 0),

@@ -107,9 +107,12 @@ class ModifierPool:
             return False
 
         existing = {m.get("id") or m.get("name") for m in self.modifiers}
-        fresh = [m for m in pool if (m.get("id") or m.get("name")) not in existing]
+        fresh = [m for m in pool
+                 if (m.get("id") or m.get("name")) not in existing]
+        fresh = [m for m in fresh
+                 if not self._is_canceling(self.modifiers, m)]
         if not fresh:
-            return False                      # catalog exhausted — no duplicate
+            return False
 
         chosen = copy.deepcopy(rng.choice(fresh))
         chosen["polarity"] = polarity
@@ -141,6 +144,27 @@ class ModifierPool:
             return "curse"
         return rng.choices(["buff", "curse"],
                            weights=[BLESSING_RATIO, 1 - BLESSING_RATIO])[0]
+
+    @staticmethod
+    def _is_canceling(existing, candidate):
+        """True if candidate directly opposes any existing modifier's effect."""
+        comparable = {"damage_taken_multiplier", "damage_dealt_multiplier"}
+        for e_mod in existing:
+            for e_rule in e_mod.get("rules", []):
+                if e_rule.get("type") not in comparable:
+                    continue
+                for c_rule in candidate.get("rules", []):
+                    if c_rule.get("type") != e_rule.get("type"):
+                        continue
+                    if (e_rule.get("target") != c_rule.get("target")
+                            or e_rule.get("damage_type")
+                            != c_rule.get("damage_type")):
+                        continue
+                    em = float(e_rule.get("multiplier", 1.0))
+                    cm = float(c_rule.get("multiplier", 1.0))
+                    if (em - 1.0) * (cm - 1.0) < 0:
+                        return True
+        return False
 
     # ---------- serialization ----------
 

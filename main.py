@@ -1,5 +1,7 @@
+# [PROJECT: .] [ENTRY POINT]
 import sys
 import os
+import argparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -25,7 +27,6 @@ def _run_character_select(screen, clock):
 
 
 def _run_level_prompt(screen, clock):
-    """Returns: chosen level (>0), None if skipped, or -1 if user quit."""
     from ui.character_creator import CharacterCreatorUI
     creator = CharacterCreatorUI()
     creator.show()
@@ -40,10 +41,15 @@ def _run_level_prompt(screen, clock):
         creator.draw(screen)
         pygame.display.flip()
         clock.tick(60)
-    return None  # user pressed ESC — skip the test setup
+    return None
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Shared world seed (omit for a random one).")
+    args, _ = parser.parse_known_args()
+
     pygame.init()
     pygame.display.set_caption("AI-Evolving ARPG")
     pygame.display.set_mode((config.SCREEN_WIDTH, config.SCREEN_HEIGHT))
@@ -56,7 +62,6 @@ def main():
             if slot_id is None:
                 break
 
-            # Only prompt for a starting level on a brand-new slot.
             from save.save_manager import SaveManager
             is_fresh = not SaveManager(slot_id=slot_id).exists()
 
@@ -66,7 +71,12 @@ def main():
                 if starting_level == -1:
                     break
 
-            game = Game(slot_id=slot_id, starting_level=starting_level)
+            # Only apply --seed on a brand-new character; loaded saves keep
+            # their stored world seed.
+            seed_for_game = args.seed if is_fresh else None
+
+            game = Game(slot_id=slot_id, starting_level=starting_level,
+                        world_seed=seed_for_game)
             game.run()
     finally:
         pygame.quit()

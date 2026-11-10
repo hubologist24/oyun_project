@@ -136,6 +136,11 @@ class Level:
         self.region_start = {"starting_area": self.start_pos}
         self.region_loot_rules = {}
 
+        self.region_rooms = {}          # rid -> list of (x0, y0, x1, y1) tile rects
+        self.region_room_types = {}     # rid -> list[RoomType] aligned with rooms
+        self.region_secret_rooms = {}   # rid -> set[int] indices
+        self.pending_terrain = [] 
+
         self.shrines = []
         self._compute_safe_room_rect()
         self._spawn_starting_shrines()

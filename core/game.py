@@ -50,7 +50,8 @@ class Game(InputMixin, DrawMixin, CombatMixin, LootMixin, ExtensionMixin,
            PersistenceMixin, DebugMixin,HomeMixin,PerfectDodgeMixin):
 
 
-    def __init__(self, slot_id="1",starting_level=None):
+
+    def __init__(self, slot_id="1", starting_level=None, world_seed=None):    
         pygame.init()
         self.slot_id = slot_id
         self.save_manager = SaveManager(slot_id=slot_id)
@@ -69,7 +70,11 @@ class Game(InputMixin, DrawMixin, CombatMixin, LootMixin, ExtensionMixin,
         self.exploration = ExplorationTracker()
         self.extension_generator = self._build_extension_generator()
 
-        self.world = World(random.randint(0, 2**31 - 1))
+        #self.world = World(random.randint(0, 2**31 - 1))
+        self.world = World(
+            int(world_seed) if world_seed is not None
+            else random.randint(0, 2**31 - 1)
+        )
         audio.init()
         
         # Initialize timers and state attributes early to avoid missing attribute errors
@@ -259,6 +264,7 @@ class Game(InputMixin, DrawMixin, CombatMixin, LootMixin, ExtensionMixin,
             self.kinetic.update(dt)
             self._pickup_loot()
             self._update_current_region()
+            self._mark_current_room_visited()
             self._update_region_pressure(dt)
             self._tick_gate_seals(dt)
             self._update_roaming_spawns(dt)
@@ -291,6 +297,9 @@ class Game(InputMixin, DrawMixin, CombatMixin, LootMixin, ExtensionMixin,
 
         self.packs.update(dt)
         self.terrain.update(dt)
+
+        self._tick_convoy_escape()
+        self._tick_convoy_respawn()
 
         px, py = self.player.x, self.player.y
         for enemy in self.current_area.enemies:

@@ -24,13 +24,15 @@ class World:
         self.cleared_regions: set[str] = set()
         self.used_shrines: set[str] = set()
         self.modifier_pool = ModifierPool()
+        self.region_states: dict = {}
         from world.gate import reset_gate_id_counter
         reset_gate_id_counter(1)
 
     # ---------------- gate management ----------------
     def register_starting_gate(self, room_index, tile_col, tile_row, side="e",
-                           level_requirement=100, target_boss=None,
-                           is_starting=True):
+                               level_requirement=100, target_boss=None,
+                               is_starting=True,
+                               tier="standard", tier_index=1):
         from world.gate_seals import SEAL_BOSS, build_seal
         rng = self.rng_service.get_stream("gate_seal")
         seal = build_seal(SEAL_BOSS, area_level=1, rng=rng,
@@ -41,9 +43,41 @@ class World:
             room_index=room_index, tile_col=tile_col, tile_row=tile_row,
             state="closed", is_starting_gate=is_starting, side=side,
             seal=seal, level_requirement=level_requirement,
+            tier=tier, tier_index=tier_index,
         )
         self.gates.append(gate)
         return gate
+
+    def spawn_exit_gates_for_extension(self, ext, gate_room_local, ext_tm,
+                                       off_c, off_r, gate_room_index):
+        from world.gate import Gate, next_gate_id
+        from world.gate_seals import roll_seal_type, build_seal
+        from world.gate_tiers import gate_count_for_region, assign_tiers_for_gate_count
+        from world.map_generator import plan_exit_gate_sites
+
+        if gate_room_local is None:
+            return []
+        area_level = ext.spec.area_level
+        want = gate_count_for_region(area_level, getattr(ext.spec, "size_tier", -1))
+        sites = plan_exit_gate_sites(ext_tm.grid, gate_room_local, want)
+        tier_specs = assign_tiers_for_gate_count(len(sites))
+
+        created = []
+        for i, (tier, (col, row, side)) in enumerate(zip(tier_specs, sites)):
+            seal_rng = self.rng_service.get_stream(
+                f"gate_seal:{ext.extension_id}:{i}:{tier['id']}")
+            seal_level = area_level + tier["level_offset"]
+            seal = build_seal(roll_seal_type(seal_rng, area_level=seal_level),
+                              seal_level, seal_rng)
+            gate = Gate(
+                gate_id=next_gate_id(), owner_area_id=ext.extension_id,
+                room_index=gate_room_index, tile_col=col + off_c, tile_row=row + off_r,
+                state="closed", side=side, seal=seal,
+                tier=tier["id"], tier_index=tier["index"],
+            )
+            self.gates.append(gate)
+            created.append(gate)
+        return created
 
     def register_extension_gate(self, extension_id, room_index, tile_col, tile_row,
                                  side="e", area_level=1):
@@ -70,20 +104,25 @@ class World:
     def gates_in_area(self, area_id: str) -> list:
         return [g for g in self.gates if g.owner_area_id == area_id]
 
-    def frontier_gate(self):
+    def frontier_gates(self) -> list:
+        """All closed gates ordered: starting gate first, then easiest."""
         closed = self.closed_gates()
         if not closed:
-            return None
+            return []
         starting = [g for g in closed if g.is_starting_gate]
-        if starting:
-            return starting[0]
         order = {e.extension_id: i for i, e in enumerate(self.extensions)}
-        return min(
-            closed,
-            key=lambda g: (g.level_requirement,
-                        -order.get(g.owner_area_id, -1),
-                        g.gate_id),
-        )
+        others = [g for g in closed if not g.is_starting_gate]
+        others.sort(key=lambda g: (
+            g.level_requirement,
+            getattr(g, "tier_index", 1),
+            -order.get(g.owner_area_id, -1),
+            g.gate_id,
+        ))
+        return starting + others
+
+    def frontier_gate(self):
+        gates = self.frontier_gates()
+        return gates[0] if gates else None
 
     def pick_next_gate(self, rng, eligible=None):
         g = self.frontier_gate()
@@ -145,6 +184,12 @@ class World:
                 return ext
         return None
 
+    def get_region_state(self, region_id: str):
+        from world.region_state import RegionState
+        if region_id not in self.region_states:
+            self.region_states[region_id] = RegionState(region_id=region_id)
+        return self.region_states[region_id]
+
     def test_migration_from_legacy_save_with_modifier_lacking_id():
         """Old modifiers may have no 'id'; migration must dedupe on name then."""
         from world.world import World
@@ -198,6 +243,9 @@ class World:
             "cleared_regions": sorted(self.cleared_regions),
             "used_shrines": sorted(self.used_shrines),
             "modifier_pool": self.modifier_pool.to_dict(),
+            "region_states": {
+                rid: rs.to_dict() for rid, rs in self.region_states.items()
+            },
         }
 
     @staticmethod
@@ -215,6 +263,12 @@ class World:
         world.region_presence = d.get("region_presence", {})
         world.cleared_regions = set(d.get("cleared_regions", []))
         world.used_shrines = set(d.get("used_shrines", []))
+
+        from world.region_state import RegionState
+        world.region_states = {
+            rid: RegionState.from_dict(data)
+            for rid, data in d.get("region_states", {}).items()
+        }
 
         if "modifier_pool" in d:
             world.modifier_pool = ModifierPool.from_dict(d["modifier_pool"])

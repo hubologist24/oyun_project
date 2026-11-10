@@ -123,11 +123,22 @@ class PersistenceMixin:
 
         self._restamp_gates()
 
+        for ext in self.world.extensions:
+            self.exploration.register_region_rooms(
+                ext.extension_id,
+                self.current_area.region_rooms.get(ext.extension_id, []),
+                self.current_area.region_secret_rooms.get(ext.extension_id, set()),
+            )
+
         self._apply_shrine_persistence()
         self._ensure_home_shrines()
 
         self.packs.reset()
         self.terrain.reset()
+        
+        self.terrain.drain_pending(self.current_area, "starting_area")
+        self.packs.reset()
+
         self.packs.assign_new()
 
         #self.camera = Camera(*self.current_area.tilemap.pixel_size())

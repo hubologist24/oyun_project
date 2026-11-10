@@ -36,6 +36,13 @@ class InputMixin:
             self.inventory_ui.handle_mouse_down(button, pos, self.player)
             return
 
+        # --- Gateway menu mouse support (optional but consistent) ---
+        if self.gateway_menu.visible:
+            if self.gateway_menu.mode == "generate":
+                return
+            # Travel-mode clicks match the current behaviour by returning.
+            return
+
         if (self.evolution_banner.visible or self.profile_screen.visible
                 or self.gateway_menu.visible or self.inventory_ui.visible):
             return
@@ -104,11 +111,15 @@ class InputMixin:
             elif key == pygame.K_DOWN:
                 self.gateway_menu.move_selection(1)
             elif key in (pygame.K_RETURN, pygame.K_SPACE):
-                target = self.gateway_menu.confirm_selection()
-                if target:
-                    self._handle_gateway_menu_select(target)
+                result = self.gateway_menu.confirm_selection()
+                if result is not None:
+                    if self.gateway_menu.mode == "generate":
+                        self._handle_gate_choice(result)
+                    else:
+                        self._handle_gateway_menu_select(result)
             elif key == pygame.K_ESCAPE:
                 self.gateway_menu.hide()
+                self._pending_evolution_mode = None
             elif key == pygame.K_LSHIFT:
                 self.player.face_toward(*self.camera.screen_to_world(pygame.mouse.get_pos()))
                 self.player.try_dash()
