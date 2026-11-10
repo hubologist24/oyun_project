@@ -21,6 +21,11 @@ from items.tiers import resolve_tier_for_roll, roll_value_for_tier, get_tier_tab
 from items.modifiers import (ModifierPools, get_weapon_class,
                               WEAPON_CLASS_RANGED, WEAPON_CLASS_MELEE_SMALL)
 
+from items.slot_rules import (
+    SLOT_RULES, get_slot_rule, get_max_affixes, get_special_chance,
+    is_modifier_allowed,
+)
+
 GUARANTEE_CHANCE = 0.25
 
 UNIQUE_CHANCE = 0.02         # regular drops
@@ -110,6 +115,78 @@ def _affix_matches_weapon_class(affix, weapon_class):
     return required == weapon_class
 
 
+def _split_pools_by_slot(prefix_pool, suffix_pool, slot):
+    """Return (p_base, p_spec, s_base, s_spec) filtered by slot rules.
+
+    For unrestricted slots (weapons) this is a no-op:
+    returns (prefix_pool, [], suffix_pool, []).
+    """
+    rule = SLOT_RULES.get(slot)
+    if rule is None:
+        return prefix_pool, [], suffix_pool, []
+    base_mods = set(rule["allowed_base"])
+    spec_mods = set(rule["allowed_special"])
+    p_base = [a for a in prefix_pool if a["modifier"] in base_mods]
+    p_spec = [a for a in prefix_pool if a["modifier"] in spec_mods]
+    s_base = [a for a in suffix_pool if a["modifier"] in base_mods]
+    s_spec = [a for a in suffix_pool if a["modifier"] in spec_mods]
+    return p_base, p_spec, s_base, s_spec
+
+
+def _cap_affix_counts(num_p, num_s, slot):
+    """Enforce per-slot total affix limit."""
+    max_aff = get_max_affixes(slot)
+    if max_aff is None:
+        return num_p, num_s
+    while num_p + num_s > max_aff:
+        if num_p >= num_s and num_p > 0:
+            num_p -= 1
+        elif num_s > 0:
+            num_s -= 1
+        else:
+            break
+    return num_p, num_s
+
+
+def _roll_special_affix(p_spec, s_spec, num_p, num_s, rng, item_level,
+                        world_rules, used_affix_ids, loot_rules):
+    """Roll exactly one 'special' affix (or none). Returns
+    (affix, kind, num_p, num_s) with counts decremented if successful."""
+    if not (p_spec or s_spec):
+        return None, None, num_p, num_s
+
+    # Prefer the kind that still has room to spare
+    if num_p > 0 and num_s <= 0:
+        prefer = "prefix"
+    elif num_s > 0 and num_p <= 0:
+        prefer = "suffix"
+    else:
+        prefer = rng.choice(["prefix", "suffix"])
+
+    if prefer == "prefix" and p_spec:
+        spec_pool, kind = p_spec, "prefix"
+    elif prefer == "suffix" and s_spec:
+        spec_pool, kind = s_spec, "suffix"
+    elif p_spec:
+        spec_pool, kind = p_spec, "prefix"
+    elif s_spec:
+        spec_pool, kind = s_spec, "suffix"
+    else:
+        return None, None, num_p, num_s
+
+    a = _roll_affix_from_pool_biased(
+        spec_pool, rng, item_level, world_rules,
+        used_affix_ids, kind, loot_rules)
+    if a is None:
+        return None, None, num_p, num_s
+
+    if kind == "prefix":
+        num_p = max(0, num_p - 1)
+    else:
+        num_s = max(0, num_s - 1)
+    return a, kind, num_p, num_s
+
+
 def _roll_slot_category(rng, force_slot=None):
     if force_slot:
         return force_slot
@@ -138,11 +215,9 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
     slot_category = _roll_slot_category(rng, force_slot)
     item_level = max(1, area_level + rng.randint(-1, 2))
 
-    has_implicit = slot_category in ("weapon", "armor")
-
     if slot_category == "weapon":
-        base_name, implicit_modifier, weapon_subtype = _pick_base_biased("weapon", rng, loot_rules,
-                                                                         force_subtype=force_weapon_subtype)
+        base_name, implicit_modifier, weapon_subtype = _pick_base_biased(
+            "weapon", rng, loot_rules, force_subtype=force_weapon_subtype)
         actual_slot = "weapon"
     elif slot_category == "armor":
         base_name, actual_slot = rng.choice(ARMOR_BASES)
@@ -161,12 +236,14 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
     else:
         raise ValueError(f"Unknown slot_category: {slot_category}")
 
-    # --- affix counts ---
-    # NOTE: roll_affix_counts always returns >=1P/>=1S, so this function
-    # cannot organically produce a NORMAL (zero-affix) item; the NORMAL
-    # branch below only fires for forced (0, 0) counts. rare_chance_multiplier
-    # is wired into the affix-count roll (it grants an extra pass aimed at
-    # the 3+ affix threshold) rather than a separate rarity roll.
+    slot_rule = SLOT_RULES.get(actual_slot)
+
+    # Implicit: disable for slots with no allowed base stats (boots).
+    has_implicit = slot_category in ("weapon", "armor")
+    if slot_rule and not slot_rule["allowed_base"]:
+        has_implicit = False
+
+    # ---- determine affix counts ----
     if force_affix_counts:
         num_prefixes, num_suffixes = force_affix_counts
     else:
@@ -183,43 +260,50 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
                 if p2 + s2 > num_prefixes + num_suffixes:
                     num_prefixes, num_suffixes = p2, s2
 
-    # --- implicit (weapons/armor only) ---
-    #used_modifiers = set()
+    # ---- cap to slot rules ----
+    num_prefixes, num_suffixes = _cap_affix_counts(
+        num_prefixes, num_suffixes, actual_slot)
+
+    # Force at least 1 affix for forced-special slots (boots)
+    if slot_rule and not slot_rule["allowed_base"] and slot_rule["allowed_special"]:
+        if num_prefixes + num_suffixes < 1:
+            num_prefixes = 1
+
+    # ---- implicit ----
     used_affix_ids = set()
     implicit_affix = None
     if has_implicit:
-        implicit_tier = resolve_tier_for_roll(implicit_modifier, item_level, rng, world_rules)
-        implicit_value = round(roll_value_for_tier(implicit_modifier, implicit_tier,
-                                                   rng, world_rules), 1)
+        implicit_tier = resolve_tier_for_roll(
+            implicit_modifier, item_level, rng, world_rules)
+        implicit_value = round(roll_value_for_tier(
+            implicit_modifier, implicit_tier, rng, world_rules), 1)
         table = get_tier_table(world_rules)
         implicit_affix = RolledAffix(
             kind="implicit",
             affix_id="implicit_base",
             display_name="",
             modifier=implicit_modifier,
-            damage_type=implicit_modifier.replace("_damage", "")
-                if "_damage" in implicit_modifier else None,
+            damage_type=(implicit_modifier.replace("_damage", "")
+                         if "_damage" in implicit_modifier else None),
             tier=implicit_tier,
             value=implicit_value,
             creation_tier_range=list(table[implicit_modifier][implicit_tier]),
         )
-        #used_modifiers.add(implicit_modifier)
 
-    # --- roll the actual prefixes/suffixes ---
-    #pool_slot = "armor" if slot_category in ("ring", "amulet") else slot_category
-    #prefix_pool = ModifierPools.prefixes_for_slot(pool_slot)
-    #suffix_pool = ModifierPools.suffixes_for_slot(pool_slot)
-
+    # ---- build pools ----
     if slot_category in ("ring", "amulet"):
         prefix_pool = (ModifierPools.prefixes_for_slot("armor")
-                       + ModifierPools.prefixes_for_slot("weapon"))
+                       + ModifierPools.prefixes_for_slot("weapon")
+                       + ModifierPools.prefixes_for_slot(slot_category))
         suffix_pool = (ModifierPools.suffixes_for_slot("armor")
-                       + ModifierPools.suffixes_for_slot("weapon"))
+                       + ModifierPools.suffixes_for_slot("weapon")
+                       + ModifierPools.suffixes_for_slot(slot_category))
         seen = set()
-        prefix_pool = [a for a in prefix_pool if not (a["id"] in seen or seen.add(a["id"]))]
+        prefix_pool = [a for a in prefix_pool
+                       if not (a["id"] in seen or seen.add(a["id"]))]
         seen = set()
-        suffix_pool = [a for a in suffix_pool if not (a["id"] in seen or seen.add(a["id"]))]
-        # Weapon-class affixes are weapon-only: strip them from jewelry pools.
+        suffix_pool = [a for a in suffix_pool
+                       if not (a["id"] in seen or seen.add(a["id"]))]
         prefix_pool = [a for a in prefix_pool if not a.get("primary_slot_only")]
         suffix_pool = [a for a in suffix_pool if not a.get("primary_slot_only")]
     else:
@@ -230,22 +314,22 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
             prefix_pool = [a for a in prefix_pool if _affix_matches_weapon_class(a, wc)]
             suffix_pool = [a for a in suffix_pool if _affix_matches_weapon_class(a, wc)]
 
+    p_base, p_spec, s_base, s_spec = _split_pools_by_slot(
+        prefix_pool, suffix_pool, actual_slot)
 
     prefixes, suffixes = [], []
 
-    # guarantee_enabling_affix: occasionally seed one affix with this
-    # modifier. Skipped when the modifier is already consumed by the
-    # implicit (e.g. "armor" on armor pieces) so the guarantee can
-    # actually fire across slots.
-    guaranteed = getattr(loot_rules, "guarantee_enabling_affix", None) if loot_rules else None
-    #if guaranteed and guaranteed not in used_modifiers and rng.random() < GUARANTEE_CHANCE:
+    # ---- guaranteed affix (respect slot rules) ----
+    guaranteed = (getattr(loot_rules, "guarantee_enabling_affix", None)
+                  if loot_rules else None)
     if guaranteed and rng.random() < GUARANTEE_CHANCE:
-        for kind, pool in (("prefix", prefix_pool), ("suffix", suffix_pool)):
+        for kind, pool in (("prefix", p_base), ("suffix", s_base)):
             matching = [a for a in pool if a["modifier"] == guaranteed]
             if not matching:
                 continue
-            a = _roll_affix_from_pool_biased(matching, rng, item_level, world_rules,
-                                             used_affix_ids, kind, loot_rules)
+            a = _roll_affix_from_pool_biased(
+                matching, rng, item_level, world_rules,
+                used_affix_ids, kind, loot_rules)
             if a:
                 if kind == "prefix":
                     prefixes.append(a)
@@ -255,20 +339,43 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
                     num_suffixes = max(0, num_suffixes - 1)
                 break
 
+    # ---- special roll ----
+    has_special = rng.random() < get_special_chance(actual_slot)
+    if has_special:
+        affix, kind, num_prefixes, num_suffixes = _roll_special_affix(
+            p_spec, s_spec, num_prefixes, num_suffixes, rng,
+            item_level, world_rules, used_affix_ids, loot_rules)
+        if affix is not None:
+            if kind == "prefix":
+                prefixes.append(affix)
+            else:
+                suffixes.append(affix)
+
+    # ---- base rolls ----
     for _ in range(num_prefixes):
-        a = _roll_affix_from_pool_biased(prefix_pool, rng, item_level, world_rules,
-                                          used_affix_ids, "prefix", loot_rules)
+        a = _roll_affix_from_pool_biased(
+            p_base, rng, item_level, world_rules,
+            used_affix_ids, "prefix", loot_rules)
         if a:
             prefixes.append(a)
 
     for _ in range(num_suffixes):
-        a = _roll_affix_from_pool_biased(suffix_pool, rng, item_level, world_rules,
-                                          used_affix_ids, "suffix", loot_rules)
+        a = _roll_affix_from_pool_biased(
+            s_base, rng, item_level, world_rules,
+            used_affix_ids, "suffix", loot_rules)
         if a:
             suffixes.append(a)
 
-    # --- rarity is derived from ACTUAL rolled affixes ---
-    # (pool exhaustion / forced counts can no longer mislabel the item)
+    # ---- safety trim ----
+    max_aff = get_max_affixes(actual_slot)
+    if max_aff is not None:
+        while len(prefixes) + len(suffixes) > max_aff:
+            if len(prefixes) >= len(suffixes):
+                prefixes.pop()
+            else:
+                suffixes.pop()
+
+    # ---- rarity / display ----
     actual_total = len(prefixes) + len(suffixes)
     if force_rarity:
         rarity = force_rarity
@@ -279,7 +386,6 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
     else:
         rarity = Item.RARITY_RARE
 
-    # --- name + build Item ---
     prefix_name = prefixes[0].display_name if prefixes else ""
     suffix_name = suffixes[0].display_name if suffixes else ""
     full_name_parts = [p for p in [prefix_name, base_name, suffix_name] if p]
@@ -303,10 +409,8 @@ def generate_random_item(rng, area_level: int = 1, world_context: dict = None,
         "item_level": item_level,
         "area_level": area_level,
     }
-
     item.recompute_flat_bonuses()
     return item
-
 
 def _roll_weapon_subtype(rng) -> str:
     ids = list(WEAPON_SUBTYPE_WEIGHTS.keys())

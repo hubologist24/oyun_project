@@ -121,6 +121,25 @@ PROGRAMMATIC_PREFIXES = [
         "primary_slot_only": True,
         "damage_type": None,
     },
+    # --- Ring-specific projectile specials ---
+    {
+        "id": "ring_forking", "name": "Forking",
+        "modifier": "fork_count",
+        "applies_to": ["ring"],
+        "damage_type": None,
+    },
+    {
+        "id": "ring_piercing", "name": "Piercing",
+        "modifier": "pierce_count",
+        "applies_to": ["ring"],
+        "damage_type": None,
+    },
+    {
+        "id": "ring_ricocheting", "name": "Ricocheting",
+        "modifier": "ricochet_count",
+        "applies_to": ["ring"],
+        "damage_type": None,
+    },
 ]
 
 PROGRAMMATIC_SUFFIXES = [
@@ -158,6 +177,12 @@ PROGRAMMATIC_SUFFIXES = [
         "applies_to": ["weapon"],
         "applies_to_weapon_class": WEAPON_CLASS_MELEE_SMALL,
         "primary_slot_only": True,
+        "damage_type": None,
+    },
+     {
+        "id": "ring_chaining", "name": "Chaining",
+        "modifier": "chain_count",
+        "applies_to": ["ring"],
         "damage_type": None,
     },
 ]

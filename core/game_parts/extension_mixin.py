@@ -609,9 +609,13 @@ class ExtensionMixin:
                     continue                                  # ← per-gate filtering
                 seal["progress"] = 1
                 self._complete_seal(gate, seal)
-            elif st == "hunt_nemesis" and getattr(boss, "nemesis", None):
-                seal["progress"] = 1
-                self._complete_seal(gate, seal)
+            elif st == "hunt_nemesis":
+                # If a true nemesis exists it takes priority, but any region
+                # guardian also satisfies the seal so it isn't a dead-end.
+                if (getattr(boss, "nemesis", None)
+                        or getattr(boss, "region_id", None) == gate.owner_area_id):
+                    seal["progress"] = 1
+                    self._complete_seal(gate, seal)
 
     def _teleport_to_region(self, rid):
         pos = self.current_area.region_start.get(rid)

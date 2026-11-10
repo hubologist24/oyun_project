@@ -7,6 +7,8 @@ from world.tilemap import DOOR_OPEN, DOOR_CLOSED, WALL, FLOOR
 from enemies.enemy import spawn_basic_enemy
 from enemies.boss import Boss, BossTemplate
 
+import math
+
 ENEMY_TILES_PER_MOB = 14          #24 lower = denser!!!!
 ENEMY_DENSITY_CAP   =  3.5           #2.0
 ENEMY_ROOM_MAX      =  20              #12
@@ -217,6 +219,33 @@ def attach_extension(area, ext, gate, rng_service, world):
         boss.region_id = rid
         if hasattr(area, "bosses"):
             area.bosses.append(boss)
+
+
+    # Spawn treasure chests — these count as activated shrines for the
+    # "Activate N shrines in this region" gate seal (previously impossible).
+    try:
+        from world.shrine import make_shrine
+        shrine_stream = rng_service.derive_child(
+            "world", f"extension:{rid}:shrines")
+        spawned_shrines = 0
+        for _ in range(120):
+            if spawned_shrines >= 4:
+                break
+            c = shrine_stream.randint(off_c, off_c + ext_tm.cols - 1)
+            r = shrine_stream.randint(off_r, off_r + ext_tm.rows - 1)
+            if not (0 <= r < len(grid) and 0 <= c < len(grid[0])):
+                continue
+            if grid[r][c] != FLOOR:
+                continue
+            x, y = c * ts + ts / 2, r * ts + ts / 2
+            if tm.collides_rect(pygame.Rect(int(x - 12), int(y - 12), 24, 24)):
+                continue
+            if any(math.hypot(s.x - x, s.y - y) < 100 for s in area.shrines):
+                continue
+            area.shrines.append(make_shrine("loot_chest", x, y, rid))
+            spawned_shrines += 1
+    except Exception as e:
+        print(f"[expansion] shrine spawn failed: {e}")
 
     g0 = world.gates_in_area(rid)
     if g0:

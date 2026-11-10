@@ -9,9 +9,14 @@ import core.config as config
 #    """XP required to go from `level` to `level+1`."""
 #    return int(config.XP_CURVE_BASE * (config.XP_CURVE_GROWTH ** (level - 1)))
 
+
+
+
 def xp_required_for_level(level: int) -> int:
     base = config.XP_CURVE_BASE * (config.XP_CURVE_GROWTH ** (level - 1))
-    bracket = 1.0 + (level // 10) * config.XP_LEVEL_BRACKET_BONUS
+    # Quadratic bracket: every 10 levels gets MUCH harder
+    bracket_num = level // 10
+    bracket = 1.0 + (bracket_num * bracket_num) * config.XP_LEVEL_BRACKET_BONUS
     early = 1.0 - max(0, config.XP_EARLY_LEVEL_THRESHOLD - level) * config.XP_EARLY_LEVEL_DISCOUNT
     return max(1, int(base * bracket * early))
 

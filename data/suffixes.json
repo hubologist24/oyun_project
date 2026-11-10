@@ -72,6 +72,7 @@
     },
 
     { "id": "of_venom",    "name": "of Venom",    "applies_to": ["weapon"], "modifier": "poison_damage", "damage_type": "poison" },
-{ "id": "of_the_leech","name": "of the Leech","applies_to": ["weapon"], "modifier": "bleed_damage",  "damage_type": "bleed"  }
+{ "id": "of_the_leech","name": "of the Leech","applies_to": ["weapon"], "modifier": "bleed_damage",  "damage_type": "bleed"  },
+ { "id": "of_the_abyss", "name": "of the Abyss", "applies_to": ["armor"], "modifier": "resist_chaos", "damage_type": null }
   ]
 }
