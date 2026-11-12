@@ -97,21 +97,27 @@ class Extension:
     def ensure_built(self, rng_service, world=None, gate=None):
         if self.area is not None:
             return self.area
-        from world.map_generator import build_procedural_area
+        #from world.map_generator import build_procedural_area
+        from tools.map_bot import BotConfig,build_validated_area
         seal_type = None
         if gate is not None:
             seal = getattr(gate, "seal", None) or {}
             seal_type = seal.get("type")
         stream = rng_service.fresh_stream(
             f"world:extension:{self.extension_id}:area")
-        self.area = build_procedural_area(
-            stream, area_level=self.spec.area_level,
-            cols=self.spec.map_cols, rows=self.spec.map_rows,
-            room_count=self.spec.room_count,
-            boss_room=(self.spec.boss_template_id is not None),
-            extra_rooms=(self.spec.size_tier if self.spec.size_tier >= 0 else None),
-            biome=self.spec.biome,
-            seal_type=seal_type,
+        #self.area = build_procedural_area(
+        #    stream, area_level=self.spec.area_level,
+        #    cols=self.spec.map_cols, rows=self.spec.map_rows,
+        #    room_count=self.spec.room_count,
+        #    boss_room=(self.spec.boss_template_id is not None),
+        #    extra_rooms=(self.spec.size_tier if self.spec.size_tier >= 0 else None),
+        #    biome=self.spec.biome,
+        #    seal_type=seal_type,
+        #)
+        self.area = build_validated_area(
+            rng_service, spec=self.spec, extension_id=self.extension_id,
+            seal_type=seal_type, max_attempts=4,
+            cfg=BotConfig(render="never"),
         )
         return self.area
         #self.area = build_validated_area(rng_service, self.spec, self.extension_id,

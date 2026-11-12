@@ -412,6 +412,7 @@ def attach_extension(area, ext, gate, rng_service, world):
         bx0, by0, bx1, by1 = shift(boss_room)
         cx = (bx0 + bx1) / 2 * ts
         cy = (by0 + by1) / 2 * ts
+    
 
         template = None
         try:
@@ -441,6 +442,8 @@ def attach_extension(area, ext, gate, rng_service, world):
         boss.region_id = rid
         if hasattr(area, "bosses"):
             area.bosses.append(boss)
+
+    _calibrate_region_seals(area, world, rid, rng_service)#fix1
 
 
 
@@ -524,8 +527,8 @@ def _promote_to_elite(e):
 
 
 def _calibrate_region_seals(area, world, rid, rng_service):
-    """Clamp freshly rolled exit-gate seals to what this region actually contains."""
-    from world.gate_seals import calibrate_seal
+    from world.gate_seals import (calibrate_seal, SEAL_LABELS,
+                                   SEAL_EXPLORATION)
     mine = [e for e in getattr(area, "enemies", [])
             if getattr(e, "region_id", None) == rid and not getattr(e, "is_add", False)]
     elites = [e for e in mine if getattr(e, "is_elite", False)]
@@ -546,6 +549,22 @@ def _calibrate_region_seals(area, world, rid, rng_service):
     for s in seals:
         calibrate_seal(s, enemies=len(mine), elites=len(elites),
                        spawners=spawners, interactables=interactables)
+
+        # NEW — salvage truly-impossible seals to exploration.
+        st = s.get("type")
+        impossible = (
+            (st in ("purge", "trial", "corruption") and not mine)
+            or (st == "elite_hunt" and not elites)
+            or (st == "destroy_spawners" and not spawners)
+            or (st == "shrines" and interactables == 0)
+        )
+        if impossible:
+            s["type"] = SEAL_EXPLORATION
+            s["label"] = SEAL_LABELS[SEAL_EXPLORATION]
+            s["target"] = 0.25
+            s["progress"] = 0.0
+            s["ready"] = False
+            s["desc"] = "Explore 25% of the region."
 
 
 def _spawn_convoy(area, ext, rid, rng_service, shifted_rooms, types_raw):

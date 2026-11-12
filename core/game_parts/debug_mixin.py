@@ -43,36 +43,30 @@ class DebugMixin:
 
 
 
-    def _apply_test_level(self, level):
-        """Testing helper: level up the player and give a full random gear set."""
+    def _apply_test_level(self, level, force_weapon_subtype=None):
         level = max(1, int(level))
+
+        if force_weapon_subtype:
+            from items.weapon_subtypes import WeaponSubtypes
+            if not WeaponSubtypes.is_valid(force_weapon_subtype):
+                raise ValueError(f"Invalid weapon subtype: {force_weapon_subtype!r}")
+
         self._level_up_to(level)
-        self._grant_full_gear_at_level(level)
+        self._grant_full_gear_at_level(level, force_weapon_subtype=force_weapon_subtype)
         D.set_player_level(level)
         self.player.recalc_stats()
         self.player.heal_to_full()
+        note = f" (weapon: {force_weapon_subtype})" if force_weapon_subtype else ""
         self._show_message(
-            f"TEST SETUP: Level {level} with a full randomized gear set",
+            f"TEST SETUP: Level {level} with a full randomized gear set{note}",
             duration=5.0,
         )
 
-    def _level_up_to(self, target_level):
-        guard = 0
-        while self.player.progression.level < target_level and guard < 500:
-            remaining = (self.player.progression.xp_to_next()
-                         - self.player.progression.xp)
-            if remaining <= 0:
-                remaining = 1
-            self.player.gain_xp(remaining)
-            guard += 1
-
-    def _grant_full_gear_at_level(self, level):
-        """Generate one random item per equipment slot at `level` and equip it."""
+    def _grant_full_gear_at_level(self, level, force_weapon_subtype=None):
         from items.item_generator import generate_random_item
 
         rng = self.world.rng_service.get_stream(f"test_gear_{level}")
 
-        # (equipment_slot, force_slot_category) — offhand has no generator category.
         slot_targets = [
             ("weapon",  "weapon"),
             ("head",    "armor"),
@@ -87,11 +81,13 @@ class DebugMixin:
 
         for target_slot, category in slot_targets:
             item = None
-            # Armor category is randomized between head/chest/legs/boots/gloves,
-            # so we roll until we get the piece we need. Same for rings.
+            kwargs = {}
+            if target_slot == "weapon" and force_weapon_subtype:
+                kwargs["force_weapon_subtype"] = force_weapon_subtype
+
             for _ in range(40):
                 candidate = generate_random_item(
-                    rng, area_level=level, force_slot=category
+                    rng, area_level=level, force_slot=category, **kwargs
                 )
                 if target_slot.startswith("ring"):
                     if candidate.slot == "ring":
@@ -106,5 +102,17 @@ class DebugMixin:
                 continue
 
             self.player.equipped[target_slot] = item
-            print(f"[Test] {target_slot}: {item.display_name} "
+            subtype_tag = f" (subtype={item.weapon_subtype})" if getattr(item, "weapon_subtype", None) else ""
+            print(f"[Test] {target_slot}: {item.display_name}{subtype_tag} "
                   f"[{item.affix_count_label()}] ilvl {item.item_level}")
+
+    def _level_up_to(self, target_level):
+        guard = 0
+        while self.player.progression.level < target_level and guard < 500:
+            remaining = (self.player.progression.xp_to_next()
+                         - self.player.progression.xp)
+            if remaining <= 0:
+                remaining = 1
+            self.player.gain_xp(remaining)
+            guard += 1
+

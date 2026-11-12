@@ -249,7 +249,7 @@ DIFFICULTY_ADAPTIVE_MAX = 100
 DIFFICULTY_ADAPTIVE_UP = 2           # % gained per flawless boss
 DIFFICULTY_ADAPTIVE_DOWN = 3         # % lost after 3 consecutive deaths
 
-ENEMY_DAMAGE_GLOBAL_SCALE = 0.65
+ENEMY_DAMAGE_GLOBAL_SCALE = 0.85   # was 0.65
 
 # =========================================================================
 # LEVEL-SCALED DIFFICULTY

@@ -676,8 +676,10 @@ def spawn_basic_enemy(x, y, rng, area_level=1, force_behavior=None,behavior_bias
     dmg = int((6 + area_level * 1.6) * dmg_mult * (1.7 if is_elite else 1.0)
               * D.get("enemy_damage_mult") * config.ENEMY_DAMAGE_GLOBAL_SCALE
               * area_diff)
-    hp  = int((32 + area_level * 9)  * hp_mult * (2.1 if is_elite else 1.0)
+    hp  = int((52 + area_level * 12)  * hp_mult * (2.1 if is_elite else 1.0)
               * D.get("enemy_hp_mult") * area_diff)
+
+    #was (32 + area_level * 9) 
 
     speed = speed * D.get("enemy_speed_mult")
     

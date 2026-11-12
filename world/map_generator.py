@@ -336,6 +336,12 @@ def fit_graph_to_capacity(graph, capacity):
                  if graph.nodes[i].room_type not in PROTECTED_ROOM_TYPES]
         if not cands:
             break
+
+        non_protected_alive = [i for i in alive
+                            if graph.nodes[i].room_type not in PROTECTED_ROOM_TYPES]
+        if len(non_protected_alive) <= 1:
+            break
+
         victim = max(cands, key=lambda i: (
             len(adj[i]) <= 1,
             graph.nodes[i].tags.get("role") is None,
